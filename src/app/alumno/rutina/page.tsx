@@ -1,0 +1,1319 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+
+type Rutina = {
+  id: string;
+  nombre: string;
+  descripcion?: string | null;
+  objetivo?: string | null;
+  estructura?: string | null;
+  entrada_calor?: string | null;
+};
+
+type RutinaAsignada = {
+  asignacion_id: string;
+  rutina_id: string;
+  fecha_asignacion?: string | null;
+  orden?: number | null;
+  completada?: boolean | null;
+  fecha_completada?: string | null;
+  rutinas?: Rutina | null;
+};
+
+type RutinaRelacion = Rutina | Rutina[] | null;
+
+type RutinaAsignacionResponse = {
+  id: string;
+  rutina_id: string;
+  fecha_asignacion?: string | null;
+  orden?: number | null;
+  completada?: boolean | null;
+  fecha_completada?: string | null;
+  rutinas?: RutinaRelacion;
+};
+
+type RutinaEjercicio = {
+  id: string;
+  rutina_id: string;
+  ejercicio_id?: string | null;
+  nombre_ejercicio: string;
+  series?: number | null;
+  tipo_prescripcion?: string | null;
+  repeticiones?: string | null;
+  duracion?: string | null;
+  peso?: string | null;
+  porcentaje_rm?: string | null;
+  rir?: string | null;
+  descanso?: string | null;
+  observaciones?: string | null;
+  orden?: number | null;
+  youtube_url?: string | null;
+};
+
+type EntradaCalorEjercicio = {
+  id: string;
+  rutina_id?: string | null;
+  ejercicio_id?: string | null;
+  nombre_ejercicio: string;
+  series?: number | null;
+  tipo_prescripcion?: string | null;
+  duracion?: string | null;
+  repeticiones?: string | null;
+  observaciones?: string | null;
+  orden?: number | null;
+  youtube_url?: string | null;
+};
+
+type RMActual = {
+  id: string;
+  ejercicio_id: string;
+  rm_calculado?: number | null;
+};
+
+type RegistroEntrenamiento = {
+  id: string;
+  rutina_id: string;
+  rutina_asignacion_id?: string | null;
+  rutina_ejercicio_id?: string | null;
+  entrada_calor_id?: string | null;
+};
+
+const opcionesRPE = Array.from({ length: 10 }, (_, index) => index + 1);
+const opcionesRIR = Array.from({ length: 10 }, (_, index) => index + 1);
+
+function textoPrescripcion(item: {
+  tipo_prescripcion?: string | null;
+  repeticiones?: string | null;
+  duracion?: string | null;
+}) {
+  if (item.tipo_prescripcion === "tiempo") {
+    return item.duracion ? `Duración: ${item.duracion}` : "Duración: -";
+  }
+
+  return item.repeticiones ? `Reps: ${item.repeticiones}` : "Reps: -";
+}
+
+function normalizarRutina(rutinas?: RutinaRelacion) {
+  if (Array.isArray(rutinas)) {
+    return rutinas[0] || null;
+  }
+
+  return rutinas || null;
+}
+
+export default function AlumnoRutinaPage() {
+  const [loading, setLoading] = useState(true);
+  const [alumnoId, setAlumnoId] = useState("");
+
+  const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>(
+    []
+  );
+
+  const [rutinasAbiertas, setRutinasAbiertas] = useState<
+    Record<string, boolean>
+  >({});
+
+  const [ejerciciosPorRutina, setEjerciciosPorRutina] = useState<
+    Record<string, RutinaEjercicio[]>
+  >({});
+
+  const [entradaPorRutina, setEntradaPorRutina] = useState<
+    Record<string, EntradaCalorEjercicio[]>
+  >({});
+
+  const [registros, setRegistros] = useState<RegistroEntrenamiento[]>([]);
+  const [rmsActuales, setRmsActuales] = useState<RMActual[]>([]);
+
+  const [ejercicioSeleccionado, setEjercicioSeleccionado] =
+    useState<RutinaEjercicio | null>(null);
+
+  const [pesoUsado, setPesoUsado] = useState("");
+  const [repsRealizadas, setRepsRealizadas] = useState("");
+  const [rpe, setRpe] = useState("");
+  const [rirReal, setRirReal] = useState("");
+  const [mostrarProximos, setMostrarProximos] = useState(true);
+  const [mostrarCompletados, setMostrarCompletados] = useState(false);
+  const [fechaCompletados, setFechaCompletados] = useState("");
+
+  useEffect(() => {
+    cargarTodo();
+  }, []);
+
+  async function cargarTodo() {
+    setLoading(true);
+
+    const { data: sessionData } = await supabase.auth.getSession();
+
+    if (!sessionData.session) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const user = sessionData.session.user;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("rol")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || profile.rol !== "alumno") {
+      window.location.href = "/";
+      return;
+    }
+
+    const { data: alumno, error: alumnoError } = await supabase
+      .from("alumnos")
+      .select("id,user_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (alumnoError || !alumno) {
+      setLoading(false);
+      return;
+    }
+
+    setAlumnoId(alumno.id);
+
+    const { data: asignacionesData, error: asignacionesError } = await supabase
+      .from("rutina_asignaciones")
+      .select(`
+        id,
+        rutina_id,
+        fecha_asignacion,
+        orden,
+        completada,
+        fecha_completada,
+        created_at,
+        rutinas (
+          id,
+          nombre,
+          descripcion,
+          objetivo,
+          estructura,
+          entrada_calor
+        )
+      `)
+      .eq("alumno_id", alumno.id)
+      .order("fecha_asignacion", { ascending: true })
+      .order("orden", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    if (asignacionesError) {
+      alert(asignacionesError.message);
+      setLoading(false);
+      return;
+    }
+
+    const asignacionesTipadas = (
+      (asignacionesData || []) as RutinaAsignacionResponse[]
+    ).map((item) => ({
+      asignacion_id: item.id,
+      rutina_id: item.rutina_id,
+      fecha_asignacion: item.fecha_asignacion,
+      orden: item.orden,
+      completada: item.completada,
+      fecha_completada: item.fecha_completada,
+      rutinas: normalizarRutina(item.rutinas),
+    })) as RutinaAsignada[];
+
+    const rutinasVisibles = asignacionesTipadas;
+    const rutinaIds = rutinasVisibles.map((item) => item.rutina_id);
+
+    if (rutinaIds.length === 0) {
+      setRutinasAsignadas(rutinasVisibles);
+      setEjerciciosPorRutina({});
+      setEntradaPorRutina({});
+      setRegistros([]);
+      setRmsActuales([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: rutinaEjercicios, error: ejerciciosError } = await supabase
+      .from("rutina_ejercicios")
+      .select("*")
+      .in("rutina_id", rutinaIds)
+      .order("orden", { ascending: true });
+
+    if (ejerciciosError) {
+      alert(ejerciciosError.message);
+      setLoading(false);
+      return;
+    }
+
+    const idsEjercicios =
+      rutinaEjercicios?.map((item) => item.ejercicio_id).filter(Boolean) || [];
+
+    let videosEjercicios: { id: string; youtube_url?: string | null }[] = [];
+
+    if (idsEjercicios.length > 0) {
+      const { data: videos } = await supabase
+        .from("ejercicios")
+        .select("id,youtube_url")
+        .in("id", idsEjercicios);
+
+      videosEjercicios = videos || [];
+    }
+
+    const ejerciciosConVideo =
+      rutinaEjercicios?.map((item) => {
+        const video = videosEjercicios.find(
+          (v) => v.id === item.ejercicio_id
+        );
+
+        return {
+          ...item,
+          youtube_url: video?.youtube_url || null,
+        };
+      }) || [];
+
+    const agrupadosEjercicios: Record<string, RutinaEjercicio[]> = {};
+
+    ejerciciosConVideo.forEach((item) => {
+      if (!agrupadosEjercicios[item.rutina_id]) {
+        agrupadosEjercicios[item.rutina_id] = [];
+      }
+
+      agrupadosEjercicios[item.rutina_id].push(item);
+    });
+
+    const { data: entrada, error: entradaError } = await supabase
+      .from("rutina_entrada_calor")
+      .select("*")
+      .in("rutina_id", rutinaIds)
+      .order("orden", { ascending: true });
+
+    if (entradaError) {
+      alert(entradaError.message);
+      setLoading(false);
+      return;
+    }
+
+    const idsEntrada =
+      entrada?.map((item) => item.ejercicio_id).filter(Boolean) || [];
+
+    let videosEntrada: { id: string; youtube_url?: string | null }[] = [];
+
+    if (idsEntrada.length > 0) {
+      const { data: videos } = await supabase
+        .from("ejercicios")
+        .select("id,youtube_url")
+        .in("id", idsEntrada);
+
+      videosEntrada = videos || [];
+    }
+
+    const entradaConVideo =
+      entrada?.map((item) => {
+        const video = videosEntrada.find((v) => v.id === item.ejercicio_id);
+
+        return {
+          ...item,
+          youtube_url: video?.youtube_url || null,
+        };
+      }) || [];
+
+    const agrupadaEntrada: Record<string, EntradaCalorEjercicio[]> = {};
+
+    entradaConVideo.forEach((item) => {
+      if (!item.rutina_id) return;
+
+      if (!agrupadaEntrada[item.rutina_id]) {
+        agrupadaEntrada[item.rutina_id] = [];
+      }
+
+      agrupadaEntrada[item.rutina_id].push(item);
+    });
+
+    const asignacionIds = rutinasVisibles.map((item) => item.asignacion_id);
+
+const { data: registrosData, error: registrosError } = await supabase
+  .from("registros_entrenamiento")
+  .select("id,rutina_id,rutina_asignacion_id,rutina_ejercicio_id,entrada_calor_id")
+  .eq("alumno_id", alumno.id)
+  .in("rutina_asignacion_id", asignacionIds)
+  .eq("completado", true);
+
+    if (registrosError) {
+      alert(registrosError.message);
+      setLoading(false);
+      return;
+    }
+
+    const { data: rms } = await supabase
+      .from("rms_actuales")
+      .select("id,ejercicio_id,rm_calculado")
+      .eq("alumno_id", alumno.id);
+
+    setRutinasAsignadas(rutinasVisibles);
+    setEjerciciosPorRutina(agrupadosEjercicios);
+    setEntradaPorRutina(agrupadaEntrada);
+    setRegistros(registrosData || []);
+    setRmsActuales(rms || []);
+    setLoading(false);
+  }
+
+    function ejercicioEstaCompletado(
+  rutinaAsignacionId: string,
+  rutinaEjercicioId: string
+) {
+  return registros.some(
+    (registro) =>
+      registro.rutina_asignacion_id === rutinaAsignacionId &&
+      registro.rutina_ejercicio_id === rutinaEjercicioId
+  );
+}
+
+  function entradaEstaCompletada(
+  rutinaAsignacionId: string,
+  entradaId: string
+) {
+  return registros.some(
+    (registro) =>
+      registro.rutina_asignacion_id === rutinaAsignacionId &&
+      registro.entrada_calor_id === entradaId
+  );
+}
+
+  function toggleRutina(rutinaId: string) {
+    setRutinasAbiertas((actual) => ({
+      ...actual,
+      [rutinaId]: !actual[rutinaId],
+    }));
+  }
+
+  async function deshacerCompletado(rutinaId: string, rutinaEjercicioId: string) {
+  const confirmar = confirm("¿Querés deshacer este ejercicio?");
+  if (!confirmar) return;
+
+  const asignacionActual = rutinasAsignadas.find(
+    (asignacion) => asignacion.rutina_id === rutinaId
+  );
+
+  if (!asignacionActual) {
+    alert("No se encontró la asignación de esta rutina.");
+    return;
+  }
+
+  const { data: registroActual } = await supabase
+    .from("registros_entrenamiento")
+    .select("ejercicio_id")
+    .eq("alumno_id", alumnoId)
+    .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+    .eq("rutina_ejercicio_id", rutinaEjercicioId)
+    .maybeSingle();
+
+  await supabase
+    .from("rms_historial")
+    .delete()
+    .eq("alumno_id", alumnoId)
+    .eq("rutina_id", rutinaId)
+    .eq("rutina_ejercicio_id", rutinaEjercicioId);
+
+  const { error } = await supabase
+    .from("registros_entrenamiento")
+    .delete()
+    .eq("alumno_id", alumnoId)
+    .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+    .eq("rutina_ejercicio_id", rutinaEjercicioId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  if (registroActual?.ejercicio_id) {
+    await recalcularRMActual(registroActual.ejercicio_id);
+  }
+
+  await supabase
+    .from("rutina_asignaciones")
+    .update({
+      activa: true,
+      completada: false,
+      fecha_completada: null,
+    })
+    .eq("id", asignacionActual.asignacion_id);
+
+  await cargarTodo();
+}
+
+  async function completarEntradaCalor(item: EntradaCalorEjercicio) {
+    if (!item.rutina_id) return;
+
+    if (entradaEstaCompletada(item.rutina_id, item.id)) {
+      alert("Esta entrada en calor ya fue completada.");
+      return;
+    }
+
+    const asignacionActual = rutinasAsignadas.find(
+  (asignacion) => asignacion.rutina_id === item.rutina_id
+);
+
+if (!asignacionActual) {
+  alert("No se encontró la asignación de esta rutina.");
+  return;
+}
+
+    const { error } = await supabase.from("registros_entrenamiento").insert({
+      alumno_id: alumnoId,
+      rutina_id: item.rutina_id,
+      rutina_asignacion_id: asignacionActual.asignacion_id,
+      rutina_ejercicio_id: null,
+      entrada_calor_id: item.id,
+      ejercicio_id: item.ejercicio_id || null,
+      nombre_ejercicio: item.nombre_ejercicio,
+      peso_kg: null,
+      repeticiones: null,
+      rpe: null,
+      rir: null,
+      rm_calculado: null,
+      completado: true,
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await cargarTodo();
+  }
+
+  async function deshacerEntradaCalor(rutinaId: string, entradaId: string) {
+    const confirmar = confirm("¿Querés deshacer esta entrada en calor?");
+    if (!confirmar) return;
+
+    const asignacionActual = rutinasAsignadas.find(
+  (asignacion) => asignacion.rutina_id === rutinaId
+);
+
+if (!asignacionActual) {
+  alert("No se encontró la asignación de esta rutina.");
+  return;
+}
+
+const { error } = await supabase
+  .from("registros_entrenamiento")
+  .delete()
+  .eq("alumno_id", alumnoId)
+  .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+  .eq("entrada_calor_id", entradaId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await cargarTodo();
+  }
+
+  function calcularPesoPorRM(item: RutinaEjercicio) {
+    if (!item.ejercicio_id || !item.porcentaje_rm) return null;
+
+    if (item.porcentaje_rm === "0") return "Peso corporal";
+
+    const porcentaje = Number(
+      String(item.porcentaje_rm).replace("%", "").trim()
+    );
+
+    if (!porcentaje || Number.isNaN(porcentaje)) return null;
+
+    const rm = rmsActuales.find(
+      (registro) => registro.ejercicio_id === item.ejercicio_id
+    );
+
+    if (!rm?.rm_calculado) return null;
+
+    return `${Number(((Number(rm.rm_calculado) * porcentaje) / 100).toFixed(1))} kg`;
+  }
+
+  function calcularEpley(peso: number, reps: number) {
+    return Number((peso * (1 + reps / 30)).toFixed(2));
+  }
+
+  function abrirCompletado(item: RutinaEjercicio) {
+    if (ejercicioEstaCompletado(item.rutina_id, item.id)) {
+      alert("Este ejercicio ya fue completado.");
+      return;
+    }
+
+    setEjercicioSeleccionado(item);
+
+    const pesoSugerido = calcularPesoPorRM(item);
+
+    if (pesoSugerido === "Peso corporal") {
+      setPesoUsado("0");
+    } else {
+      setPesoUsado(
+        pesoSugerido ? String(pesoSugerido).replace(" kg", "") : ""
+      );
+    }
+
+    setRepsRealizadas("");
+    setRpe("");
+    setRirReal("");
+  }
+
+  async function revisarSiRutinaQuedoCompleta(rutinaId: string) {
+  const asignacionActual = rutinasAsignadas.find(
+    (asignacion) => asignacion.rutina_id === rutinaId
+  );
+
+  if (!asignacionActual) {
+    alert("No se encontró la asignación de esta rutina.");
+    return;
+  }
+
+  const ejercicios = ejerciciosPorRutina[rutinaId] || [];
+
+  if (ejercicios.length === 0) return;
+
+  const { data: registrosActualizados, error } = await supabase
+    .from("registros_entrenamiento")
+    .select("id,rutina_asignacion_id,rutina_ejercicio_id")
+    .eq("alumno_id", alumnoId)
+    .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+    .eq("completado", true);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const idsCompletados = new Set(
+    (registrosActualizados || [])
+      .map((registro) => registro.rutina_ejercicio_id)
+      .filter(Boolean)
+  );
+
+  const todosCompletados = ejercicios.every((ejercicio) =>
+    idsCompletados.has(ejercicio.id)
+  );
+
+  if (!todosCompletados) return;
+
+  const { error: updateError } = await supabase
+    .from("rutina_asignaciones")
+    .update({
+      activa: false,
+      completada: true,
+      fecha_completada: new Date().toISOString(),
+    })
+    .eq("id", asignacionActual.asignacion_id);
+
+  if (updateError) {
+    alert(updateError.message);
+  }
+}
+
+  async function recalcularRMActual(ejercicioId: string) {
+  const { data: historial, error: historialError } = await supabase
+    .from("rms_historial")
+    .select("*")
+    .eq("alumno_id", alumnoId)
+    .eq("ejercicio_id", ejercicioId)
+    .order("rm_calculado", { ascending: false })
+    .limit(1);
+
+  if (historialError) {
+    alert(historialError.message);
+    return;
+  }
+
+  const mejor = historial?.[0];
+
+  if (!mejor) {
+    await supabase
+      .from("rms_actuales")
+      .delete()
+      .eq("alumno_id", alumnoId)
+      .eq("ejercicio_id", ejercicioId);
+
+    return;
+  }
+
+  const { data: existente } = await supabase
+    .from("rms_actuales")
+    .select("id")
+    .eq("alumno_id", alumnoId)
+    .eq("ejercicio_id", ejercicioId)
+    .maybeSingle();
+
+  if (!existente) {
+    await supabase.from("rms_actuales").insert({
+      alumno_id: alumnoId,
+      ejercicio_id: ejercicioId,
+      peso_kg: mejor.peso_kg,
+      repeticiones: mejor.repeticiones,
+      rm_calculado: mejor.rm_calculado,
+      actualizado_en: new Date().toISOString(),
+    });
+  } else {
+    await supabase
+      .from("rms_actuales")
+      .update({
+        peso_kg: mejor.peso_kg,
+        repeticiones: mejor.repeticiones,
+        rm_calculado: mejor.rm_calculado,
+        actualizado_en: new Date().toISOString(),
+      })
+      .eq("id", existente.id);
+  }
+}
+
+  async function guardarCompletado() {
+    if (!ejercicioSeleccionado) return;
+
+    if (
+      ejercicioEstaCompletado(
+        ejercicioSeleccionado.rutina_id,
+        ejercicioSeleccionado.id
+      )
+    ) {
+      alert("Este ejercicio ya fue completado.");
+      setEjercicioSeleccionado(null);
+      return;
+    }
+
+    if (pesoUsado === "" || !repsRealizadas || !rpe) {
+      alert("Completá peso, repeticiones y RPE.");
+      return;
+    }
+
+    const pesoNumero = Number(pesoUsado);
+    const repsNumero = Number(repsRealizadas);
+    const rpeNumero = Number(rpe);
+    const rirNumero = rirReal ? Number(rirReal) : null;
+
+    if (
+      Number.isNaN(pesoNumero) ||
+      Number.isNaN(repsNumero) ||
+      Number.isNaN(rpeNumero)
+    ) {
+      alert("Revisá los valores ingresados.");
+      return;
+    }
+
+    const esPesoCorporal = ejercicioSeleccionado.porcentaje_rm === "0";
+    const rmCalculado = esPesoCorporal
+      ? null
+      : calcularEpley(pesoNumero, repsNumero);
+
+    const asignacionActual = rutinasAsignadas.find(
+  (asignacion) => asignacion.rutina_id === ejercicioSeleccionado.rutina_id
+);
+
+if (!asignacionActual) {
+  alert("No se encontró la asignación de esta rutina.");
+  return;
+}
+
+await supabase
+  .from("registros_entrenamiento")
+  .delete()
+  .eq("alumno_id", alumnoId)
+  .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+  .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
+
+const { data: nuevoRegistro, error: registroError } = await supabase
+  .from("registros_entrenamiento")
+  .insert({
+    alumno_id: alumnoId,
+    rutina_id: ejercicioSeleccionado.rutina_id,
+    rutina_asignacion_id: asignacionActual.asignacion_id,
+    rutina_ejercicio_id: ejercicioSeleccionado.id,
+    ejercicio_id: ejercicioSeleccionado.ejercicio_id || null,
+    nombre_ejercicio: ejercicioSeleccionado.nombre_ejercicio,
+    peso_kg: pesoNumero,
+    repeticiones: repsNumero,
+    rpe: rpeNumero,
+    rir: rirNumero,
+    rm_calculado: rmCalculado,
+    completado: true,
+  })
+  .select("id")
+  .single();
+    if (registroError) {
+      alert(registroError.message);
+      return;
+    }
+
+    if (!nuevoRegistro) {
+      alert("No se pudo guardar el registro del entrenamiento.");
+      return;
+}
+
+    if (ejercicioSeleccionado.ejercicio_id && !esPesoCorporal && rmCalculado) {
+  const { data: rmActualExistente } = await supabase
+    .from("rms_actuales")
+    .select("rm_calculado")
+    .eq("alumno_id", alumnoId)
+    .eq("ejercicio_id", ejercicioSeleccionado.ejercicio_id)
+    .maybeSingle();
+
+  const rmAnterior = Number(rmActualExistente?.rm_calculado || 0);
+  const rompeRecord = rmCalculado > rmAnterior;
+
+  await supabase
+    .from("rms_historial")
+    .delete()
+    .eq("alumno_id", alumnoId)
+    .eq("rutina_id", ejercicioSeleccionado.rutina_id)
+    .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
+
+  if (rompeRecord) {
+    await supabase.from("rms_historial").insert({
+      alumno_id: alumnoId,
+      ejercicio_id: ejercicioSeleccionado.ejercicio_id,
+      rutina_id: ejercicioSeleccionado.rutina_id,
+      rutina_ejercicio_id: ejercicioSeleccionado.id,
+      registro_entrenamiento_id: nuevoRegistro.id,
+      peso_kg: pesoNumero,
+      repeticiones: repsNumero,
+      rm_calculado: rmCalculado,
+      origen: "entrenamiento",
+    });
+  }
+
+  await recalcularRMActual(ejercicioSeleccionado.ejercicio_id);
+}
+    
+    await revisarSiRutinaQuedoCompleta(ejercicioSeleccionado.rutina_id);
+
+    setEjercicioSeleccionado(null);
+    setPesoUsado("");
+    setRepsRealizadas("");
+    setRpe("");
+    setRirReal("");
+
+    await cargarTodo();
+  }
+
+  function asignacionEstaCompletada(asignacion: RutinaAsignada) {
+    if (asignacion.completada) return true;
+
+    const rutina = asignacion.rutinas;
+    if (!rutina) return false;
+
+    const ejercicios = ejerciciosPorRutina[rutina.id] || [];
+    if (ejercicios.length === 0) return false;
+
+    return ejercicios.every((ejercicio) =>
+  ejercicioEstaCompletado(asignacion.asignacion_id, ejercicio.id)
+);
+  }
+
+  function renderRutinaCard(asignacion: RutinaAsignada) {
+  const rutina = asignacion.rutinas;
+  if (!rutina) return null;
+
+  const abierta = !!rutinasAbiertas[asignacion.asignacion_id];
+  const entrada = entradaPorRutina[rutina.id] || [];
+  const ejercicios = ejerciciosPorRutina[rutina.id] || [];
+  const completada = asignacionEstaCompletada(asignacion);
+
+  return (
+    <div
+      key={asignacion.asignacion_id}
+      className={`rounded-2xl border p-5 ${
+        completada
+          ? "border-emerald-800 bg-emerald-500/5"
+          : "border-zinc-800 bg-zinc-900"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => toggleRutina(asignacion.asignacion_id)}
+        className="w-full flex items-center justify-between gap-4"
+      >
+        <div className="text-left">
+          <h2 className="text-2xl font-bold">{rutina.nombre}</h2>
+
+          <div className="flex flex-wrap gap-2 mt-3">
+            {rutina.objetivo && (
+              <span className="text-sm rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
+                {rutina.objetivo}
+              </span>
+            )}
+
+            {rutina.estructura && (
+              <span className="text-sm rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
+                {rutina.estructura}
+              </span>
+            )}
+
+            {asignacion.fecha_asignacion && (
+              <span className="text-sm rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
+                Asignada: {asignacion.fecha_asignacion}
+              </span>
+            )}
+
+            {asignacion.fecha_completada && (
+              <span className="text-sm rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
+                Completada: {asignacion.fecha_completada.slice(0, 10)}
+              </span>
+            )}
+
+            {completada && (
+              <span className="text-sm rounded-full bg-emerald-600 text-white px-3 py-1 font-bold">
+                COMPLETADA
+              </span>
+            )}
+          </div>
+
+          {rutina.descripcion && (
+            <p className="text-zinc-400 mt-3">{rutina.descripcion}</p>
+          )}
+        </div>
+
+        <span className="text-2xl">{abierta ? "▲" : "▼"}</span>
+      </button>
+
+      {abierta && (
+        <div className="mt-6 space-y-4">
+          <section className="bg-zinc-950/40 border border-zinc-800 rounded-2xl p-5">
+            <h3 className="text-xl font-semibold mb-4">Entrada en calor</h3>
+
+            {entrada.length === 0 ? (
+              <p className="text-zinc-500">Sin entrada en calor cargada.</p>
+            ) : (
+              <div className="space-y-3">
+                {entrada.map((item) => {
+                  const itemCompletado =
+                    item.rutina_id &&
+                    entradaEstaCompletada(asignacion.asignacion_id, item.id);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`border rounded-xl p-4 ${
+                        itemCompletado
+                          ? "border-emerald-800 bg-emerald-500/5"
+                          : "border-zinc-800"
+                      }`}
+                    >
+                      <h4 className="font-semibold text-lg">
+                        {item.nombre_ejercicio}
+                      </h4>
+
+                      <p className="text-zinc-400 mt-1">
+                        {item.series || "-"} series · {textoPrescripcion(item)}
+                      </p>
+
+                      {item.observaciones && (
+                        <p className="text-zinc-500 mt-3 whitespace-pre-wrap">
+                          {item.observaciones}
+                        </p>
+                      )}
+
+                      {item.youtube_url && (
+                        <a
+                          href={item.youtube_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-4 block w-full rounded-lg border border-red-800 bg-red-500/10 px-3 py-2 text-center text-sm font-semibold text-red-400 hover:bg-red-500/20"
+                        >
+                          ▶ Ver video
+                        </a>
+                      )}
+
+                      {itemCompletado ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            item.rutina_id &&
+                            deshacerEntradaCalor(item.rutina_id, item.id)
+                          }
+                          className="mt-4 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20"
+                        >
+                          ↩ Deshacer entrada en calor
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => completarEntradaCalor(item)}
+                          disabled={completada}
+                          className={`mt-4 w-full rounded-lg px-3 py-2 text-sm font-semibold ${
+                            completada
+                              ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                              : "bg-emerald-500 text-white hover:bg-emerald-600"
+                          }`}
+                        >
+                          Completar entrada en calor
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="bg-zinc-950/40 border border-zinc-800 rounded-2xl p-5">
+            <h3 className="text-xl font-semibold mb-4">Ejercicios</h3>
+
+            {ejercicios.length === 0 ? (
+              <p className="text-zinc-400">
+                Todavía no hay ejercicios cargados en esta rutina.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {ejercicios.map((item) => {
+                  const pesoSugerido = calcularPesoPorRM(item);
+                  const itemCompletado = ejercicioEstaCompletado(
+  asignacion.asignacion_id,
+  item.id
+);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`border rounded-xl p-4 ${
+                        itemCompletado
+                          ? "border-emerald-800 bg-emerald-500/5"
+                          : "border-zinc-800"
+                      }`}
+                    >
+                      <h4 className="font-semibold text-lg">
+                        {item.nombre_ejercicio}
+                      </h4>
+
+                      <p className="text-zinc-400 mt-1">
+                        {item.series || "-"} series · {textoPrescripcion(item)}
+                      </p>
+
+                      <div className="flex flex-wrap gap-2 mt-3 text-sm">
+                        {item.peso && (
+                          <span className="rounded-full bg-zinc-800 px-3 py-1">
+                            Peso indicado: {item.peso}
+                          </span>
+                        )}
+
+                        {item.porcentaje_rm && (
+                          <span className="rounded-full bg-zinc-800 px-3 py-1">
+                            {item.porcentaje_rm === "0"
+                              ? "%RM: Peso corporal"
+                              : `%RM: ${item.porcentaje_rm}%`}
+                          </span>
+                        )}
+
+                        {pesoSugerido && (
+                          <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
+                            Peso sugerido: {pesoSugerido}
+                          </span>
+                        )}
+
+                        {item.rir && (
+                          <span className="rounded-full bg-zinc-800 px-3 py-1">
+                            RIR: {item.rir}
+                          </span>
+                        )}
+
+                        {item.descanso && (
+                          <span className="rounded-full bg-zinc-800 px-3 py-1">
+                            Descanso entre series: {item.descanso}
+                          </span>
+                        )}
+                      </div>
+
+                      {item.observaciones && (
+                        <p className="text-zinc-500 mt-3 whitespace-pre-wrap">
+                          {item.observaciones}
+                        </p>
+                      )}
+
+                      {item.youtube_url && (
+                        <a
+                          href={item.youtube_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-4 block w-full rounded-lg border border-red-800 bg-red-500/10 px-3 py-2 text-center text-sm font-semibold text-red-400 hover:bg-red-500/20"
+                        >
+                          ▶ Ver video
+                        </a>
+                      )}
+
+                      {itemCompletado ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deshacerCompletado(rutina.id, item.id)
+                          }
+                          className="mt-4 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20"
+                        >
+                          ↩ Deshacer
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => abrirCompletado(item)}
+                          disabled={completada}
+                          className={`mt-4 w-full rounded-lg px-3 py-2 text-sm font-semibold ${
+                            completada
+                              ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                              : "bg-emerald-500 text-white hover:bg-emerald-600"
+                          }`}
+                        >
+                          Completar
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {completada && (
+              <div className="mt-5 rounded-xl border border-emerald-800 bg-emerald-500/10 p-4 text-center font-semibold text-emerald-400">
+                ✓ Rutina completada automáticamente
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white p-6">
+        Cargando rutinas...
+      </main>
+    );
+  }
+
+  const proximosEntrenamientos = rutinasAsignadas
+    .filter((asignacion) => !asignacionEstaCompletada(asignacion))
+    .slice(0, 3);
+
+  const entrenamientosCompletados = rutinasAsignadas
+    .filter((asignacion) => asignacionEstaCompletada(asignacion))
+    .sort((a, b) => {
+      const fechaA = a.fecha_completada || a.fecha_asignacion || "";
+      const fechaB = b.fecha_completada || b.fecha_asignacion || "";
+      return fechaB.localeCompare(fechaA);
+    });
+
+  const completadosFiltrados = fechaCompletados
+    ? entrenamientosCompletados.filter((asignacion) =>
+        (asignacion.fecha_completada || asignacion.fecha_asignacion || "")
+          .slice(0, 10)
+          .startsWith(fechaCompletados)
+      )
+    : entrenamientosCompletados.slice(0, 3);
+
+  const noHayEntrenamientos =
+    proximosEntrenamientos.length === 0 &&
+    entrenamientosCompletados.length === 0;
+
+  return (
+    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-2">Mis rutinas</h1>
+
+        <p className="text-zinc-400 mb-6">
+          Al completar todas las sesiones, enviar mensaje privado para asignar
+          nuevos entrenamientos.
+        </p>
+
+        {noHayEntrenamientos ? (
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+            <h2 className="text-xl font-semibold">
+              No hay entrenamientos asignados
+            </h2>
+            <p className="text-zinc-400 mt-2">
+              Cuando tu profesor cargue una rutina, va a aparecer acá.
+            </p>
+          </section>
+        ) : (
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+              <button
+                type="button"
+                onClick={() => setMostrarProximos(!mostrarProximos)}
+                className="w-full flex items-center justify-between gap-4"
+              >
+                <div className="text-left">
+                  <h2 className="text-2xl font-bold">
+                    Próximos entrenamientos
+                  </h2>
+                  <p className="text-zinc-400 mt-1">
+                    {proximosEntrenamientos.length === 0
+                      ? "No tenés entrenamientos pendientes."
+                      : `Mostrando ${proximosEntrenamientos.length} de los próximos 3.`}
+                  </p>
+                </div>
+                <span className="text-2xl">
+                  {mostrarProximos ? "▲" : "▼"}
+                </span>
+              </button>
+
+              {mostrarProximos && (
+                <div className="mt-5 space-y-4">
+                  {proximosEntrenamientos.length === 0 ? (
+                    <p className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 text-zinc-400">
+                      No hay entrenamientos pendientes por ahora.
+                    </p>
+                  ) : (
+                    proximosEntrenamientos.map(renderRutinaCard)
+                  )}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+              <button
+                type="button"
+                onClick={() => setMostrarCompletados(!mostrarCompletados)}
+                className="w-full flex items-center justify-between gap-4"
+              >
+                <div className="text-left">
+                  <h2 className="text-2xl font-bold">
+                    Entrenamientos completados
+                  </h2>
+                  <p className="text-zinc-400 mt-1">
+                    {entrenamientosCompletados.length === 0
+                      ? "Todavía no completaste entrenamientos."
+                      : `Últimos 3 de ${entrenamientosCompletados.length} completados.`}
+                  </p>
+                </div>
+                <span className="text-2xl">
+                  {mostrarCompletados ? "▲" : "▼"}
+                </span>
+              </button>
+
+              {mostrarCompletados && (
+                <div className="mt-5 space-y-4">
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+                    <label className="block text-sm font-medium text-zinc-300">
+                      Buscar por fecha
+                    </label>
+                    <div className="mt-2 flex flex-col gap-2 md:flex-row">
+                      <div className="relative w-full">
+                        <input
+                          type="date"
+                          value={fechaCompletados}
+                          onChange={(event) =>
+                            setFechaCompletados(event.target.value)
+                          }
+                          onClick={(event) =>
+                            event.currentTarget.showPicker?.()
+                          }
+                          className="w-full cursor-pointer rounded-xl border border-zinc-700 bg-zinc-900 p-3 text-white"
+                        />
+                      </div>
+
+                      {fechaCompletados && (
+                        <button
+                          type="button"
+                          onClick={() => setFechaCompletados("")}
+                          className="rounded-xl border border-zinc-700 px-4 py-3 text-sm font-semibold text-zinc-300 hover:bg-zinc-800"
+                        >
+                          Limpiar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {completadosFiltrados.length === 0 ? (
+                    <p className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 text-zinc-400">
+                      No se encontraron entrenamientos completados para esa
+                      fecha.
+                    </p>
+                  ) : (
+                    completadosFiltrados.map(renderRutinaCard)
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {ejercicioSeleccionado && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+            <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+              <h2 className="text-2xl font-bold mb-1">
+                Ejercicio completado
+              </h2>
+
+              <p className="text-zinc-400 mb-4">
+                {ejercicioSeleccionado.nombre_ejercicio}
+              </p>
+
+              <div className="space-y-3">
+                <input
+                  type="number"
+                  value={pesoUsado}
+                  onChange={(e) => setPesoUsado(e.target.value)}
+                  className="w-full bg-zinc-800 rounded-xl p-3"
+                  placeholder="Peso usado en kg (0 = peso corporal)"
+                />
+
+                <input
+                  type="number"
+                  value={repsRealizadas}
+                  onChange={(e) => setRepsRealizadas(e.target.value)}
+                  className="w-full bg-zinc-800 rounded-xl p-3"
+                  placeholder="Repeticiones realizadas"
+                />
+
+                <select
+                  value={rpe}
+                  onChange={(e) => setRpe(e.target.value)}
+                  className="w-full bg-zinc-800 rounded-xl p-3"
+                >
+                  <option value="">RPE</option>
+                  {opcionesRPE.map((valor) => (
+                    <option key={valor} value={String(valor)}>
+                      {valor}{" "}
+                      {valor === 1
+                        ? "- muy fácil"
+                        : valor === 10
+                          ? "- muy difícil"
+                          : ""}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={rirReal}
+                  onChange={(e) => setRirReal(e.target.value)}
+                  className="w-full bg-zinc-800 rounded-xl p-3"
+                >
+                  <option value="">RIR opcional</option>
+                  {opcionesRIR.map((valor) => (
+                    <option key={valor} value={String(valor)}>
+                      {valor}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 mt-5">
+                <button
+                  type="button"
+                  onClick={() => setEjercicioSeleccionado(null)}
+                  className="flex-1 border border-zinc-700 rounded-xl py-3"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={guardarCompletado}
+                  className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
