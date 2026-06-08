@@ -192,46 +192,51 @@ export default function ConfiguracionPage() {
     await cargarTodo();
   }
 
-  async function crearUsuario() {
-    if (!nuevoUsuarioNombre.trim()) {
-      alert("Ingresá el nombre del usuario.");
-      return;
-    }
-
-    if (!nuevoUsuarioEmail.trim()) {
-      alert("Ingresá el email del usuario.");
-      return;
-    }
-
-    if (!nuevoUsuarioPassword.trim()) {
-      alert("Ingresá una contraseña temporal.");
-      return;
-    }
-
-    const { error } = await supabase.functions.invoke("crear-usuario", {
-      body: {
-        nombre: nuevoUsuarioNombre.trim(),
-        email: nuevoUsuarioEmail.trim().toLowerCase(),
-        password: nuevoUsuarioPassword,
-        rol: nuevoUsuarioRol,
-      },
-    });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    alert("Usuario creado correctamente.");
-
-    setNuevoUsuarioNombre("");
-    setNuevoUsuarioEmail("");
-    setNuevoUsuarioPassword("");
-    setNuevoUsuarioRol("alumno");
-
-    await cargarTodo();
+async function crearUsuario() {
+  if (!nuevoUsuarioNombre.trim()) {
+    alert("Ingresá el nombre del usuario.");
+    return;
   }
 
+  if (!nuevoUsuarioEmail.trim()) {
+    alert("Ingresá el email del usuario.");
+    return;
+  }
+
+  if (!nuevoUsuarioPassword.trim()) {
+    alert("Ingresá una contraseña temporal.");
+    return;
+  }
+
+  const response = await fetch("/api/crear-alumno", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      nombre: nuevoUsuarioNombre.trim(),
+      email: nuevoUsuarioEmail.trim().toLowerCase(),
+      password: nuevoUsuarioPassword,
+      rol: nuevoUsuarioRol,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    alert(data.error || "No se pudo crear el usuario.");
+    return;
+  }
+
+  alert("Usuario creado correctamente.");
+
+  setNuevoUsuarioNombre("");
+  setNuevoUsuarioEmail("");
+  setNuevoUsuarioPassword("");
+  setNuevoUsuarioRol("alumno");
+
+  await cargarTodo();
+}
   async function quitarProfesor(profesorId: string) {
     if (profile?.id === profesorId) {
       alert("No podés quitarte permisos a vos mismo desde esta pantalla.");

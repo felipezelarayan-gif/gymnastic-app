@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 export default function NuevoAlumnoPage() {
   const [nombre, setNombre] = useState("");
@@ -29,28 +28,30 @@ export default function NuevoAlumnoPage() {
 
     setGuardando(true);
 
-    const { data, error } = await supabase.functions.invoke("crear-usuario", {
-      body: {
-        nombre: nombre.trim(),
-        apellido: apellido.trim(),
-        email: email.trim().toLowerCase(),
-        telefono: telefono.trim(),
-        password,
-        rol: "alumno",
-      },
-    });
+    const response = await fetch("/api/crear-alumno", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    nombre: nombre.trim(),
+    apellido: apellido.trim(),
+    email: email.trim().toLowerCase(),
+    telefono: telefono.trim(),
+    password,
+    rol: "alumno",
+  }),
+});
+
+const data = await response.json();
+
+if (!response.ok) {
+  alert(data.error || "No se pudo crear el alumno.");
+  setGuardando(false);
+  return;
+}
 
     setGuardando(false);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    if (data?.error) {
-      alert(data.error);
-      return;
-    }
 
     alert("Alumno creado correctamente.");
     window.location.href = "/alumnos";
