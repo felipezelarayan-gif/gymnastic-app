@@ -58,12 +58,14 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
 
   async function cargarRM() {
     setLoading(true);
+    console.log("ALUMNO ID PROFESOR RM:", alumnoId);
 
     const { data: actualesData, error: actualesError } = await supabase
       .from("rms_actuales")
       .select("*")
       .eq("alumno_id", alumnoId)
       .order("actualizado_en", { ascending: false });
+      console.log("RMS PROFESOR:", actualesData, actualesError);
 
     if (actualesError) {
       alert(actualesError.message);

@@ -225,9 +225,6 @@ if (rutinaIds.length > 0) {
       const rutinaRelacion = normalizarRutina(item.rutinas);
       const rutinaManual = rutinasBase.find((rutina) => rutina.id === item.rutina_id) || null;
 
-      console.log("RUTINA RELACION", rutinaRelacion);
-      console.log("RUTINA MANUAL", rutinaManual);
-
       return {
         asignacion_id: item.id,
         rutina_id: item.rutina_id,
@@ -667,30 +664,30 @@ if (rutinaIds.length > 0) {
     const rmCalculado = esPesoCorporal ? null : calcularEpley(pesoNumero, repsNumero);
 
     await supabase
-      .from("registros_entrenamiento")
-      .delete()
-      .eq("alumno_id", alumnoId)
-      .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
-      .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
+  .from("registros_entrenamiento")
+  .delete()
+  .eq("alumno_id", alumnoId)
+  .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+  .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
 
-    const { data: nuevoRegistro, error: registroError } = await supabase
-      .from("registros_entrenamiento")
-      .insert({
-        alumno_id: alumnoId,
-        rutina_id: ejercicioSeleccionado.rutina_id,
-        rutina_asignacion_id: asignacionActual.asignacion_id,
-        rutina_ejercicio_id: ejercicioSeleccionado.id,
-        ejercicio_id: ejercicioSeleccionado.ejercicio_id || null,
-        nombre_ejercicio: ejercicioSeleccionado.nombre_ejercicio,
-        peso_kg: pesoNumero,
-        repeticiones: repsNumero,
-        rpe: rpeNumero,
-        rir: rirNumero,
-        rm_calculado: rmCalculado,
-        completado: true,
-      })
-      .select("id")
-      .single();
+const { data: nuevoRegistro, error: registroError } = await supabase
+  .from("registros_entrenamiento")
+  .insert({
+    alumno_id: alumnoId,
+    rutina_id: ejercicioSeleccionado.rutina_id,
+    rutina_asignacion_id: asignacionActual.asignacion_id,
+    rutina_ejercicio_id: ejercicioSeleccionado.id,
+    ejercicio_id: ejercicioSeleccionado.ejercicio_id || null,
+    nombre_ejercicio: ejercicioSeleccionado.nombre_ejercicio,
+    peso_kg: pesoNumero,
+    repeticiones: repsNumero,
+    rpe: rpeNumero,
+    rir: rirNumero,
+    rm_calculado: rmCalculado,
+    completado: true,
+  })
+  .select("id")
+  .single();
 
     if (registroError) {
       alert(registroError.message);
@@ -703,38 +700,27 @@ if (rutinaIds.length > 0) {
     }
 
     if (ejercicioSeleccionado.ejercicio_id && !esPesoCorporal && rmCalculado) {
-      const { data: rmActualExistente } = await supabase
-        .from("rms_actuales")
-        .select("rm_calculado")
-        .eq("alumno_id", alumnoId)
-        .eq("ejercicio_id", ejercicioSeleccionado.ejercicio_id)
-        .maybeSingle();
 
-      const rmAnterior = Number(rmActualExistente?.rm_calculado || 0);
-      const rompeRecord = rmCalculado > rmAnterior;
+    await supabase
+  .from("rms_historial")
+  .delete()
+  .eq("alumno_id", alumnoId)
+  .eq("rutina_id", ejercicioSeleccionado.rutina_id)
+  .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
 
-      await supabase
-        .from("rms_historial")
-        .delete()
-        .eq("alumno_id", alumnoId)
-        .eq("rutina_id", ejercicioSeleccionado.rutina_id)
-        .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
+    await supabase.from("rms_historial").insert({
+  alumno_id: alumnoId,
+  ejercicio_id: ejercicioSeleccionado.ejercicio_id,
+  rutina_id: ejercicioSeleccionado.rutina_id,
+  rutina_ejercicio_id: ejercicioSeleccionado.id,
+  registro_entrenamiento_id: nuevoRegistro.id,
+  peso_kg: pesoNumero,
+  repeticiones: repsNumero,
+  rm_calculado: rmCalculado,
+  origen: "entrenamiento",
+});
 
-      if (rompeRecord) {
-        await supabase.from("rms_historial").insert({
-          alumno_id: alumnoId,
-          ejercicio_id: ejercicioSeleccionado.ejercicio_id,
-          rutina_id: ejercicioSeleccionado.rutina_id,
-          rutina_ejercicio_id: ejercicioSeleccionado.id,
-          registro_entrenamiento_id: nuevoRegistro.id,
-          peso_kg: pesoNumero,
-          repeticiones: repsNumero,
-          rm_calculado: rmCalculado,
-          origen: "entrenamiento",
-        });
-      }
-
-      await recalcularRMActual(ejercicioSeleccionado.ejercicio_id);
+    await recalcularRMActual(ejercicioSeleccionado.ejercicio_id);
     }
 
     await revisarSiRutinaQuedoCompleta(ejercicioSeleccionado.rutina_id);
@@ -814,38 +800,6 @@ if (rutinaIds.length > 0) {
         estructura: null,
         entrada_calor: null,
       };
-  
-  async function deshacerRutinaCompleta(asignacion: RutinaAsignada) {
-  const confirmar = confirm("¿Querés deshacer esta rutina completada?");
-  if (!confirmar) return;
-
-  const { error: registrosError } = await supabase
-    .from("registros_entrenamiento")
-    .delete()
-    .eq("alumno_id", alumnoId)
-    .eq("rutina_asignacion_id", asignacion.asignacion_id);
-
-  if (registrosError) {
-    alert(registrosError.message);
-    return;
-  }
-
-  const { error: asignacionError } = await supabase
-    .from("rutina_asignaciones")
-    .update({
-      activa: true,
-      completada: false,
-      fecha_completada: null,
-    })
-    .eq("id", asignacion.asignacion_id);
-
-  if (asignacionError) {
-    alert(asignacionError.message);
-    return;
-  }
-
-  await cargarTodo();
-}
 
     const completada = asignacionEstaCompletada(asignacion);
     const abierta = !!rutinasAbiertas[asignacion.asignacion_id];
@@ -1104,7 +1058,7 @@ if (rutinaIds.length > 0) {
 
               {completada && (
                 <div className="mt-5 rounded-xl border border-emerald-800 bg-emerald-500/10 p-4 text-center font-semibold text-emerald-400">
-                  ✓ Rutina completada automáticamente
+                  ✓ Rutina completada
                 </div>
               )}
             </section>
@@ -1117,6 +1071,39 @@ if (rutinaIds.length > 0) {
   async function deshacerRutinaCompleta(asignacion: RutinaAsignada) {
   const confirmar = confirm("¿Querés deshacer esta rutina completada?");
   if (!confirmar) return;
+
+  const { data: registrosABorrar, error: buscarError } = await supabase
+    .from("registros_entrenamiento")
+    .select("id, ejercicio_id")
+    .eq("alumno_id", alumnoId)
+    .eq("rutina_asignacion_id", asignacion.asignacion_id);
+
+  if (buscarError) {
+    alert(buscarError.message);
+    return;
+  }
+
+  const ejercicioIds = Array.from(
+    new Set(
+      (registrosABorrar || [])
+        .map((registro) => registro.ejercicio_id)
+        .filter(Boolean)
+    )
+  ) as string[];
+
+  const registroIds = (registrosABorrar || []).map((registro) => registro.id);
+
+  if (registroIds.length > 0) {
+    const { error: rmHistorialError } = await supabase
+      .from("rms_historial")
+      .delete()
+      .in("registro_entrenamiento_id", registroIds);
+
+    if (rmHistorialError) {
+      alert(rmHistorialError.message);
+      return;
+    }
+  }
 
   const { error: registrosError } = await supabase
     .from("registros_entrenamiento")
@@ -1143,6 +1130,10 @@ if (rutinaIds.length > 0) {
     return;
   }
 
+  for (const ejercicioId of ejercicioIds) {
+    await recalcularRMActual(ejercicioId);
+  }
+
   await cargarTodo();
 }
 
@@ -1152,12 +1143,27 @@ if (rutinaIds.length > 0) {
   rutinasAsignadas.find((item) => item.rutina_id === asignacion.rutina_id)
     ?.rutinas ||
   null;
-  console.log("COMPLETADA:", asignacion);
   const abierta = !!rutinasAbiertas[asignacion.asignacion_id];
 
-  const registrosDeEstaRutina = registros.filter(
-    (registro) => registro.rutina_asignacion_id === asignacion.asignacion_id
-  );
+  const registrosDeEstaRutina = registros
+  .filter((registro) => registro.rutina_asignacion_id === asignacion.asignacion_id)
+  .filter((registro, index, array) => {
+    const clave =
+      registro.rutina_ejercicio_id ||
+      registro.entrada_calor_id ||
+      registro.id;
+
+    return (
+      array.findIndex((item) => {
+        const claveItem =
+          item.rutina_ejercicio_id ||
+          item.entrada_calor_id ||
+          item.id;
+
+        return claveItem === clave;
+      }) === index
+    );
+  });
 
   return (
     <div

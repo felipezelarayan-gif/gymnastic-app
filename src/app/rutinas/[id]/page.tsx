@@ -504,69 +504,113 @@ export default function RutinaDetallePage({
   }
 
   async function asignarAlumno() {
-    if (!alumnoId) {
-      alert("Seleccioná un alumno.");
-      return;
-    }
-
-    const { data: existente, error: buscarError } = await supabase
-      .from("rutina_asignaciones")
-      .select("id, activa")
-      .eq("rutina_id", id)
-      .eq("alumno_id", alumnoId)
-      .maybeSingle();
-
-    if (buscarError) {
-      alert(buscarError.message);
-      return;
-    }
-
-    if (existente) {
-      const { error: actualizarError } = await supabase
-        .from("rutina_asignaciones")
-        .update({ activa: true })
-        .eq("id", existente.id);
-
-      if (actualizarError) {
-        alert(actualizarError.message);
-        return;
-      }
-    } else {
-      const { error: insertarError } = await supabase
-        .from("rutina_asignaciones")
-        .insert({
-          rutina_id: id,
-          alumno_id: alumnoId,
-          activa: true,
-        });
-
-      if (insertarError) {
-        alert(insertarError.message);
-        return;
-      }
-    }
-
-    setAlumnoId("");
-    setMostrarAsignarAlumno(false);
-    cargarAsignaciones();
+  if (!alumnoId) {
+    alert("Seleccioná un alumno.");
+    return;
   }
+
+  const { error: insertarError } = await supabase
+    .from("rutina_asignaciones")
+    .insert({
+      rutina_id: id,
+      alumno_id: alumnoId,
+      activa: true,
+      completada: false,
+      fecha_completada: null,
+    });
+
+  if (insertarError) {
+    alert(insertarError.message);
+    return;
+  }
+
+  setAlumnoId("");
+  setMostrarAsignarAlumno(false);
+  cargarAsignaciones();
+}
 
   async function quitarAsignacion(asignacionId: string) {
-    const confirmar = confirm("¿Querés quitar esta rutina del alumno?");
-    if (!confirmar) return;
+    console.log("QUITAR ASIGNACION DESDE RUTINA DETALLE", asignacionId);
+  const confirmar = confirm("¿Querés quitar esta rutina del alumno?");
+  if (!confirmar) return;
 
-    const { error } = await supabase
-      .from("rutina_asignaciones")
-      .update({ activa: false })
-      .eq("id", asignacionId);
+  const asignacionActual = asignaciones.find(
+    (asignacion) => asignacion.id === asignacionId
+  );
 
-    if (error) {
-      alert(error.message);
+  if (!asignacionActual) {
+    alert("No se encontró la asignación.");
+    return;
+  }
+
+  const { data: registrosABorrar, error: buscarError } = await supabase
+    .from("registros_entrenamiento")
+    .select("id, ejercicio_id")
+    .eq("alumno_id", asignacionActual.alumno_id)
+    .eq("rutina_asignacion_id", asignacionId);
+
+  if (buscarError) {
+    alert(buscarError.message);
+    return;
+  }
+
+  const ejercicioIds = Array.from(
+    new Set(
+      (registrosABorrar || [])
+        .map((registro) => registro.ejercicio_id)
+        .filter(Boolean)
+    )
+  ) as string[];
+
+  const registroIds = (registrosABorrar || []).map((registro) => registro.id);
+
+  if (registroIds.length > 0) {
+    const { error: historialError } = await supabase
+      .from("rms_historial")
+      .delete()
+      .in("registro_entrenamiento_id", registroIds);
+
+    if (historialError) {
+      alert(historialError.message);
       return;
     }
 
-    cargarAsignaciones();
+    const { error: registrosError } = await supabase
+      .from("registros_entrenamiento")
+      .delete()
+      .in("id", registroIds);
+
+    if (registrosError) {
+      alert(registrosError.message);
+      return;
+    }
   }
+
+  if (ejercicioIds.length > 0) {
+    const { error: rmsActualesError } = await supabase
+      .from("rms_actuales")
+      .delete()
+      .eq("alumno_id", asignacionActual.alumno_id)
+      .in("ejercicio_id", ejercicioIds);
+
+    if (rmsActualesError) {
+      alert(rmsActualesError.message);
+      return;
+    }
+  }
+
+  const { error } = await supabase
+    .from("rutina_asignaciones")
+    .delete()
+    .eq("id", asignacionId);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  cargarAsignaciones();
+}
 
   function limpiarFormularioEjercicio() {
     setEjercicioId("");

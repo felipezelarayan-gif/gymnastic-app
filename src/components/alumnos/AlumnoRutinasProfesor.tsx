@@ -277,15 +277,6 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
-    const yaAsignada = asignadas.some(
-      (item) => item.rutina_id === rutinaSeleccionada && !item.completada
-    );
-
-    if (yaAsignada) {
-      alert("Esta rutina ya está asignada a este alumno.");
-      return;
-    }
-
     setGuardando(true);
 
     const { error } = await supabase.from("rutina_asignaciones").insert({
@@ -359,60 +350,148 @@ export default function AlumnoRutinasProfesor({
     window.location.href = `/rutinas/${nuevaRutina.id}`;
   }
 
+async function recalcularRMActual(ejercicioId: string) {
+  const { data: historial, error: historialError } = await supabase
+    .from("rms_historial")
+    .select("*")
+    .eq("alumno_id", id)
+    .eq("ejercicio_id", ejercicioId)
+    .order("rm_calculado", { ascending: false })
+    .limit(1);
+
+  if (historialError) {
+    alert(historialError.message);
+    return;
+  }
+
+  const mejor = historial?.[0];
+
+  if (!mejor) {
+    await supabase
+      .from("rms_actuales")
+      .delete()
+      .eq("alumno_id", id)
+      .eq("ejercicio_id", ejercicioId);
+
+    return;
+  }
+
+  const { data: existente } = await supabase
+    .from("rms_actuales")
+    .select("id")
+    .eq("alumno_id", id)
+    .eq("ejercicio_id", ejercicioId)
+    .maybeSingle();
+
+  if (!existente) {
+    await supabase.from("rms_actuales").insert({
+      alumno_id: id,
+      ejercicio_id: ejercicioId,
+      peso_kg: mejor.peso_kg,
+      repeticiones: mejor.repeticiones,
+      rm_calculado: mejor.rm_calculado,
+      actualizado_en: new Date().toISOString(),
+    });
+  } else {
+    await supabase
+      .from("rms_actuales")
+      .update({
+        peso_kg: mejor.peso_kg,
+        repeticiones: mejor.repeticiones,
+        rm_calculado: mejor.rm_calculado,
+        actualizado_en: new Date().toISOString(),
+      })
+      .eq("id", existente.id);
+  }
+}
 
   async function quitarAsignacion(asignacionId: string) {
-    const confirmar = confirm("¿Querés quitar esta rutina del alumno?");
+  const confirmar = confirm("¿Querés quitar esta rutina del alumno?");
+  if (!confirmar) return;
 
-    if (!confirmar) return;
+  console.log("QUITAR DESDE PERFIL ALUMNO", asignacionId);
 
-    const { error } = await supabase
-      .from("rutina_asignaciones")
+  const { data: registrosABorrar, error: buscarError } = await supabase
+    .from("registros_entrenamiento")
+    .select("id, ejercicio_id")
+    .eq("alumno_id", id)
+    .eq("rutina_asignacion_id", asignacionId);
+    console.log("REGISTROS A BORRAR", registrosABorrar);
+
+  if (buscarError) {
+    alert(buscarError.message);
+    return;
+  }
+
+  const ejercicioIds = Array.from(
+    new Set(
+      (registrosABorrar || [])
+        .map((registro) => registro.ejercicio_id)
+        .filter(Boolean)
+    )
+  ) as string[];
+
+  const registroIds = (registrosABorrar || []).map((registro) => registro.id);
+console.log("EJERCICIO IDS", ejercicioIds);
+console.log("REGISTRO IDS", registroIds);
+
+  if (registroIds.length > 0) {
+    const { error: historialError } = await supabase
+      .from("rms_historial")
       .delete()
-      .eq("id", asignacionId);
+      .in("registro_entrenamiento_id", registroIds);
 
-    if (error) {
-      alert(error.message);
+    if (historialError) {
+      alert(historialError.message);
       return;
     }
 
-    await cargarTodo();
+    const { error: registrosError } = await supabase
+      .from("registros_entrenamiento")
+      .delete()
+      .in("id", registroIds);
+
+    if (registrosError) {
+      alert(registrosError.message);
+      return;
+    }
   }
 
-const asignadasOrdenadas = useMemo(() => {
-  const estadoValor = (asignacion: RutinaAsignada) => {
-    if (asignacion.completada) return 2;
-    if (asignacion.activa) return 1;
-    return 0;
-  };
+  const { error } = await supabase
+    .from("rutina_asignaciones")
+    .delete()
+    .eq("id", asignacionId);
 
-  return [...asignadas].sort((a, b) => {
-    let valorA = "";
-    let valorB = "";
+  if (error) {
+    alert(error.message);
+    return;
+  }
 
-    if (ordenarPor === "nombre") {
-      valorA = normalizarRutina(a.rutinas)?.nombre?.toLowerCase() || "";
-      valorB = normalizarRutina(b.rutinas)?.nombre?.toLowerCase() || "";
+  if (ejercicioIds.length > 0) {
+  const { error: rmsActualesError } = await supabase
+    .from("rms_actuales")
+    .delete()
+    .eq("alumno_id", id)
+    .in("ejercicio_id", ejercicioIds);
 
-      return orden === "asc"
-        ? valorA.localeCompare(valorB)
-        : valorB.localeCompare(valorA);
-    }
+  if (rmsActualesError) {
+    alert(rmsActualesError.message);
+    return;
+  }
+} else {
+  const { error: rmsActualesError } = await supabase
+    .from("rms_actuales")
+    .delete()
+    .eq("alumno_id", id);
 
-    if (ordenarPor === "estado") {
-      const estadoA = estadoValor(a);
-      const estadoB = estadoValor(b);
+  if (rmsActualesError) {
+    alert(rmsActualesError.message);
+    return;
+  }
+}
 
-      return orden === "asc" ? estadoA - estadoB : estadoB - estadoA;
-    }
-
-    valorA = a.fecha_asignacion || "";
-    valorB = b.fecha_asignacion || "";
-
-    return orden === "asc"
-      ? valorA.localeCompare(valorB)
-      : valorB.localeCompare(valorA);
-  });
-}, [asignadas, ordenarPor, orden]);
+await cargarTodo();
+}
 
 async function editarRutinaParaAlumno(asignacion: RutinaAsignada) {
   const rutina = normalizarRutina(asignacion.rutinas);
@@ -667,7 +746,7 @@ async function editarRutinaParaAlumno(asignacion: RutinaAsignada) {
             </p>
           ) : (
             <div className="space-y-3">
-              {asignadasOrdenadas.slice(0, mostrar).map((asignacion) => {
+              {asignadas.slice(0, mostrar).map((asignacion) => {
                 const rutina = normalizarRutina(asignacion.rutinas);
 
                 const estado = asignacion.completada

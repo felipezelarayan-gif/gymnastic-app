@@ -160,7 +160,6 @@ export default function AlumnoHomePage() {
         )
       `)
       .eq("alumno_id", alumnoData.id)
-      .eq("activa", true)
       .order("fecha_asignacion", { ascending: true })
       .order("created_at", { ascending: true });
 
