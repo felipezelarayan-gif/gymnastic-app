@@ -15,6 +15,7 @@ type Rutina = {
 type RutinaAsignada = {
   asignacion_id: string;
   rutina_id: string;
+  activa?: boolean | null;
   fecha_asignacion?: string | null;
   orden?: number | null;
   completada?: boolean | null;
@@ -27,6 +28,7 @@ type RutinaRelacion = Rutina | Rutina[] | null;
 type RutinaAsignacionResponse = {
   id: string;
   rutina_id: string;
+  activa?: boolean | null;
   fecha_asignacion?: string | null;
   orden?: number | null;
   completada?: boolean | null;
@@ -78,6 +80,13 @@ type RegistroEntrenamiento = {
   rutina_asignacion_id?: string | null;
   rutina_ejercicio_id?: string | null;
   entrada_calor_id?: string | null;
+  ejercicio_id?: string | null;
+  nombre_ejercicio?: string | null;
+  peso_kg?: number | null;
+  repeticiones?: number | null;
+  rpe?: number | null;
+  rir?: number | null;
+  completado?: boolean | null;
 };
 
 const opcionesRPE = Array.from({ length: 10 }, (_, index) => index + 1);
@@ -96,39 +105,20 @@ function textoPrescripcion(item: {
 }
 
 function normalizarRutina(rutinas?: RutinaRelacion) {
-  if (Array.isArray(rutinas)) {
-    return rutinas[0] || null;
-  }
-
+  if (Array.isArray(rutinas)) return rutinas[0] || null;
   return rutinas || null;
 }
 
 export default function AlumnoRutinaPage() {
   const [loading, setLoading] = useState(true);
   const [alumnoId, setAlumnoId] = useState("");
-
-  const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>(
-    []
-  );
-
-  const [rutinasAbiertas, setRutinasAbiertas] = useState<
-    Record<string, boolean>
-  >({});
-
-  const [ejerciciosPorRutina, setEjerciciosPorRutina] = useState<
-    Record<string, RutinaEjercicio[]>
-  >({});
-
-  const [entradaPorRutina, setEntradaPorRutina] = useState<
-    Record<string, EntradaCalorEjercicio[]>
-  >({});
-
+  const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>([]);
+  const [rutinasAbiertas, setRutinasAbiertas] = useState<Record<string, boolean>>({});
+  const [ejerciciosPorRutina, setEjerciciosPorRutina] = useState<Record<string, RutinaEjercicio[]>>({});
+  const [entradaPorRutina, setEntradaPorRutina] = useState<Record<string, EntradaCalorEjercicio[]>>({});
   const [registros, setRegistros] = useState<RegistroEntrenamiento[]>([]);
   const [rmsActuales, setRmsActuales] = useState<RMActual[]>([]);
-
-  const [ejercicioSeleccionado, setEjercicioSeleccionado] =
-    useState<RutinaEjercicio | null>(null);
-
+  const [ejercicioSeleccionado, setEjercicioSeleccionado] = useState<RutinaEjercicio | null>(null);
   const [pesoUsado, setPesoUsado] = useState("");
   const [repsRealizadas, setRepsRealizadas] = useState("");
   const [rpe, setRpe] = useState("");
@@ -182,6 +172,7 @@ export default function AlumnoRutinaPage() {
       .select(`
         id,
         rutina_id,
+        activa,
         fecha_asignacion,
         orden,
         completada,
@@ -207,23 +198,50 @@ export default function AlumnoRutinaPage() {
       return;
     }
 
+    const rutinaIds = Array.from(
+      new Set((asignacionesData || []).map((item) => item.rutina_id).filter(Boolean))
+    );
+
+    let rutinasBase: Rutina[] = [];
+
+if (rutinaIds.length > 0) {
+  const { data: rutinasData, error: rutinasError } = await supabase
+    .from("rutinas")
+    .select("id,nombre,descripcion,objetivo,estructura,entrada_calor")
+    .in("id", rutinaIds);
+
+  if (rutinasError) {
+    alert(rutinasError.message);
+    setLoading(false);
+    return;
+  }
+
+  rutinasBase = rutinasData || [];
+}
+
     const asignacionesTipadas = (
       (asignacionesData || []) as RutinaAsignacionResponse[]
-    ).map((item) => ({
-      asignacion_id: item.id,
-      rutina_id: item.rutina_id,
-      fecha_asignacion: item.fecha_asignacion,
-      orden: item.orden,
-      completada: item.completada,
-      fecha_completada: item.fecha_completada,
-      rutinas: normalizarRutina(item.rutinas),
-    })) as RutinaAsignada[];
+    ).map((item) => {
+      const rutinaRelacion = normalizarRutina(item.rutinas);
+      const rutinaManual = rutinasBase.find((rutina) => rutina.id === item.rutina_id) || null;
 
-    const rutinasVisibles = asignacionesTipadas;
-    const rutinaIds = rutinasVisibles.map((item) => item.rutina_id);
+      console.log("RUTINA RELACION", rutinaRelacion);
+      console.log("RUTINA MANUAL", rutinaManual);
+
+      return {
+        asignacion_id: item.id,
+        rutina_id: item.rutina_id,
+        activa: item.activa,
+        fecha_asignacion: item.fecha_asignacion,
+        orden: item.orden,
+        completada: item.completada,
+        fecha_completada: item.fecha_completada,
+        rutinas: rutinaManual || rutinaRelacion,
+      };
+    }) as RutinaAsignada[];
 
     if (rutinaIds.length === 0) {
-      setRutinasAsignadas(rutinasVisibles);
+      setRutinasAsignadas(asignacionesTipadas);
       setEjerciciosPorRutina({});
       setEntradaPorRutina({});
       setRegistros([]);
@@ -260,14 +278,8 @@ export default function AlumnoRutinaPage() {
 
     const ejerciciosConVideo =
       rutinaEjercicios?.map((item) => {
-        const video = videosEjercicios.find(
-          (v) => v.id === item.ejercicio_id
-        );
-
-        return {
-          ...item,
-          youtube_url: video?.youtube_url || null,
-        };
+        const video = videosEjercicios.find((v) => v.id === item.ejercicio_id);
+        return { ...item, youtube_url: video?.youtube_url || null };
       }) || [];
 
     const agrupadosEjercicios: Record<string, RutinaEjercicio[]> = {};
@@ -276,7 +288,6 @@ export default function AlumnoRutinaPage() {
       if (!agrupadosEjercicios[item.rutina_id]) {
         agrupadosEjercicios[item.rutina_id] = [];
       }
-
       agrupadosEjercicios[item.rutina_id].push(item);
     });
 
@@ -309,11 +320,7 @@ export default function AlumnoRutinaPage() {
     const entradaConVideo =
       entrada?.map((item) => {
         const video = videosEntrada.find((v) => v.id === item.ejercicio_id);
-
-        return {
-          ...item,
-          youtube_url: video?.youtube_url || null,
-        };
+        return { ...item, youtube_url: video?.youtube_url || null };
       }) || [];
 
     const agrupadaEntrada: Record<string, EntradaCalorEjercicio[]> = {};
@@ -328,14 +335,14 @@ export default function AlumnoRutinaPage() {
       agrupadaEntrada[item.rutina_id].push(item);
     });
 
-    const asignacionIds = rutinasVisibles.map((item) => item.asignacion_id);
+    const asignacionIds = asignacionesTipadas.map((item) => item.asignacion_id);
 
-const { data: registrosData, error: registrosError } = await supabase
-  .from("registros_entrenamiento")
-  .select("id,rutina_id,rutina_asignacion_id,rutina_ejercicio_id,entrada_calor_id")
-  .eq("alumno_id", alumno.id)
-  .in("rutina_asignacion_id", asignacionIds)
-  .eq("completado", true);
+    const { data: registrosData, error: registrosError } = await supabase
+      .from("registros_entrenamiento")
+      .select("id,rutina_id,rutina_asignacion_id,rutina_ejercicio_id,entrada_calor_id,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rpe,rir")
+      .eq("alumno_id", alumno.id)
+      .in("rutina_asignacion_id", asignacionIds)
+      .eq("completado", true);
 
     if (registrosError) {
       alert(registrosError.message);
@@ -348,7 +355,7 @@ const { data: registrosData, error: registrosError } = await supabase
       .select("id,ejercicio_id,rm_calculado")
       .eq("alumno_id", alumno.id);
 
-    setRutinasAsignadas(rutinasVisibles);
+    setRutinasAsignadas(asignacionesTipadas);
     setEjerciciosPorRutina(agrupadosEjercicios);
     setEntradaPorRutina(agrupadaEntrada);
     setRegistros(registrosData || []);
@@ -356,107 +363,172 @@ const { data: registrosData, error: registrosError } = await supabase
     setLoading(false);
   }
 
-    function ejercicioEstaCompletado(
-  rutinaAsignacionId: string,
-  rutinaEjercicioId: string
-) {
-  return registros.some(
-    (registro) =>
-      registro.rutina_asignacion_id === rutinaAsignacionId &&
-      registro.rutina_ejercicio_id === rutinaEjercicioId
-  );
-}
+  function ejercicioEstaCompletado(rutinaAsignacionId: string, rutinaEjercicioId: string) {
+    return registros.some(
+      (registro) =>
+        registro.rutina_asignacion_id === rutinaAsignacionId &&
+        registro.rutina_ejercicio_id === rutinaEjercicioId
+    );
+  }
 
-  function entradaEstaCompletada(
-  rutinaAsignacionId: string,
-  entradaId: string
-) {
-  return registros.some(
-    (registro) =>
-      registro.rutina_asignacion_id === rutinaAsignacionId &&
-      registro.entrada_calor_id === entradaId
-  );
-}
+  function entradaEstaCompletada(rutinaAsignacionId: string, entradaId: string) {
+    return registros.some(
+      (registro) =>
+        registro.rutina_asignacion_id === rutinaAsignacionId &&
+        registro.entrada_calor_id === entradaId
+    );
+  }
 
-  function toggleRutina(rutinaId: string) {
+  function asignacionEstaCompletada(asignacion: RutinaAsignada) {
+    return asignacion.completada === true || asignacion.activa === false;
+  }
+
+  function toggleRutina(asignacionId: string) {
     setRutinasAbiertas((actual) => ({
       ...actual,
-      [rutinaId]: !actual[rutinaId],
+      [asignacionId]: !actual[asignacionId],
     }));
   }
 
-  async function deshacerCompletado(rutinaId: string, rutinaEjercicioId: string) {
-  const confirmar = confirm("¿Querés deshacer este ejercicio?");
-  if (!confirmar) return;
+  function calcularPesoPorRM(item: RutinaEjercicio) {
+    if (!item.ejercicio_id || !item.porcentaje_rm) return null;
 
-  const asignacionActual = rutinasAsignadas.find(
-    (asignacion) => asignacion.rutina_id === rutinaId
-  );
+    if (item.porcentaje_rm === "0") return "Peso corporal";
 
-  if (!asignacionActual) {
-    alert("No se encontró la asignación de esta rutina.");
-    return;
+    const porcentaje = Number(String(item.porcentaje_rm).replace("%", "").trim());
+
+    if (!porcentaje || Number.isNaN(porcentaje)) return null;
+
+    const rm = rmsActuales.find((registro) => registro.ejercicio_id === item.ejercicio_id);
+
+    if (!rm?.rm_calculado) return null;
+
+    return `${Number(((Number(rm.rm_calculado) * porcentaje) / 100).toFixed(1))} kg`;
   }
 
-  const { data: registroActual } = await supabase
-    .from("registros_entrenamiento")
-    .select("ejercicio_id")
-    .eq("alumno_id", alumnoId)
-    .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
-    .eq("rutina_ejercicio_id", rutinaEjercicioId)
-    .maybeSingle();
-
-  await supabase
-    .from("rms_historial")
-    .delete()
-    .eq("alumno_id", alumnoId)
-    .eq("rutina_id", rutinaId)
-    .eq("rutina_ejercicio_id", rutinaEjercicioId);
-
-  const { error } = await supabase
-    .from("registros_entrenamiento")
-    .delete()
-    .eq("alumno_id", alumnoId)
-    .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
-    .eq("rutina_ejercicio_id", rutinaEjercicioId);
-
-  if (error) {
-    alert(error.message);
-    return;
+  function calcularEpley(peso: number, reps: number) {
+    return Number((peso * (1 + reps / 30)).toFixed(2));
   }
 
-  if (registroActual?.ejercicio_id) {
-    await recalcularRMActual(registroActual.ejercicio_id);
+  async function recalcularRMActual(ejercicioId: string) {
+    const { data: historial, error: historialError } = await supabase
+      .from("rms_historial")
+      .select("*")
+      .eq("alumno_id", alumnoId)
+      .eq("ejercicio_id", ejercicioId)
+      .order("rm_calculado", { ascending: false })
+      .limit(1);
+
+    if (historialError) {
+      alert(historialError.message);
+      return;
+    }
+
+    const mejor = historial?.[0];
+
+    if (!mejor) {
+      await supabase
+        .from("rms_actuales")
+        .delete()
+        .eq("alumno_id", alumnoId)
+        .eq("ejercicio_id", ejercicioId);
+
+      return;
+    }
+
+    const { data: existente } = await supabase
+      .from("rms_actuales")
+      .select("id")
+      .eq("alumno_id", alumnoId)
+      .eq("ejercicio_id", ejercicioId)
+      .maybeSingle();
+
+    if (!existente) {
+      await supabase.from("rms_actuales").insert({
+        alumno_id: alumnoId,
+        ejercicio_id: ejercicioId,
+        peso_kg: mejor.peso_kg,
+        repeticiones: mejor.repeticiones,
+        rm_calculado: mejor.rm_calculado,
+        actualizado_en: new Date().toISOString(),
+      });
+    } else {
+      await supabase
+        .from("rms_actuales")
+        .update({
+          peso_kg: mejor.peso_kg,
+          repeticiones: mejor.repeticiones,
+          rm_calculado: mejor.rm_calculado,
+          actualizado_en: new Date().toISOString(),
+        })
+        .eq("id", existente.id);
+    }
   }
 
-  await supabase
-    .from("rutina_asignaciones")
-    .update({
-      activa: true,
-      completada: false,
-      fecha_completada: null,
-    })
-    .eq("id", asignacionActual.asignacion_id);
+  async function revisarSiRutinaQuedoCompleta(rutinaId: string) {
+    const asignacionActual = rutinasAsignadas.find(
+      (asignacion) => asignacion.rutina_id === rutinaId
+    );
 
-  await cargarTodo();
-}
+    if (!asignacionActual) return;
+
+    const ejercicios = ejerciciosPorRutina[rutinaId] || [];
+    if (ejercicios.length === 0) return;
+
+    const { data: registrosActualizados, error } = await supabase
+      .from("registros_entrenamiento")
+      .select("id,rutina_asignacion_id,rutina_ejercicio_id")
+      .eq("alumno_id", alumnoId)
+      .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+      .eq("completado", true);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const idsCompletados = new Set(
+      (registrosActualizados || [])
+        .map((registro) => registro.rutina_ejercicio_id)
+        .filter(Boolean)
+    );
+
+    const todosCompletados = ejercicios.every((ejercicio) =>
+      idsCompletados.has(ejercicio.id)
+    );
+
+    if (!todosCompletados) return;
+
+    const { error: updateError } = await supabase
+      .from("rutina_asignaciones")
+      .update({
+        activa: false,
+        completada: true,
+        fecha_completada: new Date().toISOString(),
+      })
+      .eq("id", asignacionActual.asignacion_id);
+
+    if (updateError) {
+      alert(updateError.message);
+    }
+  }
 
   async function completarEntradaCalor(item: EntradaCalorEjercicio) {
     if (!item.rutina_id) return;
 
-    if (entradaEstaCompletada(item.rutina_id, item.id)) {
-      alert("Esta entrada en calor ya fue completada.");
+    const asignacionActual = rutinasAsignadas.find(
+      (asignacion) => asignacion.rutina_id === item.rutina_id
+    );
+
+    if (!asignacionActual) {
+      alert("No se encontró la asignación de esta rutina.");
       return;
     }
 
-    const asignacionActual = rutinasAsignadas.find(
-  (asignacion) => asignacion.rutina_id === item.rutina_id
-);
-
-if (!asignacionActual) {
-  alert("No se encontró la asignación de esta rutina.");
-  return;
-}
+    if (entradaEstaCompletada(asignacionActual.asignacion_id, item.id)) {
+      alert("Esta entrada en calor ya fue completada.");
+      return;
+    }
 
     const { error } = await supabase.from("registros_entrenamiento").insert({
       alumno_id: alumnoId,
@@ -487,55 +559,49 @@ if (!asignacionActual) {
     if (!confirmar) return;
 
     const asignacionActual = rutinasAsignadas.find(
-  (asignacion) => asignacion.rutina_id === rutinaId
-);
+      (asignacion) => asignacion.rutina_id === rutinaId
+    );
 
-if (!asignacionActual) {
-  alert("No se encontró la asignación de esta rutina.");
-  return;
-}
+    if (!asignacionActual) {
+      alert("No se encontró la asignación de esta rutina.");
+      return;
+    }
 
-const { error } = await supabase
-  .from("registros_entrenamiento")
-  .delete()
-  .eq("alumno_id", alumnoId)
-  .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
-  .eq("entrada_calor_id", entradaId);
+    const { error } = await supabase
+      .from("registros_entrenamiento")
+      .delete()
+      .eq("alumno_id", alumnoId)
+      .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+      .eq("entrada_calor_id", entradaId);
 
     if (error) {
       alert(error.message);
       return;
     }
 
+    await supabase
+      .from("rutina_asignaciones")
+      .update({
+        activa: true,
+        completada: false,
+        fecha_completada: null,
+      })
+      .eq("id", asignacionActual.asignacion_id);
+
     await cargarTodo();
   }
 
-  function calcularPesoPorRM(item: RutinaEjercicio) {
-    if (!item.ejercicio_id || !item.porcentaje_rm) return null;
-
-    if (item.porcentaje_rm === "0") return "Peso corporal";
-
-    const porcentaje = Number(
-      String(item.porcentaje_rm).replace("%", "").trim()
-    );
-
-    if (!porcentaje || Number.isNaN(porcentaje)) return null;
-
-    const rm = rmsActuales.find(
-      (registro) => registro.ejercicio_id === item.ejercicio_id
-    );
-
-    if (!rm?.rm_calculado) return null;
-
-    return `${Number(((Number(rm.rm_calculado) * porcentaje) / 100).toFixed(1))} kg`;
-  }
-
-  function calcularEpley(peso: number, reps: number) {
-    return Number((peso * (1 + reps / 30)).toFixed(2));
-  }
-
   function abrirCompletado(item: RutinaEjercicio) {
-    if (ejercicioEstaCompletado(item.rutina_id, item.id)) {
+    const asignacionActual = rutinasAsignadas.find(
+      (asignacion) => asignacion.rutina_id === item.rutina_id
+    );
+
+    if (!asignacionActual) {
+      alert("No se encontró la asignación de esta rutina.");
+      return;
+    }
+
+    if (ejercicioEstaCompletado(asignacionActual.asignacion_id, item.id)) {
       alert("Este ejercicio ya fue completado.");
       return;
     }
@@ -547,9 +613,7 @@ const { error } = await supabase
     if (pesoSugerido === "Peso corporal") {
       setPesoUsado("0");
     } else {
-      setPesoUsado(
-        pesoSugerido ? String(pesoSugerido).replace(" kg", "") : ""
-      );
+      setPesoUsado(pesoSugerido ? String(pesoSugerido).replace(" kg", "") : "");
     }
 
     setRepsRealizadas("");
@@ -557,119 +621,21 @@ const { error } = await supabase
     setRirReal("");
   }
 
-  async function revisarSiRutinaQuedoCompleta(rutinaId: string) {
-  const asignacionActual = rutinasAsignadas.find(
-    (asignacion) => asignacion.rutina_id === rutinaId
-  );
-
-  if (!asignacionActual) {
-    alert("No se encontró la asignación de esta rutina.");
-    return;
-  }
-
-  const ejercicios = ejerciciosPorRutina[rutinaId] || [];
-
-  if (ejercicios.length === 0) return;
-
-  const { data: registrosActualizados, error } = await supabase
-    .from("registros_entrenamiento")
-    .select("id,rutina_asignacion_id,rutina_ejercicio_id")
-    .eq("alumno_id", alumnoId)
-    .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
-    .eq("completado", true);
-
-  if (error) {
-    alert(error.message);
-    return;
-  }
-
-  const idsCompletados = new Set(
-    (registrosActualizados || [])
-      .map((registro) => registro.rutina_ejercicio_id)
-      .filter(Boolean)
-  );
-
-  const todosCompletados = ejercicios.every((ejercicio) =>
-    idsCompletados.has(ejercicio.id)
-  );
-
-  if (!todosCompletados) return;
-
-  const { error: updateError } = await supabase
-    .from("rutina_asignaciones")
-    .update({
-      activa: false,
-      completada: true,
-      fecha_completada: new Date().toISOString(),
-    })
-    .eq("id", asignacionActual.asignacion_id);
-
-  if (updateError) {
-    alert(updateError.message);
-  }
-}
-
-  async function recalcularRMActual(ejercicioId: string) {
-  const { data: historial, error: historialError } = await supabase
-    .from("rms_historial")
-    .select("*")
-    .eq("alumno_id", alumnoId)
-    .eq("ejercicio_id", ejercicioId)
-    .order("rm_calculado", { ascending: false })
-    .limit(1);
-
-  if (historialError) {
-    alert(historialError.message);
-    return;
-  }
-
-  const mejor = historial?.[0];
-
-  if (!mejor) {
-    await supabase
-      .from("rms_actuales")
-      .delete()
-      .eq("alumno_id", alumnoId)
-      .eq("ejercicio_id", ejercicioId);
-
-    return;
-  }
-
-  const { data: existente } = await supabase
-    .from("rms_actuales")
-    .select("id")
-    .eq("alumno_id", alumnoId)
-    .eq("ejercicio_id", ejercicioId)
-    .maybeSingle();
-
-  if (!existente) {
-    await supabase.from("rms_actuales").insert({
-      alumno_id: alumnoId,
-      ejercicio_id: ejercicioId,
-      peso_kg: mejor.peso_kg,
-      repeticiones: mejor.repeticiones,
-      rm_calculado: mejor.rm_calculado,
-      actualizado_en: new Date().toISOString(),
-    });
-  } else {
-    await supabase
-      .from("rms_actuales")
-      .update({
-        peso_kg: mejor.peso_kg,
-        repeticiones: mejor.repeticiones,
-        rm_calculado: mejor.rm_calculado,
-        actualizado_en: new Date().toISOString(),
-      })
-      .eq("id", existente.id);
-  }
-}
-
   async function guardarCompletado() {
     if (!ejercicioSeleccionado) return;
 
+    const asignacionActual = rutinasAsignadas.find(
+      (asignacion) => asignacion.rutina_id === ejercicioSeleccionado.rutina_id
+    );
+
+    if (!asignacionActual) {
+      alert("No se encontró la asignación de esta rutina.");
+      return;
+    }
+
     if (
       ejercicioEstaCompletado(
-        ejercicioSeleccionado.rutina_id,
+        asignacionActual.asignacion_id,
         ejercicioSeleccionado.id
       )
     ) {
@@ -698,44 +664,34 @@ const { error } = await supabase
     }
 
     const esPesoCorporal = ejercicioSeleccionado.porcentaje_rm === "0";
-    const rmCalculado = esPesoCorporal
-      ? null
-      : calcularEpley(pesoNumero, repsNumero);
+    const rmCalculado = esPesoCorporal ? null : calcularEpley(pesoNumero, repsNumero);
 
-    const asignacionActual = rutinasAsignadas.find(
-  (asignacion) => asignacion.rutina_id === ejercicioSeleccionado.rutina_id
-);
+    await supabase
+      .from("registros_entrenamiento")
+      .delete()
+      .eq("alumno_id", alumnoId)
+      .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+      .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
 
-if (!asignacionActual) {
-  alert("No se encontró la asignación de esta rutina.");
-  return;
-}
+    const { data: nuevoRegistro, error: registroError } = await supabase
+      .from("registros_entrenamiento")
+      .insert({
+        alumno_id: alumnoId,
+        rutina_id: ejercicioSeleccionado.rutina_id,
+        rutina_asignacion_id: asignacionActual.asignacion_id,
+        rutina_ejercicio_id: ejercicioSeleccionado.id,
+        ejercicio_id: ejercicioSeleccionado.ejercicio_id || null,
+        nombre_ejercicio: ejercicioSeleccionado.nombre_ejercicio,
+        peso_kg: pesoNumero,
+        repeticiones: repsNumero,
+        rpe: rpeNumero,
+        rir: rirNumero,
+        rm_calculado: rmCalculado,
+        completado: true,
+      })
+      .select("id")
+      .single();
 
-await supabase
-  .from("registros_entrenamiento")
-  .delete()
-  .eq("alumno_id", alumnoId)
-  .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
-  .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
-
-const { data: nuevoRegistro, error: registroError } = await supabase
-  .from("registros_entrenamiento")
-  .insert({
-    alumno_id: alumnoId,
-    rutina_id: ejercicioSeleccionado.rutina_id,
-    rutina_asignacion_id: asignacionActual.asignacion_id,
-    rutina_ejercicio_id: ejercicioSeleccionado.id,
-    ejercicio_id: ejercicioSeleccionado.ejercicio_id || null,
-    nombre_ejercicio: ejercicioSeleccionado.nombre_ejercicio,
-    peso_kg: pesoNumero,
-    repeticiones: repsNumero,
-    rpe: rpeNumero,
-    rir: rirNumero,
-    rm_calculado: rmCalculado,
-    completado: true,
-  })
-  .select("id")
-  .single();
     if (registroError) {
       alert(registroError.message);
       return;
@@ -744,43 +700,43 @@ const { data: nuevoRegistro, error: registroError } = await supabase
     if (!nuevoRegistro) {
       alert("No se pudo guardar el registro del entrenamiento.");
       return;
-}
+    }
 
     if (ejercicioSeleccionado.ejercicio_id && !esPesoCorporal && rmCalculado) {
-  const { data: rmActualExistente } = await supabase
-    .from("rms_actuales")
-    .select("rm_calculado")
-    .eq("alumno_id", alumnoId)
-    .eq("ejercicio_id", ejercicioSeleccionado.ejercicio_id)
-    .maybeSingle();
+      const { data: rmActualExistente } = await supabase
+        .from("rms_actuales")
+        .select("rm_calculado")
+        .eq("alumno_id", alumnoId)
+        .eq("ejercicio_id", ejercicioSeleccionado.ejercicio_id)
+        .maybeSingle();
 
-  const rmAnterior = Number(rmActualExistente?.rm_calculado || 0);
-  const rompeRecord = rmCalculado > rmAnterior;
+      const rmAnterior = Number(rmActualExistente?.rm_calculado || 0);
+      const rompeRecord = rmCalculado > rmAnterior;
 
-  await supabase
-    .from("rms_historial")
-    .delete()
-    .eq("alumno_id", alumnoId)
-    .eq("rutina_id", ejercicioSeleccionado.rutina_id)
-    .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
+      await supabase
+        .from("rms_historial")
+        .delete()
+        .eq("alumno_id", alumnoId)
+        .eq("rutina_id", ejercicioSeleccionado.rutina_id)
+        .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
 
-  if (rompeRecord) {
-    await supabase.from("rms_historial").insert({
-      alumno_id: alumnoId,
-      ejercicio_id: ejercicioSeleccionado.ejercicio_id,
-      rutina_id: ejercicioSeleccionado.rutina_id,
-      rutina_ejercicio_id: ejercicioSeleccionado.id,
-      registro_entrenamiento_id: nuevoRegistro.id,
-      peso_kg: pesoNumero,
-      repeticiones: repsNumero,
-      rm_calculado: rmCalculado,
-      origen: "entrenamiento",
-    });
-  }
+      if (rompeRecord) {
+        await supabase.from("rms_historial").insert({
+          alumno_id: alumnoId,
+          ejercicio_id: ejercicioSeleccionado.ejercicio_id,
+          rutina_id: ejercicioSeleccionado.rutina_id,
+          rutina_ejercicio_id: ejercicioSeleccionado.id,
+          registro_entrenamiento_id: nuevoRegistro.id,
+          peso_kg: pesoNumero,
+          repeticiones: repsNumero,
+          rm_calculado: rmCalculado,
+          origen: "entrenamiento",
+        });
+      }
 
-  await recalcularRMActual(ejercicioSeleccionado.ejercicio_id);
-}
-    
+      await recalcularRMActual(ejercicioSeleccionado.ejercicio_id);
+    }
+
     await revisarSiRutinaQuedoCompleta(ejercicioSeleccionado.rutina_id);
 
     setEjercicioSeleccionado(null);
@@ -792,37 +748,421 @@ const { data: nuevoRegistro, error: registroError } = await supabase
     await cargarTodo();
   }
 
-  function asignacionEstaCompletada(asignacion: RutinaAsignada) {
-    if (asignacion.completada) return true;
+  async function deshacerCompletado(rutinaId: string, rutinaEjercicioId: string) {
+    const confirmar = confirm("¿Querés deshacer este ejercicio?");
+    if (!confirmar) return;
 
-    const rutina = asignacion.rutinas;
-    if (!rutina) return false;
+    const asignacionActual = rutinasAsignadas.find(
+      (asignacion) => asignacion.rutina_id === rutinaId
+    );
 
-    const ejercicios = ejerciciosPorRutina[rutina.id] || [];
-    if (ejercicios.length === 0) return false;
+    if (!asignacionActual) {
+      alert("No se encontró la asignación de esta rutina.");
+      return;
+    }
 
-    return ejercicios.every((ejercicio) =>
-  ejercicioEstaCompletado(asignacion.asignacion_id, ejercicio.id)
-);
+    const { data: registroActual } = await supabase
+      .from("registros_entrenamiento")
+      .select("ejercicio_id")
+      .eq("alumno_id", alumnoId)
+      .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+      .eq("rutina_ejercicio_id", rutinaEjercicioId)
+      .maybeSingle();
+
+    await supabase
+      .from("rms_historial")
+      .delete()
+      .eq("alumno_id", alumnoId)
+      .eq("rutina_id", rutinaId)
+      .eq("rutina_ejercicio_id", rutinaEjercicioId);
+
+    const { error } = await supabase
+      .from("registros_entrenamiento")
+      .delete()
+      .eq("alumno_id", alumnoId)
+      .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+      .eq("rutina_ejercicio_id", rutinaEjercicioId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (registroActual?.ejercicio_id) {
+      await recalcularRMActual(registroActual.ejercicio_id);
+    }
+
+    await supabase
+      .from("rutina_asignaciones")
+      .update({
+        activa: true,
+        completada: false,
+        fecha_completada: null,
+      })
+      .eq("id", asignacionActual.asignacion_id);
+
+    await cargarTodo();
   }
 
   function renderRutinaCard(asignacion: RutinaAsignada) {
-  const rutina = asignacion.rutinas;
-  if (!rutina) return null;
+    const rutina =
+      asignacion.rutinas || {
+        id: asignacion.rutina_id,
+        nombre: "Rutina finalizada",
+        descripcion: null,
+        objetivo: null,
+        estructura: null,
+        entrada_calor: null,
+      };
+  
+  async function deshacerRutinaCompleta(asignacion: RutinaAsignada) {
+  const confirmar = confirm("¿Querés deshacer esta rutina completada?");
+  if (!confirmar) return;
 
+  const { error: registrosError } = await supabase
+    .from("registros_entrenamiento")
+    .delete()
+    .eq("alumno_id", alumnoId)
+    .eq("rutina_asignacion_id", asignacion.asignacion_id);
+
+  if (registrosError) {
+    alert(registrosError.message);
+    return;
+  }
+
+  const { error: asignacionError } = await supabase
+    .from("rutina_asignaciones")
+    .update({
+      activa: true,
+      completada: false,
+      fecha_completada: null,
+    })
+    .eq("id", asignacion.asignacion_id);
+
+  if (asignacionError) {
+    alert(asignacionError.message);
+    return;
+  }
+
+  await cargarTodo();
+}
+
+    const completada = asignacionEstaCompletada(asignacion);
+    const abierta = !!rutinasAbiertas[asignacion.asignacion_id];
+    const entrada = entradaPorRutina[rutina.id] || [];
+    const ejercicios = ejerciciosPorRutina[rutina.id] || [];
+
+    return (
+      <div
+        key={asignacion.asignacion_id}
+        className={`rounded-2xl border p-5 ${
+          completada
+            ? "border-emerald-800 bg-emerald-500/5"
+            : "border-zinc-800 bg-zinc-900"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => toggleRutina(asignacion.asignacion_id)}
+          className="w-full flex items-center justify-between gap-4"
+        >
+          <div className="text-left">
+            <h2 className="text-2xl font-bold">{rutina.nombre}</h2>
+
+            <div className="flex flex-wrap gap-2 mt-3">
+              {rutina.objetivo && (
+                <span className="text-sm rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
+                  {rutina.objetivo}
+                </span>
+              )}
+
+              {rutina.estructura && (
+                <span className="text-sm rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
+                  {rutina.estructura}
+                </span>
+              )}
+
+              {asignacion.fecha_asignacion && (
+                <span className="text-sm rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
+                  Asignada: {asignacion.fecha_asignacion}
+                </span>
+              )}
+
+              {asignacion.fecha_completada && (
+                <span className="text-sm rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
+                  Completada: {asignacion.fecha_completada.slice(0, 10)}
+                </span>
+              )}
+
+              {completada && (
+                <span className="text-sm rounded-full bg-emerald-600 text-white px-3 py-1 font-bold">
+                  COMPLETADA
+                </span>
+              )}
+            </div>
+
+            {rutina.descripcion && (
+              <p className="text-zinc-400 mt-3">{rutina.descripcion}</p>
+            )}
+          </div>
+
+          <span className="text-2xl">{abierta ? "▲" : "▼"}</span>
+        </button>
+
+        {abierta && (
+          <div className="mt-6 space-y-4">
+            <section className="bg-zinc-950/40 border border-zinc-800 rounded-2xl p-5">
+              <h3 className="text-xl font-semibold mb-4">Entrada en calor</h3>
+
+              {entrada.length === 0 ? (
+                <p className="text-zinc-500">Sin entrada en calor cargada.</p>
+              ) : (
+                <div className="space-y-3">
+                  {entrada.map((item) => {
+                    const itemCompletado = entradaEstaCompletada(
+                      asignacion.asignacion_id,
+                      item.id
+                    );
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`border rounded-xl p-4 ${
+                          itemCompletado
+                            ? "border-emerald-800 bg-emerald-500/5"
+                            : "border-zinc-800"
+                        }`}
+                      >
+                        <h4 className="font-semibold text-lg">
+                          {item.nombre_ejercicio}
+                        </h4>
+
+                        <p className="text-zinc-400 mt-1">
+                          {item.series || "-"} series · {textoPrescripcion(item)}
+                        </p>
+
+                        {item.observaciones && (
+                          <p className="text-zinc-500 mt-3 whitespace-pre-wrap">
+                            {item.observaciones}
+                          </p>
+                        )}
+
+                        {item.youtube_url && (
+                          <a
+                            href={item.youtube_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-4 block w-full rounded-lg border border-red-800 bg-red-500/10 px-3 py-2 text-center text-sm font-semibold text-red-400 hover:bg-red-500/20"
+                          >
+                            ▶ Ver video
+                          </a>
+                        )}
+
+                        {itemCompletado ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              item.rutina_id &&
+                              deshacerEntradaCalor(item.rutina_id, item.id)
+                            }
+                            className="mt-4 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20"
+                          >
+                            ↩ Deshacer entrada en calor
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => completarEntradaCalor(item)}
+                            disabled={completada}
+                            className={`mt-4 w-full rounded-lg px-3 py-2 text-sm font-semibold ${
+                              completada
+                                ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                                : "bg-emerald-500 text-white hover:bg-emerald-600"
+                            }`}
+                          >
+                            Completar entrada en calor
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section className="bg-zinc-950/40 border border-zinc-800 rounded-2xl p-5">
+              <h3 className="text-xl font-semibold mb-4">Ejercicios</h3>
+
+              {ejercicios.length === 0 ? (
+                <p className="text-zinc-400">
+                  Todavía no hay ejercicios cargados en esta rutina.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {ejercicios.map((item) => {
+                    const pesoSugerido = calcularPesoPorRM(item);
+                    const itemCompletado = ejercicioEstaCompletado(
+                      asignacion.asignacion_id,
+                      item.id
+                    );
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`border rounded-xl p-4 ${
+                          itemCompletado
+                            ? "border-emerald-800 bg-emerald-500/5"
+                            : "border-zinc-800"
+                        }`}
+                      >
+                        <h4 className="font-semibold text-lg">
+                          {item.nombre_ejercicio}
+                        </h4>
+
+                        <p className="text-zinc-400 mt-1">
+                          {item.series || "-"} series · {textoPrescripcion(item)}
+                        </p>
+
+                        <div className="flex flex-wrap gap-2 mt-3 text-sm">
+                          {item.peso && (
+                            <span className="rounded-full bg-zinc-800 px-3 py-1">
+                              Peso indicado: {item.peso}
+                            </span>
+                          )}
+
+                          {item.porcentaje_rm && (
+                            <span className="rounded-full bg-zinc-800 px-3 py-1">
+                              {item.porcentaje_rm === "0"
+                                ? "%RM: Peso corporal"
+                                : `%RM: ${item.porcentaje_rm}%`}
+                            </span>
+                          )}
+
+                          {pesoSugerido && (
+                            <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
+                              Peso sugerido: {pesoSugerido}
+                            </span>
+                          )}
+
+                          {item.rir && (
+                            <span className="rounded-full bg-zinc-800 px-3 py-1">
+                              RIR: {item.rir}
+                            </span>
+                          )}
+
+                          {item.descanso && (
+                            <span className="rounded-full bg-zinc-800 px-3 py-1">
+                              Descanso entre series: {item.descanso}
+                            </span>
+                          )}
+                        </div>
+
+                        {item.observaciones && (
+                          <p className="text-zinc-500 mt-3 whitespace-pre-wrap">
+                            {item.observaciones}
+                          </p>
+                        )}
+
+                        {item.youtube_url && (
+                          <a
+                            href={item.youtube_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-4 block w-full rounded-lg border border-red-800 bg-red-500/10 px-3 py-2 text-center text-sm font-semibold text-red-400 hover:bg-red-500/20"
+                          >
+                            ▶ Ver video
+                          </a>
+                        )}
+
+                        {itemCompletado ? (
+                          <button
+                            type="button"
+                            onClick={() => deshacerCompletado(rutina.id, item.id)}
+                            className="mt-4 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20"
+                          >
+                            ↩ Deshacer
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => abrirCompletado(item)}
+                            disabled={completada}
+                            className={`mt-4 w-full rounded-lg px-3 py-2 text-sm font-semibold ${
+                              completada
+                                ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                                : "bg-emerald-500 text-white hover:bg-emerald-600"
+                            }`}
+                          >
+                            Completar
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {completada && (
+                <div className="mt-5 rounded-xl border border-emerald-800 bg-emerald-500/10 p-4 text-center font-semibold text-emerald-400">
+                  ✓ Rutina completada automáticamente
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  async function deshacerRutinaCompleta(asignacion: RutinaAsignada) {
+  const confirmar = confirm("¿Querés deshacer esta rutina completada?");
+  if (!confirmar) return;
+
+  const { error: registrosError } = await supabase
+    .from("registros_entrenamiento")
+    .delete()
+    .eq("alumno_id", alumnoId)
+    .eq("rutina_asignacion_id", asignacion.asignacion_id);
+
+  if (registrosError) {
+    alert(registrosError.message);
+    return;
+  }
+
+  const { error: asignacionError } = await supabase
+    .from("rutina_asignaciones")
+    .update({
+      activa: true,
+      completada: false,
+      fecha_completada: null,
+    })
+    .eq("id", asignacion.asignacion_id);
+
+  if (asignacionError) {
+    alert(asignacionError.message);
+    return;
+  }
+
+  await cargarTodo();
+}
+
+  function renderCompletadoCard(asignacion: RutinaAsignada) {
+  const rutina =
+  asignacion.rutinas ||
+  rutinasAsignadas.find((item) => item.rutina_id === asignacion.rutina_id)
+    ?.rutinas ||
+  null;
+  console.log("COMPLETADA:", asignacion);
   const abierta = !!rutinasAbiertas[asignacion.asignacion_id];
-  const entrada = entradaPorRutina[rutina.id] || [];
-  const ejercicios = ejerciciosPorRutina[rutina.id] || [];
-  const completada = asignacionEstaCompletada(asignacion);
+
+  const registrosDeEstaRutina = registros.filter(
+    (registro) => registro.rutina_asignacion_id === asignacion.asignacion_id
+  );
 
   return (
     <div
       key={asignacion.asignacion_id}
-      className={`rounded-2xl border p-5 ${
-        completada
-          ? "border-emerald-800 bg-emerald-500/5"
-          : "border-zinc-800 bg-zinc-900"
-      }`}
+      className="rounded-2xl border border-emerald-800 bg-emerald-500/5 p-5"
     >
       <button
         type="button"
@@ -830,248 +1170,85 @@ const { data: nuevoRegistro, error: registroError } = await supabase
         className="w-full flex items-center justify-between gap-4"
       >
         <div className="text-left">
-          <h2 className="text-2xl font-bold">{rutina.nombre}</h2>
+          <h2 className="text-2xl font-bold">
+            {rutina?.nombre || "Rutina completada"}
+          </h2>
 
           <div className="flex flex-wrap gap-2 mt-3">
-            {rutina.objetivo && (
-              <span className="text-sm rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
-                {rutina.objetivo}
-              </span>
-            )}
-
-            {rutina.estructura && (
+            {rutina?.estructura && (
               <span className="text-sm rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
                 {rutina.estructura}
               </span>
             )}
 
-            {asignacion.fecha_asignacion && (
-              <span className="text-sm rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
-                Asignada: {asignacion.fecha_asignacion}
+            {rutina?.objetivo && (
+              <span className="text-sm rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
+                {rutina.objetivo}
               </span>
             )}
 
-            {asignacion.fecha_completada && (
-              <span className="text-sm rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
-                Completada: {asignacion.fecha_completada.slice(0, 10)}
-              </span>
-            )}
-
-            {completada && (
-              <span className="text-sm rounded-full bg-emerald-600 text-white px-3 py-1 font-bold">
-                COMPLETADA
-              </span>
-            )}
+            <span className="text-sm rounded-full bg-emerald-600 text-white px-3 py-1 font-bold">
+              COMPLETADA
+            </span>
           </div>
-
-          {rutina.descripcion && (
-            <p className="text-zinc-400 mt-3">{rutina.descripcion}</p>
-          )}
         </div>
 
         <span className="text-2xl">{abierta ? "▲" : "▼"}</span>
       </button>
 
       {abierta && (
-        <div className="mt-6 space-y-4">
-          <section className="bg-zinc-950/40 border border-zinc-800 rounded-2xl p-5">
-            <h3 className="text-xl font-semibold mb-4">Entrada en calor</h3>
+        <div className="mt-5 space-y-3">
+          {registrosDeEstaRutina.length === 0 ? (
+            <p className="text-zinc-400">
+              No hay detalles guardados para este entrenamiento.
+            </p>
+          ) : (
+            registrosDeEstaRutina.map((registro) => (
+              <div
+                key={registro.id}
+                className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
+              >
+                <h3 className="font-semibold">
+                  {registro.nombre_ejercicio || "Ejercicio"}
+                </h3>
 
-            {entrada.length === 0 ? (
-              <p className="text-zinc-500">Sin entrada en calor cargada.</p>
-            ) : (
-              <div className="space-y-3">
-                {entrada.map((item) => {
-                  const itemCompletado =
-                    item.rutina_id &&
-                    entradaEstaCompletada(asignacion.asignacion_id, item.id);
+                <div className="flex flex-wrap gap-2 mt-2 text-sm">
+                  {registro.peso_kg !== null && registro.peso_kg !== undefined && (
+                    <span className="rounded-full bg-zinc-800 px-3 py-1">
+                      Peso: {registro.peso_kg} kg
+                    </span>
+                  )}
 
-                  return (
-                    <div
-                      key={item.id}
-                      className={`border rounded-xl p-4 ${
-                        itemCompletado
-                          ? "border-emerald-800 bg-emerald-500/5"
-                          : "border-zinc-800"
-                      }`}
-                    >
-                      <h4 className="font-semibold text-lg">
-                        {item.nombre_ejercicio}
-                      </h4>
+                  {registro.repeticiones !== null &&
+                    registro.repeticiones !== undefined && (
+                      <span className="rounded-full bg-zinc-800 px-3 py-1">
+                        Reps: {registro.repeticiones}
+                      </span>
+                    )}
 
-                      <p className="text-zinc-400 mt-1">
-                        {item.series || "-"} series · {textoPrescripcion(item)}
-                      </p>
+                  {registro.rpe !== null && registro.rpe !== undefined && (
+                    <span className="rounded-full bg-zinc-800 px-3 py-1">
+                      RPE: {registro.rpe}
+                    </span>
+                  )}
 
-                      {item.observaciones && (
-                        <p className="text-zinc-500 mt-3 whitespace-pre-wrap">
-                          {item.observaciones}
-                        </p>
-                      )}
-
-                      {item.youtube_url && (
-                        <a
-                          href={item.youtube_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-4 block w-full rounded-lg border border-red-800 bg-red-500/10 px-3 py-2 text-center text-sm font-semibold text-red-400 hover:bg-red-500/20"
-                        >
-                          ▶ Ver video
-                        </a>
-                      )}
-
-                      {itemCompletado ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            item.rutina_id &&
-                            deshacerEntradaCalor(item.rutina_id, item.id)
-                          }
-                          className="mt-4 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20"
-                        >
-                          ↩ Deshacer entrada en calor
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => completarEntradaCalor(item)}
-                          disabled={completada}
-                          className={`mt-4 w-full rounded-lg px-3 py-2 text-sm font-semibold ${
-                            completada
-                              ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                              : "bg-emerald-500 text-white hover:bg-emerald-600"
-                          }`}
-                        >
-                          Completar entrada en calor
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                  {registro.rir !== null && registro.rir !== undefined && (
+                    <span className="rounded-full bg-zinc-800 px-3 py-1">
+                      RIR: {registro.rir}
+                    </span>
+                  )}
+                </div>
               </div>
-            )}
-          </section>
+            ))
+          )}
 
-          <section className="bg-zinc-950/40 border border-zinc-800 rounded-2xl p-5">
-            <h3 className="text-xl font-semibold mb-4">Ejercicios</h3>
-
-            {ejercicios.length === 0 ? (
-              <p className="text-zinc-400">
-                Todavía no hay ejercicios cargados en esta rutina.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {ejercicios.map((item) => {
-                  const pesoSugerido = calcularPesoPorRM(item);
-                  const itemCompletado = ejercicioEstaCompletado(
-  asignacion.asignacion_id,
-  item.id
-);
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={`border rounded-xl p-4 ${
-                        itemCompletado
-                          ? "border-emerald-800 bg-emerald-500/5"
-                          : "border-zinc-800"
-                      }`}
-                    >
-                      <h4 className="font-semibold text-lg">
-                        {item.nombre_ejercicio}
-                      </h4>
-
-                      <p className="text-zinc-400 mt-1">
-                        {item.series || "-"} series · {textoPrescripcion(item)}
-                      </p>
-
-                      <div className="flex flex-wrap gap-2 mt-3 text-sm">
-                        {item.peso && (
-                          <span className="rounded-full bg-zinc-800 px-3 py-1">
-                            Peso indicado: {item.peso}
-                          </span>
-                        )}
-
-                        {item.porcentaje_rm && (
-                          <span className="rounded-full bg-zinc-800 px-3 py-1">
-                            {item.porcentaje_rm === "0"
-                              ? "%RM: Peso corporal"
-                              : `%RM: ${item.porcentaje_rm}%`}
-                          </span>
-                        )}
-
-                        {pesoSugerido && (
-                          <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
-                            Peso sugerido: {pesoSugerido}
-                          </span>
-                        )}
-
-                        {item.rir && (
-                          <span className="rounded-full bg-zinc-800 px-3 py-1">
-                            RIR: {item.rir}
-                          </span>
-                        )}
-
-                        {item.descanso && (
-                          <span className="rounded-full bg-zinc-800 px-3 py-1">
-                            Descanso entre series: {item.descanso}
-                          </span>
-                        )}
-                      </div>
-
-                      {item.observaciones && (
-                        <p className="text-zinc-500 mt-3 whitespace-pre-wrap">
-                          {item.observaciones}
-                        </p>
-                      )}
-
-                      {item.youtube_url && (
-                        <a
-                          href={item.youtube_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-4 block w-full rounded-lg border border-red-800 bg-red-500/10 px-3 py-2 text-center text-sm font-semibold text-red-400 hover:bg-red-500/20"
-                        >
-                          ▶ Ver video
-                        </a>
-                      )}
-
-                      {itemCompletado ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            deshacerCompletado(rutina.id, item.id)
-                          }
-                          className="mt-4 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20"
-                        >
-                          ↩ Deshacer
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => abrirCompletado(item)}
-                          disabled={completada}
-                          className={`mt-4 w-full rounded-lg px-3 py-2 text-sm font-semibold ${
-                            completada
-                              ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                              : "bg-emerald-500 text-white hover:bg-emerald-600"
-                          }`}
-                        >
-                          Completar
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {completada && (
-              <div className="mt-5 rounded-xl border border-emerald-800 bg-emerald-500/10 p-4 text-center font-semibold text-emerald-400">
-                ✓ Rutina completada automáticamente
-              </div>
-            )}
-          </section>
+          <button
+            type="button"
+            onClick={() => deshacerRutinaCompleta(asignacion)}
+            className="mt-4 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20"
+          >
+            ↩ Deshacer rutina completada
+          </button>
         </div>
       )}
     </div>
@@ -1086,10 +1263,6 @@ const { data: nuevoRegistro, error: registroError } = await supabase
     );
   }
 
-  const proximosEntrenamientos = rutinasAsignadas
-    .filter((asignacion) => !asignacionEstaCompletada(asignacion))
-    .slice(0, 3);
-
   const entrenamientosCompletados = rutinasAsignadas
     .filter((asignacion) => asignacionEstaCompletada(asignacion))
     .sort((a, b) => {
@@ -1097,6 +1270,10 @@ const { data: nuevoRegistro, error: registroError } = await supabase
       const fechaB = b.fecha_completada || b.fecha_asignacion || "";
       return fechaB.localeCompare(fechaA);
     });
+
+  const proximosEntrenamientos = rutinasAsignadas
+    .filter((asignacion) => !asignacionEstaCompletada(asignacion))
+    .slice(0, 3);
 
   const completadosFiltrados = fechaCompletados
     ? entrenamientosCompletados.filter((asignacion) =>
@@ -1192,6 +1369,7 @@ const { data: nuevoRegistro, error: registroError } = await supabase
                     <label className="block text-sm font-medium text-zinc-300">
                       Buscar por fecha
                     </label>
+
                     <div className="mt-2 flex flex-col gap-2 md:flex-row">
                       <div className="relative w-full">
                         <input
@@ -1200,9 +1378,7 @@ const { data: nuevoRegistro, error: registroError } = await supabase
                           onChange={(event) =>
                             setFechaCompletados(event.target.value)
                           }
-                          onClick={(event) =>
-                            event.currentTarget.showPicker?.()
-                          }
+                          onClick={(event) => event.currentTarget.showPicker?.()}
                           className="w-full cursor-pointer rounded-xl border border-zinc-700 bg-zinc-900 p-3 text-white"
                         />
                       </div>
@@ -1221,11 +1397,10 @@ const { data: nuevoRegistro, error: registroError } = await supabase
 
                   {completadosFiltrados.length === 0 ? (
                     <p className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 text-zinc-400">
-                      No se encontraron entrenamientos completados para esa
-                      fecha.
+                      No se encontraron entrenamientos completados para esa fecha.
                     </p>
                   ) : (
-                    completadosFiltrados.map(renderRutinaCard)
+                    completadosFiltrados.map(renderCompletadoCard)
                   )}
                 </div>
               )}
