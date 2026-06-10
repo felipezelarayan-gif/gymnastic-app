@@ -406,42 +406,54 @@ if (rutinaIds.length > 0) {
   function calcularEpley(peso: number, reps: number) {
     return Number((peso * (1 + reps / 30)).toFixed(2));
   }
+async function recalcularRMActual(ejercicioId: string) {
 
-  async function recalcularRMActual(ejercicioId: string) {
-    const { data: historial, error: historialError } = await supabase
-      .from("rms_historial")
-      .select("*")
-      .eq("alumno_id", alumnoId)
-      .eq("ejercicio_id", ejercicioId)
-      .order("rm_calculado", { ascending: false })
-      .limit(1);
+  const { data: historial, error: historialError } = await supabase
+    .from("rms_historial")
+    .select("*")
+    .eq("alumno_id", alumnoId)
+    .eq("ejercicio_id", ejercicioId)
+    .order("rm_calculado", { ascending: false })
+    .limit(1);
 
-    if (historialError) {
-      alert(historialError.message);
-      return;
-    }
+  if (historialError) {
+    alert(historialError.message);
+    return;
+  }
 
-    const mejor = historial?.[0];
+  const mejor = historial?.[0];
 
-    if (!mejor) {
-      await supabase
-        .from("rms_actuales")
-        .delete()
-        .eq("alumno_id", alumnoId)
-        .eq("ejercicio_id", ejercicioId);
-
-      return;
-    }
-
-    const { data: existente } = await supabase
+  if (!mejor) {
+    const { error: deleteError } = await supabase
       .from("rms_actuales")
-      .select("id")
+      .delete()
       .eq("alumno_id", alumnoId)
-      .eq("ejercicio_id", ejercicioId)
-      .maybeSingle();
+      .eq("ejercicio_id", ejercicioId);
 
-    if (!existente) {
-      await supabase.from("rms_actuales").insert({
+    if (deleteError) {
+      alert(deleteError.message);
+      return;
+    }
+
+    return;
+  }
+
+  const { data: existente, error: buscarActualError } = await supabase
+    .from("rms_actuales")
+    .select("id")
+    .eq("alumno_id", alumnoId)
+    .eq("ejercicio_id", ejercicioId)
+    .maybeSingle();
+
+  if (buscarActualError) {
+    alert(buscarActualError.message);
+    return;
+  }
+
+  if (!existente) {
+    const { error: insertActualError } = await supabase
+      .from("rms_actuales")
+      .insert({
         alumno_id: alumnoId,
         ejercicio_id: ejercicioId,
         peso_kg: mejor.peso_kg,
@@ -449,18 +461,28 @@ if (rutinaIds.length > 0) {
         rm_calculado: mejor.rm_calculado,
         actualizado_en: new Date().toISOString(),
       });
-    } else {
-      await supabase
-        .from("rms_actuales")
-        .update({
-          peso_kg: mejor.peso_kg,
-          repeticiones: mejor.repeticiones,
-          rm_calculado: mejor.rm_calculado,
-          actualizado_en: new Date().toISOString(),
-        })
-        .eq("id", existente.id);
+
+    if (insertActualError) {
+      alert(insertActualError.message);
+      return;
+    }
+  } else {
+    const { error: updateActualError } = await supabase
+      .from("rms_actuales")
+      .update({
+        peso_kg: mejor.peso_kg,
+        repeticiones: mejor.repeticiones,
+        rm_calculado: mejor.rm_calculado,
+        actualizado_en: new Date().toISOString(),
+      })
+      .eq("id", existente.id);
+
+    if (updateActualError) {
+      alert(updateActualError.message);
+      return;
     }
   }
+}
 
   async function revisarSiRutinaQuedoCompleta(rutinaId: string) {
     const asignacionActual = rutinasAsignadas.find(
