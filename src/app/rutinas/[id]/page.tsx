@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import CrearEjercicioModal from "@/components/ejercicios/CrearEjercicioModal";
 
 type TipoPrescripcion = "repeticiones" | "tiempo";
 
@@ -110,6 +111,7 @@ export default function RutinaDetallePage({
   const [mostrarEditarRutina, setMostrarEditarRutina] = useState(false);
   const [mostrarEjercicioPrincipal, setMostrarEjercicioPrincipal] = useState(false);
   const [mostrarEntradaCalor, setMostrarEntradaCalor] = useState(false);
+  const [mostrarCrearEjercicio, setMostrarCrearEjercicio] = useState(false);
   const [mostrarAsignarAlumno, setMostrarAsignarAlumno] = useState(false);
 
   const [ejercicioEditandoId, setEjercicioEditandoId] = useState<string | null>(null);
@@ -437,17 +439,18 @@ export default function RutinaDetallePage({
   }
 
   async function guardarEjercicioPrincipal() {
-    if (!nombreEjercicio.trim()) {
-      alert("Ingresá o seleccioná un ejercicio.");
-      return;
-    }
+    if (!ejercicioId) {
+  alert("Seleccioná un ejercicio del banco.");
+  return;
+}
 
     const seriesFinal = series === "custom" ? seriesCustom : series;
 
     const payload = {
       rutina_id: id,
       ejercicio_id: ejercicioId || null,
-      nombre_ejercicio: nombreEjercicio,
+      nombre_ejercicio:
+  ejercicios.find((e) => e.id === ejercicioId)?.nombre || "",
       series: seriesFinal ? Number(seriesFinal) : null,
       tipo_prescripcion: tipoPrescripcion,
       repeticiones: tipoPrescripcion === "repeticiones" ? repeticiones : "",
@@ -485,6 +488,38 @@ export default function RutinaDetallePage({
     setMostrarEjercicioPrincipal(false);
     cargarRutinaEjercicios();
   }
+
+  async function cambiarOrdenEjercicio(
+  rutinaEjercicioId: string,
+  nuevoOrden: number
+) {
+  const ejerciciosOrdenados = [...rutinaEjercicios].sort(
+    (a, b) => Number(a.orden || 0) - Number(b.orden || 0)
+  );
+
+  const ejercicioMovido = ejerciciosOrdenados.find(
+    (item) => item.id === rutinaEjercicioId
+  );
+
+  if (!ejercicioMovido) return;
+
+  const restantes = ejerciciosOrdenados.filter(
+    (item) => item.id !== rutinaEjercicioId
+  );
+
+  restantes.splice(nuevoOrden - 1, 0, ejercicioMovido);
+
+  const actualizaciones = restantes.map((item, index) =>
+    supabase
+      .from("rutina_ejercicios")
+      .update({ orden: index + 1 })
+      .eq("id", item.id)
+  );
+
+  await Promise.all(actualizaciones);
+
+  await cargarRutinaEjercicios();
+}
 
   async function borrarEjercicioPrincipal(rutinaEjercicioId: string) {
     const confirmar = confirm("¿Seguro que querés borrar este ejercicio de la rutina?");
@@ -641,10 +676,15 @@ export default function RutinaDetallePage({
   }
 
   function seleccionarEjercicioPrincipal(idSeleccionado: string) {
-    setEjercicioId(idSeleccionado);
-    const ejercicio = ejercicios.find((item) => item.id === idSeleccionado);
-    setNombreEjercicio(ejercicio?.nombre || "");
+  if (idSeleccionado === "crear_nuevo") {
+    setMostrarCrearEjercicio(true);
+    return;
   }
+
+  setEjercicioId(idSeleccionado);
+  const ejercicio = ejercicios.find((item) => item.id === idSeleccionado);
+  setNombreEjercicio(ejercicio?.nombre || "");
+}
 
   function seleccionarEjercicioEntrada(idSeleccionado: string) {
     setEntradaEjercicioId(idSeleccionado);
@@ -869,6 +909,19 @@ export default function RutinaDetallePage({
                       </div>
 
                       <div className="flex gap-3">
+
+                        <select
+  value={item.orden || ""}
+  onChange={(e) => cambiarOrdenEjercicio(item.id, Number(e.target.value))}
+  className="rounded-lg bg-zinc-800 px-2 py-1 text-sm"
+>
+  {rutinaEjercicios.map((_, index) => (
+    <option key={index + 1} value={index + 1}>
+      {index + 1}
+    </option>
+  ))}
+</select>
+                        
                         <button
                           type="button"
                           onClick={() => abrirEditarEjercicioPrincipal(item)}
@@ -1155,14 +1208,15 @@ export default function RutinaDetallePage({
                       {ejercicio.nombre}
                     </option>
                   ))}
-                </select>
+                
 
-                <input
-                  value={nombreEjercicio}
-                  onChange={(e) => setNombreEjercicio(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                  placeholder="Nombre del ejercicio"
-                />
+<option value="crear_nuevo">
+
+  + Crear nuevo ejercicio
+
+</option>
+
+</select>
 
                 <div className="grid grid-cols-2 gap-3">
                   <select
@@ -1364,6 +1418,15 @@ export default function RutinaDetallePage({
           </div>
         )}
       </div>
+            <CrearEjercicioModal
+        abierto={mostrarCrearEjercicio}
+        onCerrar={() => setMostrarCrearEjercicio(false)}
+        onCreado={async (ejercicio) => {
+          await cargarEjercicios();
+          setEjercicioId(ejercicio.id);
+          setNombreEjercicio(ejercicio.nombre);
+        }}
+      />
     </main>
   );
 }
