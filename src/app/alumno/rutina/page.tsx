@@ -39,6 +39,7 @@ type RutinaAsignacionResponse = {
 type RutinaEjercicio = {
   id: string;
   rutina_id: string;
+  rutina_asignacion_id?: string | null;
   ejercicio_id?: string | null;
   nombre_ejercicio: string;
   series?: number | null;
@@ -484,53 +485,56 @@ async function recalcularRMActual(ejercicioId: string) {
   }
 }
 
-  async function revisarSiRutinaQuedoCompleta(rutinaId: string) {
-    const asignacionActual = rutinasAsignadas.find(
-      (asignacion) => asignacion.rutina_id === rutinaId
-    );
+  async function revisarSiRutinaQuedoCompleta(
+  rutinaId: string,
+  asignacionId: string
+) {
+  const asignacionActual = rutinasAsignadas.find(
+    (asignacion) => asignacion.asignacion_id === asignacionId
+  );
 
-    if (!asignacionActual) return;
+  if (!asignacionActual) return;
 
-    const ejercicios = ejerciciosPorRutina[rutinaId] || [];
-    if (ejercicios.length === 0) return;
+  const ejercicios = ejerciciosPorRutina[rutinaId] || [];
+  if (ejercicios.length === 0) return;
 
-    const { data: registrosActualizados, error } = await supabase
-      .from("registros_entrenamiento")
-      .select("id,rutina_asignacion_id,rutina_ejercicio_id")
-      .eq("alumno_id", alumnoId)
-      .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
-      .eq("completado", true);
+  const { data: registrosActualizados, error } = await supabase
+    .from("registros_entrenamiento")
+    .select("id,rutina_asignacion_id,rutina_ejercicio_id")
+    .eq("alumno_id", alumnoId)
+    .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
+    .eq("completado", true);
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    const idsCompletados = new Set(
-      (registrosActualizados || [])
-        .map((registro) => registro.rutina_ejercicio_id)
-        .filter(Boolean)
-    );
-
-    const todosCompletados = ejercicios.every((ejercicio) =>
-      idsCompletados.has(ejercicio.id)
-    );
-
-    if (!todosCompletados) return;
-
-    const { error: updateError } = await supabase
-      .from("rutina_asignaciones")
-      .update({
-        activa: false,
-        completada: true,
-        fecha_completada: new Date().toISOString(),
-      })
-      .eq("id", asignacionActual.asignacion_id);
-
-    if (updateError) {
-      alert(updateError.message);
-    }
+  if (error) {
+    alert(error.message);
+    return;
   }
+
+  const idsCompletados = new Set(
+    (registrosActualizados || [])
+      .map((registro) => registro.rutina_ejercicio_id)
+      .filter(Boolean)
+  );
+
+  const todosCompletados = ejercicios.every((ejercicio) =>
+    idsCompletados.has(ejercicio.id)
+  );
+
+  if (!todosCompletados) return;
+
+  const { error: updateError } = await supabase
+    .from("rutina_asignaciones")
+    .update({
+      activa: false,
+      completada: true,
+      fecha_completada: new Date().toISOString(),
+    })
+    .eq("id", asignacionActual.asignacion_id);
+
+  if (updateError) {
+    alert(updateError.message);
+  }
+}
 
   async function completarEntradaCalor(item: EntradaCalorEjercicio) {
     if (!item.rutina_id) return;
@@ -610,42 +614,46 @@ async function recalcularRMActual(ejercicioId: string) {
     await cargarTodo();
   }
 
-  function abrirCompletado(item: RutinaEjercicio) {
-    const asignacionActual = rutinasAsignadas.find(
-      (asignacion) => asignacion.rutina_id === item.rutina_id
-    );
+  function abrirCompletado(item: RutinaEjercicio, asignacionId: string) {
+  const asignacionActual = rutinasAsignadas.find(
+    (asignacion) => asignacion.asignacion_id === asignacionId
+  );
 
-    if (!asignacionActual) {
-      alert("No se encontró la asignación de esta rutina.");
-      return;
-    }
-
-    if (ejercicioEstaCompletado(asignacionActual.asignacion_id, item.id)) {
-      alert("Este ejercicio ya fue completado.");
-      return;
-    }
-
-    setEjercicioSeleccionado(item);
-
-    const pesoSugerido = calcularPesoPorRM(item);
-
-    if (pesoSugerido === "Peso corporal") {
-      setPesoUsado("0");
-    } else {
-      setPesoUsado(pesoSugerido ? String(pesoSugerido).replace(" kg", "") : "");
-    }
-
-    setRepsRealizadas("");
-    setRpe("");
-    setRirReal("");
+  if (!asignacionActual) {
+    alert("No se encontró la asignación de esta rutina.");
+    return;
   }
+
+  if (ejercicioEstaCompletado(asignacionActual.asignacion_id, item.id)) {
+    alert("Este ejercicio ya fue completado.");
+    return;
+  }
+
+  setEjercicioSeleccionado({
+    ...item,
+    rutina_asignacion_id: asignacionActual.asignacion_id,
+  } as RutinaEjercicio);
+
+  const pesoSugerido = calcularPesoPorRM(item);
+
+  if (pesoSugerido === "Peso corporal") {
+    setPesoUsado("0");
+  } else {
+    setPesoUsado(pesoSugerido ? String(pesoSugerido).replace(" kg", "") : "");
+  }
+
+  setRepsRealizadas("");
+  setRpe("");
+  setRirReal("");
+}
 
   async function guardarCompletado() {
     if (!ejercicioSeleccionado) return;
 
     const asignacionActual = rutinasAsignadas.find(
-      (asignacion) => asignacion.rutina_id === ejercicioSeleccionado.rutina_id
-    );
+  (asignacion) =>
+    asignacion.asignacion_id === ejercicioSeleccionado.rutina_asignacion_id
+);
 
     if (!asignacionActual) {
       alert("No se encontró la asignación de esta rutina.");
@@ -745,7 +753,10 @@ const { data: nuevoRegistro, error: registroError } = await supabase
     await recalcularRMActual(ejercicioSeleccionado.ejercicio_id);
     }
 
-    await revisarSiRutinaQuedoCompleta(ejercicioSeleccionado.rutina_id);
+    await revisarSiRutinaQuedoCompleta(
+  ejercicioSeleccionado.rutina_id,
+  asignacionActual.asignacion_id
+);
 
     setEjercicioSeleccionado(null);
     setPesoUsado("");
@@ -1061,7 +1072,7 @@ const { data: nuevoRegistro, error: registroError } = await supabase
                         ) : (
                           <button
                             type="button"
-                            onClick={() => abrirCompletado(item)}
+                            onClick={() => abrirCompletado(item, asignacion.asignacion_id)}
                             disabled={completada}
                             className={`mt-4 w-full rounded-lg px-3 py-2 text-sm font-semibold ${
                               completada
