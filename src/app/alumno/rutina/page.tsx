@@ -736,13 +736,15 @@ const { data: nuevoRegistro, error: registroError } = await supabase
   .delete()
   .eq("alumno_id", alumnoId)
   .eq("rutina_id", ejercicioSeleccionado.rutina_id)
-  .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
+  .eq("rutina_ejercicio_id", ejercicioSeleccionado.id)
+  .eq("rutina_asignacion_id", asignacionActual.asignacion_id);
 
     await supabase.from("rms_historial").insert({
   alumno_id: alumnoId,
   ejercicio_id: ejercicioSeleccionado.ejercicio_id,
   rutina_id: ejercicioSeleccionado.rutina_id,
   rutina_ejercicio_id: ejercicioSeleccionado.id,
+  rutina_asignacion_id: asignacionActual.asignacion_id,
   registro_entrenamiento_id: nuevoRegistro.id,
   peso_kg: pesoNumero,
   repeticiones: repsNumero,
@@ -1163,9 +1165,39 @@ const { data: nuevoRegistro, error: registroError } = await supabase
     return;
   }
 
+  if (ejercicioIds.length > 0) {
+  const { error: limpiarActualesError } = await supabase
+    .from("rms_actuales")
+    .delete()
+    .eq("alumno_id", alumnoId)
+    .in("ejercicio_id", ejercicioIds);
+
+  if (limpiarActualesError) {
+    alert(limpiarActualesError.message);
+    return;
+  }
+
   for (const ejercicioId of ejercicioIds) {
     await recalcularRMActual(ejercicioId);
   }
+}
+
+  if (ejercicioIds.length > 0) {
+  const { error: limpiarActualesError } = await supabase
+    .from("rms_actuales")
+    .delete()
+    .eq("alumno_id", alumnoId)
+    .in("ejercicio_id", ejercicioIds);
+
+  if (limpiarActualesError) {
+    alert(limpiarActualesError.message);
+    return;
+  }
+
+  for (const ejercicioId of ejercicioIds) {
+    await recalcularRMActual(ejercicioId);
+  }
+}
 
   await cargarTodo();
 }

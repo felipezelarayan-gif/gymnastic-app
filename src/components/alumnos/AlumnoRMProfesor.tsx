@@ -58,14 +58,12 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
 
   async function cargarRM() {
     setLoading(true);
-    console.log("ALUMNO ID PROFESOR RM:", alumnoId);
 
     const { data: actualesData, error: actualesError } = await supabase
       .from("rms_actuales")
       .select("*")
       .eq("alumno_id", alumnoId)
       .order("actualizado_en", { ascending: false });
-      console.log("RMS PROFESOR:", actualesData, actualesError);
 
     if (actualesError) {
       alert(actualesError.message);
@@ -130,8 +128,16 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
   }
 
   function historialPorEjercicio(ejercicioId: string) {
-    return historial.filter((item) => item.ejercicio_id === ejercicioId);
-  }
+  return historial
+    .filter((item) => item.ejercicio_id === ejercicioId)
+    .sort((a, b) => {
+      const fechaA = a.fecha || a.created_at || "";
+      const fechaB = b.fecha || b.created_at || "";
+
+      return fechaB.localeCompare(fechaA);
+    })
+    .slice(0, 10);
+}
 
   async function recalcularRMActual(ejercicioId: string) {
     const { data: historialEjercicio, error } = await supabase
