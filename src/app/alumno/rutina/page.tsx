@@ -407,6 +407,20 @@ if (rutinaIds.length > 0) {
   function calcularEpley(peso: number, reps: number) {
     return Number((peso * (1 + reps / 30)).toFixed(2));
   }
+
+async function recargarManteniendoScroll() {
+  const scrollActual = window.scrollY;
+
+  await cargarTodo();
+
+  setTimeout(() => {
+    window.scrollTo({
+      top: scrollActual,
+      behavior: "auto",
+    });
+  }, 0);
+}
+  
 async function recalcularRMActual(ejercicioId: string) {
 
   const { data: historial, error: historialError } = await supabase
@@ -574,7 +588,7 @@ async function recalcularRMActual(ejercicioId: string) {
       return;
     }
 
-    await cargarTodo();
+    await recargarManteniendoScroll();
   }
 
   async function deshacerEntradaCalor(rutinaId: string, entradaId: string) {
@@ -611,7 +625,7 @@ async function recalcularRMActual(ejercicioId: string) {
       })
       .eq("id", asignacionActual.asignacion_id);
 
-    await cargarTodo();
+    await recargarManteniendoScroll();
   }
 
   function abrirCompletado(item: RutinaEjercicio, asignacionId: string) {
@@ -766,7 +780,7 @@ const { data: nuevoRegistro, error: registroError } = await supabase
     setRpe("");
     setRirReal("");
 
-    await cargarTodo();
+    await recargarManteniendoScroll();
   }
 
   async function deshacerCompletado(rutinaId: string, rutinaEjercicioId: string) {
@@ -822,7 +836,7 @@ const { data: nuevoRegistro, error: registroError } = await supabase
       })
       .eq("id", asignacionActual.asignacion_id);
 
-    await cargarTodo();
+    await recargarManteniendoScroll();
   }
 
   function renderRutinaCard(asignacion: RutinaAsignada) {
@@ -1199,7 +1213,7 @@ const { data: nuevoRegistro, error: registroError } = await supabase
   }
 }
 
-  await cargarTodo();
+  await recargarManteniendoScroll();
 }
 
   function renderCompletadoCard(asignacion: RutinaAsignada) {
