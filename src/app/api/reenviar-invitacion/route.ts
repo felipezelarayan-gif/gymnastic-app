@@ -1,14 +1,12 @@
-
-
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const { email } = await request.json();
+  const { userId, email } = await request.json();
 
-  if (!email) {
+  if (!userId && !email) {
     return NextResponse.json(
-      { error: "El email es obligatorio." },
+      { error: "Se requiere userId o email." },
       { status: 400 }
     );
   }
@@ -23,11 +21,17 @@ export async function POST(request: Request) {
     process.env.NEXT_PUBLIC_APP_URL ||
     "https://gymnastic-app-u64l.vercel.app";
 
-  const { data: profile, error: profileError } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("profiles")
-    .select("id,email,invitacion_pendiente")
-    .eq("email", email)
-    .maybeSingle();
+    .select("id,email,invitacion_pendiente");
+
+  if (userId) {
+    query = query.eq("id", userId);
+  } else {
+    query = query.eq("email", email);
+  }
+
+  const { data: profile, error: profileError } = await query.maybeSingle();
 
   if (profileError) {
     return NextResponse.json({ error: profileError.message }, { status: 400 });
@@ -35,7 +39,7 @@ export async function POST(request: Request) {
 
   if (!profile) {
     return NextResponse.json(
-      { error: "No se encontró un usuario con ese email." },
+      { error: "No se encontró un usuario con ese userId o email." },
       { status: 404 }
     );
   }

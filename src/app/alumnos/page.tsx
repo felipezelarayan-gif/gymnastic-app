@@ -12,6 +12,7 @@ type Alumno = {
   foto_url?: string | null;
   created_at?: string | null;
   invitacion_pendiente?: boolean | null;
+  user_id?: string | null;
 };
 
 type RutinaAsignada = {
@@ -30,10 +31,6 @@ type RegistroEntrenamiento = {
   completado?: boolean | null;
 };
 
-type ProfileInvitacion = {
-  email: string;
-  invitacion_pendiente?: boolean | null;
-};
 
 type OrdenarPor =
   | "nombre"
@@ -86,23 +83,11 @@ export default function AlumnosPage() {
   async function cargarDatos() {
     setLoading(true);
 
-    const { data: alumnosData, error: alumnosError } = await supabase
-      .from("alumnos")
-      .select("*")
-      .order("nombre", { ascending: true });
+    const res = await fetch("/api/alumnos-con-invitacion");
+    const alumnosData = await res.json();
 
-    if (alumnosError) {
-      alert(alumnosError.message);
-      setLoading(false);
-      return;
-    }
-
-    const { data: profilesData, error: profilesError } = await supabase
-      .from("profiles")
-      .select("email,invitacion_pendiente");
-
-    if (profilesError) {
-      alert(profilesError.message);
+    if (!res.ok) {
+      alert(alumnosData.error || "No se pudieron cargar los alumnos.");
       setLoading(false);
       return;
     }
@@ -130,28 +115,20 @@ export default function AlumnosPage() {
       return;
     }
 
-    const perfilesInvitacion = (profilesData || []) as ProfileInvitacion[];
-
-    const alumnosConInvitacion = (alumnosData || []).map((alumno) => {
-      const profile = perfilesInvitacion.find(
-        (perfil) => perfil.email === alumno.email
-      );
-
-      return {
-        ...alumno,
-        invitacion_pendiente: profile?.invitacion_pendiente ?? false,
-      };
-    });
-
-    setAlumnos(alumnosConInvitacion as Alumno[]);
+    setAlumnos(alumnosData as Alumno[]);
     setRutinasAsignadas((rutinasData || []) as RutinaAsignada[]);
     setRegistrosEntrenamiento((registrosData || []) as RegistroEntrenamiento[]);
     setLoading(false);
   }
 
-  async function reenviarInvitacion(email?: string | null) {
-    if (!email) {
-      alert("El alumno no tiene email registrado.");
+  async function reenviarInvitacion(alumno: Alumno) {
+    const body: Record<string, string> = {};
+    if (alumno.user_id) {
+      body.userId = alumno.user_id;
+    } else if (alumno.email) {
+      body.email = alumno.email;
+    } else {
+      alert("El alumno no tiene userId ni email registrado.");
       return;
     }
 
@@ -160,7 +137,7 @@ export default function AlumnosPage() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify(body),
     });
 
     const result = await response.json();
@@ -415,6 +392,15 @@ export default function AlumnosPage() {
                   </div>
                 </a>
 
+                {alumno.invitacion_pendiente && (
+                  <button
+                    onClick={() => reenviarInvitacion(alumno)}
+                    className="md:hidden w-full mt-2 rounded-xl border border-amber-700 px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/20 transition"
+                  >
+                    Reenviar invitación
+                  </button>
+                )}
+
                 <div className="hidden md:flex items-center justify-between gap-5">
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="h-16 w-16 rounded-full bg-emerald-500/10 border border-emerald-700 flex items-center justify-center text-xl font-bold text-emerald-400 shrink-0 overflow-hidden">
@@ -461,7 +447,7 @@ export default function AlumnosPage() {
                   <div className="flex gap-2 shrink-0">
                     {alumno.invitacion_pendiente && (
                       <button
-                        onClick={() => reenviarInvitacion(alumno.email)}
+                        onClick={() => reenviarInvitacion(alumno)}
                         className="rounded-xl border border-amber-700 px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/20 transition"
                       >
                         Reenviar invitación
