@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Rutina = {
@@ -186,6 +186,11 @@ export default function AlumnoRutinaPage() {
   const [ejerciciosCompletadosCache, setEjerciciosCompletadosCache] = useState<EjercicioCompletadoCache[]>([]);
   const [entradaCalorCompletadaCache, setEntradaCalorCompletadaCache] = useState<EntradaCalorCompletadaCache[]>([]);
   const [guardandoRutina, setGuardandoRutina] = useState(false);
+  const [mostrarAlertaSalida, setMostrarAlertaSalida] = useState(false);
+  const [navegacionPendiente, setNavegacionPendiente] = useState<string | null>(null);
+  const [guardandoAntesDeSalir, setGuardandoAntesDeSalir] = useState(false);
+  const progresoLocalCargadoRef = useRef(false);
+  const permitirSalidaRef = useRef(false);
 
   useEffect(() => {
     cargarTodo();
@@ -195,8 +200,13 @@ export default function AlumnoRutinaPage() {
   useEffect(() => {
     if (!alumnoId) return;
 
+    progresoLocalCargadoRef.current = false;
+
     const progresoGuardado = localStorage.getItem(claveProgresoLocal(alumnoId));
-    if (!progresoGuardado) return;
+    if (!progresoGuardado) {
+      progresoLocalCargadoRef.current = true;
+      return;
+    }
 
     try {
       const progreso = JSON.parse(progresoGuardado) as ProgresoRutinaCache;
@@ -204,12 +214,18 @@ export default function AlumnoRutinaPage() {
       setEntradaCalorCompletadaCache(progreso.entradas || []);
     } catch {
       localStorage.removeItem(claveProgresoLocal(alumnoId));
+    } finally {
+      progresoLocalCargadoRef.current = true;
     }
   }, [alumnoId]);
 
   // ETAPA 3: Helpers para progreso local
   function claveProgresoLocal(idAlumno: string) {
     return `rutina_progreso_${idAlumno}`;
+  }
+
+  function hayProgresoPendiente() {
+    return ejerciciosCompletadosCache.length > 0 || entradaCalorCompletadaCache.length > 0;
   }
 
   function guardarProgresoLocal() {
@@ -220,18 +236,86 @@ export default function AlumnoRutinaPage() {
       entradas: entradaCalorCompletadaCache,
     };
 
+    if (progreso.ejercicios.length === 0 && progreso.entradas.length === 0) {
+      localStorage.removeItem(claveProgresoLocal(alumnoId));
+      return;
+    }
+
     localStorage.setItem(claveProgresoLocal(alumnoId), JSON.stringify(progreso));
   }
 
   function guardarProgresoActual() {
     guardarProgresoLocal();
-    alert("Se guarda tu progreso actual, pero quedan ejercicios sin completar");
+    alert("Tu progreso quedó guardado en este dispositivo. Cuando completes la rutina, se va a guardar definitivamente.");
   }
 
   function limpiarProgresoLocal() {
     if (!alumnoId) return;
     localStorage.removeItem(claveProgresoLocal(alumnoId));
   }
+
+  function descartarProgresoPendiente() {
+    if (alumnoId) {
+      localStorage.removeItem(claveProgresoLocal(alumnoId));
+    }
+
+    setEjerciciosCompletadosCache([]);
+    setEntradaCalorCompletadaCache([]);
+  }
+
+  function cerrarAlertaSalida() {
+    setMostrarAlertaSalida(false);
+    setNavegacionPendiente(null);
+  }
+
+  async function guardarYSalir() {
+    setGuardandoAntesDeSalir(true);
+    guardarProgresoLocal();
+    permitirSalidaRef.current = true;
+
+    const destino = navegacionPendiente;
+    setGuardandoAntesDeSalir(false);
+    setMostrarAlertaSalida(false);
+    setNavegacionPendiente(null);
+
+    if (destino) {
+      window.location.href = destino;
+    }
+  }
+
+  function salirSinGuardar() {
+    permitirSalidaRef.current = true;
+    descartarProgresoPendiente();
+
+    const destino = navegacionPendiente;
+    setMostrarAlertaSalida(false);
+    setNavegacionPendiente(null);
+
+    if (destino) {
+      window.location.href = destino;
+    }
+  }
+
+  useEffect(() => {
+    if (!alumnoId || !progresoLocalCargadoRef.current) return;
+    guardarProgresoLocal();
+  }, [alumnoId, ejerciciosCompletadosCache, entradaCalorCompletadaCache]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hayProgresoPendiente() || permitirSalidaRef.current) return;
+
+      guardarProgresoLocal();
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [alumnoId, ejerciciosCompletadosCache, entradaCalorCompletadaCache]);
 
   async function cargarTodo() {
     setLoading(true);
@@ -1832,6 +1916,50 @@ async function recalcularRMActual(ejercicioId: string) {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
+      {mostrarAlertaSalida && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
+            <h2 className="text-2xl font-bold">Tenés progreso sin guardar</h2>
+            <p className="mt-3 text-zinc-400">
+              Si salís ahora, podés perder lo que anotaste. Podés guardar el progreso en este dispositivo y continuar después.
+            </p>
+
+            <div className="mt-6 space-y-3">
+              <button
+                type="button"
+                onClick={guardarYSalir}
+                disabled={guardandoAntesDeSalir}
+                className={`w-full rounded-xl py-3 font-semibold ${
+                  guardandoAntesDeSalir
+                    ? "bg-emerald-600 opacity-70 cursor-not-allowed"
+                    : "bg-emerald-500 hover:bg-emerald-600"
+                }`}
+              >
+                {guardandoAntesDeSalir ? "Guardando..." : "Guardar progreso y salir"}
+              </button>
+
+              <button
+                type="button"
+                onClick={salirSinGuardar}
+                disabled={guardandoAntesDeSalir}
+                className="w-full rounded-xl border border-red-800 bg-red-500/10 py-3 font-semibold text-red-300 hover:bg-red-500/20"
+              >
+                Salir sin guardar
+              </button>
+
+              <button
+                type="button"
+                onClick={cerrarAlertaSalida}
+                disabled={guardandoAntesDeSalir}
+                className="w-full rounded-xl border border-zinc-700 py-3 font-semibold text-zinc-300 hover:bg-zinc-800"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-2">Mis rutinas</h1>
 
