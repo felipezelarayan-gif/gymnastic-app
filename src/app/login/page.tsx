@@ -1,4 +1,4 @@
-"use client";"use client";
+"use client";
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -27,8 +27,13 @@ export default function LoginPage() {
       return;
     }
 
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://gymnastic-app-u64l.vercel.app";
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: "http://localhost:3000/reset-password",
+      redirectTo: `${siteUrl}/reset-password`,
     });
 
     if (error) {
