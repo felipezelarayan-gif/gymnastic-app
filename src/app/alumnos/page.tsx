@@ -30,6 +30,11 @@ type RegistroEntrenamiento = {
   completado?: boolean | null;
 };
 
+type ProfileInvitacion = {
+  email: string;
+  invitacion_pendiente?: boolean | null;
+};
+
 type OrdenarPor =
   | "nombre"
   | "antiguedad"
@@ -92,6 +97,16 @@ export default function AlumnosPage() {
       return;
     }
 
+    const { data: profilesData, error: profilesError } = await supabase
+      .from("profiles")
+      .select("email,invitacion_pendiente");
+
+    if (profilesError) {
+      alert(profilesError.message);
+      setLoading(false);
+      return;
+    }
+
     const { data: rutinasData, error: rutinasError } = await supabase
       .from("rutina_asignaciones")
       .select(
@@ -115,7 +130,20 @@ export default function AlumnosPage() {
       return;
     }
 
-    setAlumnos((alumnosData || []) as Alumno[]);
+    const perfilesInvitacion = (profilesData || []) as ProfileInvitacion[];
+
+    const alumnosConInvitacion = (alumnosData || []).map((alumno) => {
+      const profile = perfilesInvitacion.find(
+        (perfil) => perfil.email === alumno.email
+      );
+
+      return {
+        ...alumno,
+        invitacion_pendiente: profile?.invitacion_pendiente ?? false,
+      };
+    });
+
+    setAlumnos(alumnosConInvitacion as Alumno[]);
     setRutinasAsignadas((rutinasData || []) as RutinaAsignada[]);
     setRegistrosEntrenamiento((registrosData || []) as RegistroEntrenamiento[]);
     setLoading(false);
