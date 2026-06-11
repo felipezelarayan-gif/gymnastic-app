@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-const ADMIN_EMAIL = "felipezelarayan@hotmail.es";
+const ADMIN_EMAIL = "entrenamiento-app@hotmail.com";
 const APP_VERSION = "1.0.0";
 const LAST_UPDATE = "06/06/2026";
 
