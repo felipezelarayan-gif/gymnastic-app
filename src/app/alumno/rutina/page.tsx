@@ -121,6 +121,19 @@ type EjercicioCompletadoCache = {
   series_realizadas?: SerieCompletadaCache[];
 };
 
+type EntradaCalorCompletadaCache = {
+  entrada_calor_id: string;
+  nombre_ejercicio: string;
+  rutina_id: string;
+  rutina_asignacion_id: string;
+  ejercicio_id?: string | null;
+};
+
+type ProgresoRutinaCache = {
+  ejercicios: EjercicioCompletadoCache[];
+  entradas: EntradaCalorCompletadaCache[];
+};
+
 const opcionesRPE = Array.from({ length: 10 }, (_, index) => index + 1);
 const opcionesRIR = Array.from({ length: 10 }, (_, index) => index + 1);
 
@@ -171,11 +184,54 @@ export default function AlumnoRutinaPage() {
   const [fechaCompletados, setFechaCompletados] = useState("");
   const [guardandoEjercicio, setGuardandoEjercicio] = useState(false);
   const [ejerciciosCompletadosCache, setEjerciciosCompletadosCache] = useState<EjercicioCompletadoCache[]>([]);
+  const [entradaCalorCompletadaCache, setEntradaCalorCompletadaCache] = useState<EntradaCalorCompletadaCache[]>([]);
   const [guardandoRutina, setGuardandoRutina] = useState(false);
 
   useEffect(() => {
     cargarTodo();
   }, []);
+
+  // ETAPA 3: Sincronización de progreso local desde localStorage
+  useEffect(() => {
+    if (!alumnoId) return;
+
+    const progresoGuardado = localStorage.getItem(claveProgresoLocal(alumnoId));
+    if (!progresoGuardado) return;
+
+    try {
+      const progreso = JSON.parse(progresoGuardado) as ProgresoRutinaCache;
+      setEjerciciosCompletadosCache(progreso.ejercicios || []);
+      setEntradaCalorCompletadaCache(progreso.entradas || []);
+    } catch {
+      localStorage.removeItem(claveProgresoLocal(alumnoId));
+    }
+  }, [alumnoId]);
+
+  // ETAPA 3: Helpers para progreso local
+  function claveProgresoLocal(idAlumno: string) {
+    return `rutina_progreso_${idAlumno}`;
+  }
+
+  function guardarProgresoLocal() {
+    if (!alumnoId) return;
+
+    const progreso: ProgresoRutinaCache = {
+      ejercicios: ejerciciosCompletadosCache,
+      entradas: entradaCalorCompletadaCache,
+    };
+
+    localStorage.setItem(claveProgresoLocal(alumnoId), JSON.stringify(progreso));
+  }
+
+  function guardarProgresoActual() {
+    guardarProgresoLocal();
+    alert("Se guarda tu progreso actual, pero quedan ejercicios sin completar");
+  }
+
+  function limpiarProgresoLocal() {
+    if (!alumnoId) return;
+    localStorage.removeItem(claveProgresoLocal(alumnoId));
+  }
 
   async function cargarTodo() {
     setLoading(true);
@@ -456,6 +512,14 @@ if (rutinaIds.length > 0) {
   }
 
   function entradaEstaCompletada(rutinaAsignacionId: string, entradaId: string) {
+    const enCache = entradaCalorCompletadaCache.some(
+      (item) =>
+        item.rutina_asignacion_id === rutinaAsignacionId &&
+        item.entrada_calor_id === entradaId
+    );
+
+    if (enCache) return true;
+
     return registros.some(
       (registro) =>
         registro.rutina_asignacion_id === rutinaAsignacionId &&
@@ -591,7 +655,7 @@ async function recalcularRMActual(ejercicioId: string) {
 
     const idsCompletadosEnCache = new Set(
       ejerciciosCompletadosCache
-        .filter((item) => item.rutina_asignacion_id === asignacionId)
+        .filter((item) => item.rutina_asignacion_id === asignacionId && item.rutina_id === rutinaId)
         .map((item) => item.rutina_ejercicio_id)
     );
 
@@ -600,31 +664,20 @@ async function recalcularRMActual(ejercicioId: string) {
     );
   }
 
+  function hayProgresoEnRutina(rutinaId: string, asignacionId: string): boolean {
+    const hayEjercicios = ejerciciosCompletadosCache.some(
+      (item) => item.rutina_asignacion_id === asignacionId && item.rutina_id === rutinaId
+    );
+
+    const hayEntrada = entradaCalorCompletadaCache.some(
+      (item) => item.rutina_asignacion_id === asignacionId && item.rutina_id === rutinaId
+    );
+
+    return hayEjercicios || hayEntrada;
+  }
+
   async function verificarRutinaCacheCompleta(rutinaId: string, asignacionId: string) {
-    const asignacionActual = rutinasAsignadas.find(
-      (asignacion) => asignacion.asignacion_id === asignacionId
-    );
-
-    if (!asignacionActual) return;
-
-    const ejercicios = ejerciciosPorRutina[rutinaId] || [];
-    if (ejercicios.length === 0) return;
-
-    // Verificar en caché local
-    const idsCompletadosEnCache = new Set(
-      ejerciciosCompletadosCache
-        .filter((item) => item.rutina_asignacion_id === asignacionId)
-        .map((item) => item.rutina_ejercicio_id)
-    );
-
-    const todosCompletados = ejercicios.every((ejercicio) =>
-      idsCompletadosEnCache.has(ejercicio.id)
-    );
-
-    if (todosCompletados) {
-      // Guardar todo a BD
-      await guardarCacheABD(asignacionId, rutinaId);
-    }
+    return;
   }
 
   async function guardarCacheABD(asignacionId: string, rutinaId: string) {
@@ -633,8 +686,41 @@ async function recalcularRMActual(ejercicioId: string) {
     const ejerciciosDelCache = ejerciciosCompletadosCache.filter(
       (item) => item.rutina_asignacion_id === asignacionId
     );
+    const entradasDelCache = entradaCalorCompletadaCache.filter(
+      (item) => item.rutina_asignacion_id === asignacionId
+    );
 
     try {
+      for (const entradaCache of entradasDelCache) {
+        const { error: deleteEntradaError } = await supabase
+          .from("registros_entrenamiento")
+          .delete()
+          .eq("alumno_id", alumnoId)
+          .eq("rutina_asignacion_id", asignacionId)
+          .eq("entrada_calor_id", entradaCache.entrada_calor_id);
+
+        if (deleteEntradaError) throw deleteEntradaError;
+
+        const { error: entradaInsertError } = await supabase
+          .from("registros_entrenamiento")
+          .insert({
+            alumno_id: alumnoId,
+            rutina_id: entradaCache.rutina_id,
+            rutina_asignacion_id: asignacionId,
+            rutina_ejercicio_id: null,
+            entrada_calor_id: entradaCache.entrada_calor_id,
+            ejercicio_id: entradaCache.ejercicio_id || null,
+            nombre_ejercicio: entradaCache.nombre_ejercicio,
+            peso_kg: null,
+            repeticiones: null,
+            rpe: null,
+            rir: null,
+            rm_calculado: null,
+            completado: true,
+          });
+
+        if (entradaInsertError) throw entradaInsertError;
+      }
       for (const ejercicioCache of ejerciciosDelCache) {
         const { error: deleteError } = await supabase
           .from("registros_entrenamiento")
@@ -735,10 +821,27 @@ async function recalcularRMActual(ejercicioId: string) {
         })
         .eq("id", asignacionId);
 
-      // Limpiar caché
-      setEjerciciosCompletadosCache((prev) =>
-        prev.filter((item) => item.rutina_asignacion_id !== asignacionId)
+      // Limpiar caché de esta rutina
+      const ejerciciosRestantes = ejerciciosCompletadosCache.filter(
+        (item) => item.rutina_asignacion_id !== asignacionId
       );
+      const entradasRestantes = entradaCalorCompletadaCache.filter(
+        (item) => item.rutina_asignacion_id !== asignacionId
+      );
+
+      setEjerciciosCompletadosCache(ejerciciosRestantes);
+      setEntradaCalorCompletadaCache(entradasRestantes);
+
+      if (alumnoId) {
+        if (ejerciciosRestantes.length > 0 || entradasRestantes.length > 0) {
+          localStorage.setItem(
+            claveProgresoLocal(alumnoId),
+            JSON.stringify({ ejercicios: ejerciciosRestantes, entradas: entradasRestantes })
+          );
+        } else {
+          limpiarProgresoLocal();
+        }
+      }
 
       setGuardandoRutina(false);
       
@@ -818,28 +921,15 @@ async function recalcularRMActual(ejercicioId: string) {
       return;
     }
 
-    const { error } = await supabase.from("registros_entrenamiento").insert({
-      alumno_id: alumnoId,
+    const nuevaEntrada: EntradaCalorCompletadaCache = {
+      entrada_calor_id: item.id,
+      nombre_ejercicio: item.nombre_ejercicio,
       rutina_id: item.rutina_id,
       rutina_asignacion_id: asignacionActual.asignacion_id,
-      rutina_ejercicio_id: null,
-      entrada_calor_id: item.id,
       ejercicio_id: item.ejercicio_id || null,
-      nombre_ejercicio: item.nombre_ejercicio,
-      peso_kg: null,
-      repeticiones: null,
-      rpe: null,
-      rir: null,
-      rm_calculado: null,
-      completado: true,
-    });
+    };
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    await recargarManteniendoScroll();
+    setEntradaCalorCompletadaCache((prev) => [...prev, nuevaEntrada]);
   }
 
   async function deshacerEntradaCalor(rutinaId: string, entradaId: string) {
@@ -852,6 +942,22 @@ async function recalcularRMActual(ejercicioId: string) {
 
     if (!asignacionActual) {
       alert("No se encontró la asignación de esta rutina.");
+      return;
+    }
+
+    const estaEnCache = entradaCalorCompletadaCache.some(
+      (item) =>
+        item.rutina_asignacion_id === asignacionActual.asignacion_id &&
+        item.entrada_calor_id === entradaId
+    );
+
+    if (estaEnCache) {
+      setEntradaCalorCompletadaCache((prev) =>
+        prev.filter(
+          (item) =>
+            !(item.rutina_asignacion_id === asignacionActual.asignacion_id && item.entrada_calor_id === entradaId)
+        )
+      );
       return;
     }
 
@@ -1460,6 +1566,14 @@ async function recalcularRMActual(ejercicioId: string) {
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   )}
                   {guardandoRutina ? "Guardando rutina..." : "Completar Rutina"}
+                </button>
+              ) : hayProgresoEnRutina(asignacion.rutina_id, asignacion.asignacion_id) ? (
+                <button
+                  type="button"
+                  onClick={guardarProgresoActual}
+                  className="mt-5 w-full rounded-xl border border-blue-700 bg-blue-500/10 py-3 font-semibold text-blue-300 hover:bg-blue-500/20"
+                >
+                  Guardar progreso
                 </button>
               ) : null}
             </section>
