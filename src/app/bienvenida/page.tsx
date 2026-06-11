@@ -31,6 +31,23 @@ export default function BienvenidaPage() {
       return;
     }
 
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !userData.user) {
+      alert(userError?.message || "No se pudo obtener el usuario actual.");
+      return;
+    }
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ invitacion_pendiente: false })
+      .eq("id", userData.user.id);
+
+    if (profileError) {
+      alert(profileError.message);
+      return;
+    }
+
     window.location.href = "/alumno/perfil";
   }
 

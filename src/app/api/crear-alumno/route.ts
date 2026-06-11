@@ -50,6 +50,7 @@ export async function POST(request: Request) {
     nombre,
     rol: rolFinal,
     es_admin: false,
+    invitacion_pendiente: true,
   });
 
   if (profileError) {

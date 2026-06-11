@@ -11,6 +11,7 @@ type Alumno = {
   telefono?: string | null;
   foto_url?: string | null;
   created_at?: string | null;
+  invitacion_pendiente?: boolean | null;
 };
 
 type RutinaAsignada = {
@@ -118,6 +119,30 @@ export default function AlumnosPage() {
     setRutinasAsignadas((rutinasData || []) as RutinaAsignada[]);
     setRegistrosEntrenamiento((registrosData || []) as RegistroEntrenamiento[]);
     setLoading(false);
+  }
+
+  async function reenviarInvitacion(email?: string | null) {
+    if (!email) {
+      alert("El alumno no tiene email registrado.");
+      return;
+    }
+
+    const response = await fetch("/api/reenviar-invitacion", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || "No se pudo reenviar la invitación.");
+      return;
+    }
+
+    alert("Invitación reenviada correctamente.");
   }
 
   function iniciales(nombre?: string | null, apellido?: string | null) {
@@ -406,6 +431,14 @@ export default function AlumnosPage() {
                   </div>
 
                   <div className="flex gap-2 shrink-0">
+                    {alumno.invitacion_pendiente && (
+                      <button
+                        onClick={() => reenviarInvitacion(alumno.email)}
+                        className="rounded-xl border border-amber-700 px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/20 transition"
+                      >
+                        Reenviar invitación
+                      </button>
+                    )}
                     <a
                       href={`/alumnos/${alumno.id}`}
                       className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
