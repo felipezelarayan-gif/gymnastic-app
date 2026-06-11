@@ -347,7 +347,7 @@ export default function AlumnoRutinasProfesor({
     setNuevaDescripcion("");
     setMostrarCrearRutina(false);
 
-    window.location.href = `/rutinas/${nuevaRutina.id}`;
+    window.location.href = `/rutinas/${nuevaRutina.id}?alumnoId=${id}`;
   }
 
 async function recalcularRMActual(ejercicioId: string) {
@@ -503,7 +503,7 @@ async function editarRutinaParaAlumno(asignacion: RutinaAsignada) {
 
   // Ya es una rutina personalizada
   if (rutina.creada_para_alumno_id === id) {
-    window.location.href = `/rutinas/${rutina.id}`;
+    window.location.href = `/rutinas/${rutina.id}?alumnoId=${id}`;
     return;
   }
 
@@ -583,7 +583,7 @@ async function editarRutinaParaAlumno(asignacion: RutinaAsignada) {
     return;
   }
 
-  window.location.href = `/rutinas/${nuevaRutina.id}`;
+  window.location.href = `/rutinas/${nuevaRutina.id}?alumnoId=${id}`;
 }
 
   if (loading) {

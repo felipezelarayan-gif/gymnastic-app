@@ -10,7 +10,6 @@ export default function Navbar() {
   const pathname = usePathname();
   const [logueado, setLogueado] = useState(false);
   const [cargando, setCargando] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
   const [rol, setRol] = useState<Rol>(null);
 
   function isActive(href: string): boolean {
@@ -31,7 +30,7 @@ export default function Navbar() {
   }
 
   function getMobileLinkClass(href: string): string {
-    const baseClass = "flex items-center justify-center text-2xl rounded-2xl transition";
+    const baseClass = "flex items-center justify-center text-2xl rounded-full transition";
     const isCurrentPage = isActive(href);
     
     if (isCurrentPage) {
@@ -85,31 +84,6 @@ export default function Navbar() {
     setRol((data?.rol as Rol) || null);
   }
 
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-
-    if (savedTheme === "light") {
-      setDarkMode(false);
-      document.documentElement.classList.remove("dark");
-    } else {
-      setDarkMode(true);
-      document.documentElement.classList.add("dark");
-    }
-  }, []);
-
-  function toggleTheme() {
-    const newValue = !darkMode;
-    setDarkMode(newValue);
-
-    if (newValue) {
-      localStorage.setItem("theme", "dark");
-      document.documentElement.classList.add("dark");
-    } else {
-      localStorage.setItem("theme", "light");
-      document.documentElement.classList.remove("dark");
-    }
-  }
-
   async function cerrarSesion() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -117,12 +91,6 @@ export default function Navbar() {
 
   if (cargando) return null;
   if (!logueado) return null;
-
-  const desktopLink =
-    "inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 transition";
-
-  const mobileLink =
-  "flex items-center justify-center text-2xl text-white/90 rounded-2xl hover:bg-white/10 active:scale-95 transition";
 
   const isAlumno = rol === "alumno";
 
@@ -179,16 +147,8 @@ export default function Navbar() {
 
           <button
             type="button"
-            onClick={toggleTheme}
-            className="ml-auto px-4 py-2 rounded-xl border border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 transition"
-          >
-            {darkMode ? "☀️ Claro" : "🌙 Oscuro"}
-          </button>
-
-          <button
-            type="button"
             onClick={cerrarSesion}
-            className="px-4 py-2 rounded-xl border border-red-800 bg-zinc-900 text-red-400 hover:bg-red-950 transition"
+            className="ml-auto px-4 py-2 rounded-xl border border-red-800 bg-zinc-900 text-red-400 hover:bg-red-950 transition"
           >
             Cerrar sesión
           </button>

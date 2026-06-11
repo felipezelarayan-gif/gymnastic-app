@@ -43,17 +43,15 @@ export default function ConfiguracionPage() {
   async function cargarTodo() {
     setLoading(true);
 
-    const savedTheme = localStorage.getItem("theme");
     const savedLanguage = localStorage.getItem("language") || "es";
 
     setIdioma(savedLanguage);
 
+    const savedTheme = localStorage.getItem("theme");
     if (savedTheme === "light") {
       setDarkMode(false);
-      document.documentElement.classList.remove("dark");
     } else {
       setDarkMode(true);
-      document.documentElement.classList.add("dark");
     }
 
     const { data: sessionData } = await supabase.auth.getSession();
@@ -272,14 +270,7 @@ async function crearUsuario() {
   function toggleTheme() {
     const newValue = !darkMode;
     setDarkMode(newValue);
-
-    if (newValue) {
-      localStorage.setItem("theme", "dark");
-      document.documentElement.classList.add("dark");
-    } else {
-      localStorage.setItem("theme", "light");
-      document.documentElement.classList.remove("dark");
-    }
+    localStorage.setItem("theme", newValue ? "dark" : "light");
   }
 
   async function cerrarSesion() {
@@ -533,18 +524,6 @@ async function crearUsuario() {
             Por ahora solo se guarda la preferencia. Más adelante conectamos
             esta opción con todos los textos de la app.
           </p>
-        </section>
-
-        <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
-          <h2 className="text-xl font-semibold mb-3">🎨 Apariencia</h2>
-
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="w-full md:w-auto rounded-xl border border-zinc-700 bg-zinc-800 px-5 py-3 text-white hover:bg-zinc-700"
-          >
-            {darkMode ? "☀️ Cambiar a modo claro" : "🌙 Cambiar a modo oscuro"}
-          </button>
         </section>
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">

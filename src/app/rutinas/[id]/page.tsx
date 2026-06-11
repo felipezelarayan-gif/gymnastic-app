@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import CrearEjercicioModal from "@/components/ejercicios/CrearEjercicioModal";
+import EjercicioHistorialModal from "@/components/ejercicios/EjercicioHistorialModal";
 
 type TipoPrescripcion = "repeticiones" | "tiempo";
 
@@ -146,6 +147,9 @@ export default function RutinaDetallePage({
   const [entradaObservaciones, setEntradaObservaciones] = useState("");
 
   const [alumnoId, setAlumnoId] = useState("");
+  const [mostrarHistorialEjercicio, setMostrarHistorialEjercicio] = useState(false);
+  const [historialEjercicioId, setHistorialEjercicioId] = useState<string | null>(null);
+  const [historialNombreEjercicio, setHistorialNombreEjercicio] = useState("");
 
   useEffect(() => {
     verificarPermiso();
@@ -692,6 +696,26 @@ export default function RutinaDetallePage({
     setEntradaNombreEjercicio(ejercicio?.nombre || "");
   }
 
+  function abrirHistorialEjercicio() {
+    const alumnoIdUrl = new URLSearchParams(window.location.search).get("alumnoId");
+
+    if (!alumnoIdUrl) {
+      alert("Abrí esta rutina desde el perfil de un alumno para ver su historial.");
+      return;
+    }
+
+    if (!ejercicioId) {
+      alert("Seleccioná un ejercicio primero.");
+      return;
+    }
+
+    const ejercicio = ejercicios.find((item) => item.id === ejercicioId);
+
+    setHistorialEjercicioId(ejercicioId);
+    setHistorialNombreEjercicio(ejercicio?.nombre || "Ejercicio");
+    setMostrarHistorialEjercicio(true);
+  }
+
   function cambiarPeso(valor: string) {
     setPeso(valor);
     if (valor.trim()) setPorcentajeRm("");
@@ -1208,15 +1232,18 @@ export default function RutinaDetallePage({
                       {ejercicio.nombre}
                     </option>
                   ))}
-                
-
-<option value="crear_nuevo">
-
-  + Crear nuevo ejercicio
-
-</option>
-
-</select>
+                  <option value="crear_nuevo">
+                    + Crear nuevo ejercicio
+                  </option>
+                </select>
+                <button
+                  type="button"
+                  onClick={abrirHistorialEjercicio}
+                  disabled={!ejercicioId}
+                  className="w-full rounded-xl border border-blue-700 px-3 py-3 text-sm text-blue-300 hover:bg-blue-950 disabled:opacity-50"
+                >
+                  Ver historial del ejercicio
+                </button>
 
                 <div className="grid grid-cols-2 gap-3">
                   <select
@@ -1418,6 +1445,13 @@ export default function RutinaDetallePage({
           </div>
         )}
       </div>
+            <EjercicioHistorialModal
+              abierto={mostrarHistorialEjercicio}
+              alumnoId={new URLSearchParams(window.location.search).get("alumnoId")}
+              ejercicioId={historialEjercicioId}
+              nombreEjercicio={historialNombreEjercicio}
+              onCerrar={() => setMostrarHistorialEjercicio(false)}
+            />
             <CrearEjercicioModal
         abierto={mostrarCrearEjercicio}
         onCerrar={() => setMostrarCrearEjercicio(false)}
