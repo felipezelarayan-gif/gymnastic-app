@@ -7,6 +7,8 @@ import EjercicioHistorialModal from "@/components/ejercicios/EjercicioHistorialM
 
 type TipoPrescripcion = "repeticiones" | "tiempo";
 
+type TipoConfiguracionSeries = "simple" | "avanzado";
+
 type Rutina = {
   id: string;
   nombre: string;
@@ -37,6 +39,15 @@ type RutinaEjercicio = {
   porcentaje_rm?: string | null;
   observaciones?: string | null;
   orden?: number | null;
+  tipo_configuracion?: TipoConfiguracionSeries | null;
+};
+
+type RutinaEjercicioSerie = {
+  id?: string;
+  rutina_ejercicio_id?: string;
+  numero_serie: number;
+  repeticiones?: string | null;
+  peso?: string | null;
 };
 
 type EntradaCalorEjercicio = {
@@ -105,6 +116,7 @@ export default function RutinaDetallePage({
   const [rutina, setRutina] = useState<Rutina | null>(null);
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
   const [rutinaEjercicios, setRutinaEjercicios] = useState<RutinaEjercicio[]>([]);
+  const [seriesPorEjercicio, setSeriesPorEjercicio] = useState<Record<string, RutinaEjercicioSerie[]>>({});
   const [entradaCalorEjercicios, setEntradaCalorEjercicios] = useState<EntradaCalorEjercicio[]>([]);
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [asignaciones, setAsignaciones] = useState<Asignacion[]>([]);
@@ -136,6 +148,12 @@ export default function RutinaDetallePage({
   const [rir, setRir] = useState("");
   const [descanso, setDescanso] = useState("");
   const [observaciones, setObservaciones] = useState("");
+  const [tipoConfiguracionSeries, setTipoConfiguracionSeries] = useState<TipoConfiguracionSeries>("simple");
+  const [seriesAvanzadas, setSeriesAvanzadas] = useState<RutinaEjercicioSerie[]>([
+    { numero_serie: 1, repeticiones: "", peso: "" },
+    { numero_serie: 2, repeticiones: "", peso: "" },
+    { numero_serie: 3, repeticiones: "", peso: "" },
+  ]);
 
   const [entradaEjercicioId, setEntradaEjercicioId] = useState("");
   const [entradaNombreEjercicio, setEntradaNombreEjercicio] = useState("");
@@ -242,7 +260,40 @@ export default function RutinaDetallePage({
       return;
     }
 
-    setRutinaEjercicios(data || []);
+    const ejerciciosData = (data || []) as RutinaEjercicio[];
+    setRutinaEjercicios(ejerciciosData);
+
+    const ejerciciosAvanzadosIds = ejerciciosData
+      .filter((item) => item.tipo_configuracion === "avanzado")
+      .map((item) => item.id);
+
+    if (ejerciciosAvanzadosIds.length === 0) {
+      setSeriesPorEjercicio({});
+      return;
+    }
+
+    const { data: seriesData, error: seriesError } = await supabase
+      .from("rutina_ejercicio_series")
+      .select("id,rutina_ejercicio_id,numero_serie,repeticiones,peso")
+      .in("rutina_ejercicio_id", ejerciciosAvanzadosIds)
+      .order("numero_serie", { ascending: true });
+
+    if (seriesError) {
+      alert(seriesError.message);
+      return;
+    }
+
+    const agrupadas = ((seriesData || []) as RutinaEjercicioSerie[]).reduce<Record<string, RutinaEjercicioSerie[]>>(
+      (acc, serie) => {
+        if (!serie.rutina_ejercicio_id) return acc;
+        acc[serie.rutina_ejercicio_id] = acc[serie.rutina_ejercicio_id] || [];
+        acc[serie.rutina_ejercicio_id].push(serie);
+        return acc;
+      },
+      {}
+    );
+
+    setSeriesPorEjercicio(agrupadas);
   }
 
   async function cargarAlumnos() {
@@ -410,13 +461,54 @@ export default function RutinaDetallePage({
     cargarEntradaCalor();
   }
 
+  function cantidadSeriesPrincipal() {
+    const seriesFinal = series === "custom" ? seriesCustom : series;
+    const cantidad = Number(seriesFinal || 0);
+    return Number.isFinite(cantidad) && cantidad > 0 ? cantidad : 0;
+  }
+
+  function crearSeriesAvanzadas(cantidad: number, existentes: RutinaEjercicioSerie[] = []) {
+    return Array.from({ length: cantidad }, (_, index) => {
+      const numeroSerie = index + 1;
+      const existente = existentes.find((serie) => serie.numero_serie === numeroSerie);
+
+      return {
+        numero_serie: numeroSerie,
+        repeticiones: existente?.repeticiones || "",
+        peso: existente?.peso || "",
+      };
+    });
+  }
+
+  function actualizarCantidadSeriesAvanzadas(nuevaCantidad: number) {
+    if (!Number.isFinite(nuevaCantidad) || nuevaCantidad <= 0) {
+      setSeriesAvanzadas([]);
+      return;
+    }
+
+    setSeriesAvanzadas((actuales) => crearSeriesAvanzadas(nuevaCantidad, actuales));
+  }
+
+  function actualizarSerieAvanzada(
+    numeroSerie: number,
+    campo: "repeticiones" | "peso",
+    valor: string
+  ) {
+    setSeriesAvanzadas((actuales) =>
+      actuales.map((serie) =>
+        serie.numero_serie === numeroSerie ? { ...serie, [campo]: valor } : serie
+      )
+    );
+  }
+
   function abrirAgregarEjercicioPrincipal() {
     setEjercicioEditandoId(null);
     limpiarFormularioEjercicio();
+    setSeriesAvanzadas(crearSeriesAvanzadas(3));
     setMostrarEjercicioPrincipal(true);
   }
 
-  function abrirEditarEjercicioPrincipal(item: RutinaEjercicio) {
+  async function abrirEditarEjercicioPrincipal(item: RutinaEjercicio) {
     const seriesTexto = item.series ? String(item.series) : "3";
 
     setEjercicioEditandoId(item.id);
@@ -439,32 +531,73 @@ export default function RutinaDetallePage({
     setRir(item.rir || "");
     setDescanso(item.descanso || "");
     setObservaciones(item.observaciones || "");
+
+    const tipoConfiguracion = item.tipo_configuracion === "avanzado" ? "avanzado" : "simple";
+    setTipoConfiguracionSeries(tipoConfiguracion);
+
+    if (tipoConfiguracion === "avanzado") {
+      const { data: seriesData, error: seriesError } = await supabase
+        .from("rutina_ejercicio_series")
+        .select("id,rutina_ejercicio_id,numero_serie,repeticiones,peso")
+        .eq("rutina_ejercicio_id", item.id)
+        .order("numero_serie", { ascending: true });
+
+      if (seriesError) {
+        alert(seriesError.message);
+        return;
+      }
+
+      const cantidadSeries = item.series || Number(seriesTexto || 0) || 1;
+      setSeriesAvanzadas(crearSeriesAvanzadas(cantidadSeries, (seriesData || []) as RutinaEjercicioSerie[]));
+    } else {
+      const cantidadSeries = item.series || Number(seriesTexto || 0) || 1;
+      setSeriesAvanzadas(crearSeriesAvanzadas(cantidadSeries));
+    }
+
     setMostrarEjercicioPrincipal(true);
   }
 
   async function guardarEjercicioPrincipal() {
     if (!ejercicioId) {
-  alert("Seleccioná un ejercicio del banco.");
-  return;
-}
+      alert("Seleccioná un ejercicio del banco.");
+      return;
+    }
 
     const seriesFinal = series === "custom" ? seriesCustom : series;
+    const cantidadSeries = Number(seriesFinal || 0);
+
+    if (!cantidadSeries || cantidadSeries <= 0) {
+      alert("Ingresá una cantidad de series válida.");
+      return;
+    }
+
+    if (tipoConfiguracionSeries === "avanzado") {
+      const seriesIncompletas = seriesAvanzadas.some(
+        (serie) => !serie.repeticiones?.trim() || !serie.peso?.trim()
+      );
+
+      if (seriesIncompletas) {
+        alert("Completá repeticiones y peso en cada serie.");
+        return;
+      }
+    }
 
     const payload = {
       rutina_id: id,
       ejercicio_id: ejercicioId || null,
       nombre_ejercicio:
-  ejercicios.find((e) => e.id === ejercicioId)?.nombre || "",
+        ejercicios.find((e) => e.id === ejercicioId)?.nombre || "",
       series: seriesFinal ? Number(seriesFinal) : null,
-      tipo_prescripcion: tipoPrescripcion,
-      repeticiones: tipoPrescripcion === "repeticiones" ? repeticiones : "",
-      duracion: tipoPrescripcion === "tiempo" ? duracion : "",
-      peso,
-      porcentaje_rm: porcentajeRm,
+      tipo_prescripcion: tipoConfiguracionSeries === "avanzado" ? "repeticiones" : tipoPrescripcion,
+      repeticiones: tipoConfiguracionSeries === "avanzado" ? "" : tipoPrescripcion === "repeticiones" ? repeticiones : "",
+      duracion: tipoConfiguracionSeries === "avanzado" ? "" : tipoPrescripcion === "tiempo" ? duracion : "",
+      peso: tipoConfiguracionSeries === "avanzado" ? "" : peso,
+      porcentaje_rm: tipoConfiguracionSeries === "avanzado" ? "" : porcentajeRm,
       rir,
       descanso,
       observaciones,
       orden: rutinaEjercicios.length + 1,
+      tipo_configuracion: tipoConfiguracionSeries,
     };
 
     if (ejercicioEditandoId) {
@@ -477,14 +610,62 @@ export default function RutinaDetallePage({
         alert(error.message);
         return;
       }
-    } else {
-      const { error } = await supabase
-        .from("rutina_ejercicios")
-        .insert(payload);
 
-      if (error) {
-        alert(error.message);
+      const { error: borrarSeriesError } = await supabase
+        .from("rutina_ejercicio_series")
+        .delete()
+        .eq("rutina_ejercicio_id", ejercicioEditandoId);
+
+      if (borrarSeriesError) {
+        alert(borrarSeriesError.message);
         return;
+      }
+
+      if (tipoConfiguracionSeries === "avanzado") {
+        const { error: insertarSeriesError } = await supabase
+          .from("rutina_ejercicio_series")
+          .insert(
+            seriesAvanzadas.map((serie) => ({
+              rutina_ejercicio_id: ejercicioEditandoId,
+              numero_serie: serie.numero_serie,
+              repeticiones: serie.repeticiones || "",
+              peso: serie.peso || "",
+            }))
+          );
+
+        if (insertarSeriesError) {
+          alert(insertarSeriesError.message);
+          return;
+        }
+      }
+    } else {
+      const { data: nuevoEjercicio, error } = await supabase
+        .from("rutina_ejercicios")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (error || !nuevoEjercicio) {
+        alert(error?.message || "No se pudo crear el ejercicio.");
+        return;
+      }
+
+      if (tipoConfiguracionSeries === "avanzado") {
+        const { error: insertarSeriesError } = await supabase
+          .from("rutina_ejercicio_series")
+          .insert(
+            seriesAvanzadas.map((serie) => ({
+              rutina_ejercicio_id: nuevoEjercicio.id,
+              numero_serie: serie.numero_serie,
+              repeticiones: serie.repeticiones || "",
+              peso: serie.peso || "",
+            }))
+          );
+
+        if (insertarSeriesError) {
+          alert(insertarSeriesError.message);
+          return;
+        }
       }
     }
 
@@ -664,6 +845,8 @@ export default function RutinaDetallePage({
     setRir("");
     setDescanso("");
     setObservaciones("");
+    setTipoConfiguracionSeries("simple");
+    setSeriesAvanzadas(crearSeriesAvanzadas(3));
     setEjercicioEditandoId(null);
   }
 
@@ -893,9 +1076,19 @@ export default function RutinaDetallePage({
                           {item.nombre_ejercicio}
                         </h3>
 
-                        <p className="text-zinc-400 mt-1">
-                          {item.series || "-"} series · {textoPrescripcion(item)}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          <p className="text-zinc-400">
+                            {item.series || "-"} series · {item.tipo_configuracion === "avanzado" ? "Serie por serie" : textoPrescripcion(item)}
+                          </p>
+
+                          <span className={`rounded-full px-2 py-0.5 text-xs ${
+                            item.tipo_configuracion === "avanzado"
+                              ? "bg-blue-500/10 text-blue-300"
+                              : "bg-zinc-800 text-zinc-300"
+                          }`}>
+                            {item.tipo_configuracion === "avanzado" ? "Avanzado" : "Simple"}
+                          </span>
+                        </div>
 
                         <div className="flex flex-wrap gap-2 mt-3 text-sm">
                           {item.peso && (
@@ -929,6 +1122,20 @@ export default function RutinaDetallePage({
                           <p className="text-zinc-500 mt-3 whitespace-pre-wrap">
                             {item.observaciones}
                           </p>
+                        )}
+                        {item.tipo_configuracion === "avanzado" && (
+                          <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+                            <p className="text-xs font-semibold text-zinc-400 mb-2">Series configuradas</p>
+
+                            <div className="space-y-1 text-sm text-zinc-300">
+                              {(seriesPorEjercicio[item.id] || []).map((serie) => (
+                                <div key={serie.id || serie.numero_serie} className="flex justify-between gap-3">
+                                  <span>Serie {serie.numero_serie}</span>
+                                  <span>{serie.repeticiones || "-"} reps · {serie.peso || "-"} kg</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         )}
                       </div>
 
@@ -1248,7 +1455,11 @@ export default function RutinaDetallePage({
                 <div className="grid grid-cols-2 gap-3">
                   <select
                     value={series}
-                    onChange={(e) => setSeries(e.target.value)}
+                    onChange={(e) => {
+                      setSeries(e.target.value);
+                      const nuevaCantidad = e.target.value === "custom" ? Number(seriesCustom || 0) : Number(e.target.value || 0);
+                      actualizarCantidadSeriesAvanzadas(nuevaCantidad);
+                    }}
                     className="w-full bg-zinc-800 rounded-xl p-3"
                   >
                     <option value="">Series</option>
@@ -1263,7 +1474,10 @@ export default function RutinaDetallePage({
                     <input
                       type="number"
                       value={seriesCustom}
-                      onChange={(e) => setSeriesCustom(e.target.value)}
+                      onChange={(e) => {
+                        setSeriesCustom(e.target.value);
+                        actualizarCantidadSeriesAvanzadas(Number(e.target.value || 0));
+                      }}
                       className="w-full bg-zinc-800 rounded-xl p-3"
                       placeholder="Series custom"
                     />
@@ -1271,107 +1485,196 @@ export default function RutinaDetallePage({
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="flex items-center gap-2 rounded-xl bg-zinc-800 p-3">
-                    <input
-                      type="checkbox"
-                      checked={tipoPrescripcion === "repeticiones"}
-                      onChange={() => {
-                        setTipoPrescripcion("repeticiones");
-                        setDuracion("");
-                      }}
-                    />
-                    <span>Por repeticiones</span>
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setTipoConfiguracionSeries("simple")}
+                    className={`rounded-xl border p-3 text-left ${
+                      tipoConfiguracionSeries === "simple"
+                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                        : "border-zinc-700 bg-zinc-800 text-zinc-300"
+                    }`}
+                  >
+                    <p className="font-semibold">Simple</p>
+                    <p className="text-xs text-zinc-400 mt-1">Todas las series iguales</p>
+                  </button>
 
-                  <label className="flex items-center gap-2 rounded-xl bg-zinc-800 p-3">
-                    <input
-                      type="checkbox"
-                      checked={tipoPrescripcion === "tiempo"}
-                      onChange={() => {
-                        setTipoPrescripcion("tiempo");
-                        setRepeticiones("");
-                      }}
-                    />
-                    <span>Por tiempo</span>
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTipoConfiguracionSeries("avanzado");
+                      actualizarCantidadSeriesAvanzadas(cantidadSeriesPrincipal() || 1);
+                    }}
+                    className={`rounded-xl border p-3 text-left ${
+                      tipoConfiguracionSeries === "avanzado"
+                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                        : "border-zinc-700 bg-zinc-800 text-zinc-300"
+                    }`}
+                  >
+                    <p className="font-semibold">Serie por serie</p>
+                    <p className="text-xs text-zinc-400 mt-1">Reps y peso diferentes</p>
+                  </button>
                 </div>
 
-                {tipoPrescripcion === "repeticiones" && (
-                  <input
-                    value={repeticiones}
-                    onChange={(e) => setRepeticiones(e.target.value)}
-                    className="w-full bg-zinc-800 rounded-xl p-3"
-                    placeholder="Reps"
-                  />
+                {tipoConfiguracionSeries === "simple" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex items-center gap-2 rounded-xl bg-zinc-800 p-3">
+                        <input
+                          type="checkbox"
+                          checked={tipoPrescripcion === "repeticiones"}
+                          onChange={() => {
+                            setTipoPrescripcion("repeticiones");
+                            setDuracion("");
+                          }}
+                        />
+                        <span>Por repeticiones</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 rounded-xl bg-zinc-800 p-3">
+                        <input
+                          type="checkbox"
+                          checked={tipoPrescripcion === "tiempo"}
+                          onChange={() => {
+                            setTipoPrescripcion("tiempo");
+                            setRepeticiones("");
+                          }}
+                        />
+                        <span>Por tiempo</span>
+                      </label>
+                    </div>
+
+                    {tipoPrescripcion === "repeticiones" && (
+                      <input
+                        value={repeticiones}
+                        onChange={(e) => setRepeticiones(e.target.value)}
+                        className="w-full bg-zinc-800 rounded-xl p-3"
+                        placeholder="Reps"
+                      />
+                    )}
+
+                    {tipoPrescripcion === "tiempo" && (
+                      <select
+                        value={duracion}
+                        onChange={(e) => setDuracion(e.target.value)}
+                        className="w-full bg-zinc-800 rounded-xl p-3"
+                      >
+                        <option value="">Duración</option>
+                        {opcionesTiempo.map((segundos) => (
+                          <option key={segundos} value={formatoTiempo(segundos)}>
+                            {formatoTiempo(segundos)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {!porcentajeRm && (
+                        <input
+                          value={peso}
+                          onChange={(e) => cambiarPeso(e.target.value)}
+                          className="w-full bg-zinc-800 rounded-xl p-3"
+                          placeholder="Peso"
+                        />
+                      )}
+
+                      {!peso && (
+                        <select
+                          value={porcentajeRm}
+                          onChange={(e) => cambiarPorcentajeRm(e.target.value)}
+                          className="w-full bg-zinc-800 rounded-xl p-3"
+                        >
+                          <option value="">%RM</option>
+
+                          {porcentajesRM.map((valor) => (
+                            <option key={valor} value={String(valor)}>
+                              {valor === 0 ? "0 - Peso corporal" : `${valor}%`}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      <select
+                        value={rir}
+                        onChange={(e) => setRir(e.target.value)}
+                        className="w-full bg-zinc-800 rounded-xl p-3"
+                      >
+                        <option value="">RIR</option>
+                        {opcionesRIR.map((valor) => (
+                          <option key={valor} value={String(valor)}>
+                            {valor}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={descanso}
+                        onChange={(e) => setDescanso(e.target.value)}
+                        className="w-full bg-zinc-800 rounded-xl p-3"
+                      >
+                        <option value="">Descanso entre series</option>
+                        {opcionesTiempo.map((segundos) => (
+                          <option key={segundos} value={formatoTiempo(segundos)}>
+                            {formatoTiempo(segundos)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
                 )}
 
-                {tipoPrescripcion === "tiempo" && (
-                  <select
-                    value={duracion}
-                    onChange={(e) => setDuracion(e.target.value)}
-                    className="w-full bg-zinc-800 rounded-xl p-3"
-                  >
-                    <option value="">Duración</option>
-                    {opcionesTiempo.map((segundos) => (
-                      <option key={segundos} value={formatoTiempo(segundos)}>
-                        {formatoTiempo(segundos)}
-                      </option>
+                {tipoConfiguracionSeries === "avanzado" && (
+                  <div className="space-y-2 rounded-xl border border-zinc-800 p-3">
+                    <p className="text-sm font-semibold text-zinc-300">Configurar cada serie</p>
+
+                    {seriesAvanzadas.map((serie) => (
+                      <div key={serie.numero_serie} className="grid grid-cols-[70px_1fr_1fr] gap-2 items-center">
+                        <span className="text-sm text-zinc-400">Serie {serie.numero_serie}</span>
+
+                        <input
+                          value={serie.repeticiones || ""}
+                          onChange={(e) => actualizarSerieAvanzada(serie.numero_serie, "repeticiones", e.target.value)}
+                          className="w-full bg-zinc-800 rounded-xl p-3"
+                          placeholder="Reps"
+                        />
+
+                        <input
+                          value={serie.peso || ""}
+                          onChange={(e) => actualizarSerieAvanzada(serie.numero_serie, "peso", e.target.value)}
+                          className="w-full bg-zinc-800 rounded-xl p-3"
+                          placeholder="Peso"
+                        />
+                      </div>
                     ))}
-                  </select>
+
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <select
+                        value={rir}
+                        onChange={(e) => setRir(e.target.value)}
+                        className="w-full bg-zinc-800 rounded-xl p-3"
+                      >
+                        <option value="">RIR general</option>
+                        {opcionesRIR.map((valor) => (
+                          <option key={valor} value={String(valor)}>
+                            {valor}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={descanso}
+                        onChange={(e) => setDescanso(e.target.value)}
+                        className="w-full bg-zinc-800 rounded-xl p-3"
+                      >
+                        <option value="">Descanso general</option>
+                        {opcionesTiempo.map((segundos) => (
+                          <option key={segundos} value={formatoTiempo(segundos)}>
+                            {formatoTiempo(segundos)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  {!porcentajeRm && (
-                    <input
-                      value={peso}
-                      onChange={(e) => cambiarPeso(e.target.value)}
-                      className="w-full bg-zinc-800 rounded-xl p-3"
-                      placeholder="Peso"
-                    />
-                  )}
-
-                  {!peso && (
-                    <select
-                      value={porcentajeRm}
-                      onChange={(e) => cambiarPorcentajeRm(e.target.value)}
-                      className="w-full bg-zinc-800 rounded-xl p-3"
-                    >
-                      <option value="">%RM</option>
-
-                      {porcentajesRM.map((valor) => (
-                        <option key={valor} value={String(valor)}>
-                          {valor === 0 ? "0 - Peso corporal" : `${valor}%`}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-
-                  <select
-                    value={rir}
-                    onChange={(e) => setRir(e.target.value)}
-                    className="w-full bg-zinc-800 rounded-xl p-3"
-                  >
-                    <option value="">RIR</option>
-                    {opcionesRIR.map((valor) => (
-                      <option key={valor} value={String(valor)}>
-                        {valor}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={descanso}
-                    onChange={(e) => setDescanso(e.target.value)}
-                    className="w-full bg-zinc-800 rounded-xl p-3"
-                  >
-                    <option value="">Descanso entre series</option>
-                    {opcionesTiempo.map((segundos) => (
-                      <option key={segundos} value={formatoTiempo(segundos)}>
-                        {formatoTiempo(segundos)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
                 <textarea
                   value={observaciones}

@@ -52,7 +52,16 @@ type RutinaEjercicio = {
   descanso?: string | null;
   observaciones?: string | null;
   orden?: number | null;
+  tipo_configuracion?: "simple" | "avanzado" | null;
   youtube_url?: string | null;
+};
+
+type RutinaEjercicioSerie = {
+  id: string;
+  rutina_ejercicio_id: string;
+  numero_serie: number;
+  repeticiones?: string | null;
+  peso?: string | null;
 };
 
 type EntradaCalorEjercicio = {
@@ -90,6 +99,13 @@ type RegistroEntrenamiento = {
   completado?: boolean | null;
 };
 
+type SerieCompletadaCache = {
+  numero_serie: number;
+  peso_kg: number;
+  repeticiones: number;
+  rm_calculado: number | null;
+};
+
 type EjercicioCompletadoCache = {
   rutina_ejercicio_id: string;
   nombre_ejercicio: string;
@@ -101,10 +117,13 @@ type EjercicioCompletadoCache = {
   ejercicio_id?: string | null;
   rutina_id: string;
   rutina_asignacion_id: string;
+  tipo_configuracion?: "simple" | "avanzado" | null;
+  series_realizadas?: SerieCompletadaCache[];
 };
 
 const opcionesRPE = Array.from({ length: 10 }, (_, index) => index + 1);
 const opcionesRIR = Array.from({ length: 10 }, (_, index) => index + 1);
+
 
 function textoPrescripcion(item: {
   tipo_prescripcion?: string | null;
@@ -118,6 +137,14 @@ function textoPrescripcion(item: {
   return item.repeticiones ? `Reps: ${item.repeticiones}` : "Reps: -";
 }
 
+function textoPrescripcionAvanzada(series: RutinaEjercicioSerie[]) {
+  if (series.length === 0) return "Serie por serie";
+
+  return series
+    .map((serie) => `S${serie.numero_serie}: ${serie.repeticiones || "-"} x ${serie.peso || "-"} kg`)
+    .join(" · ");
+}
+
 function normalizarRutina(rutinas?: RutinaRelacion) {
   if (Array.isArray(rutinas)) return rutinas[0] || null;
   return rutinas || null;
@@ -129,6 +156,7 @@ export default function AlumnoRutinaPage() {
   const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>([]);
   const [rutinasAbiertas, setRutinasAbiertas] = useState<Record<string, boolean>>({});
   const [ejerciciosPorRutina, setEjerciciosPorRutina] = useState<Record<string, RutinaEjercicio[]>>({});
+  const [seriesPorEjercicio, setSeriesPorEjercicio] = useState<Record<string, RutinaEjercicioSerie[]>>({});
   const [entradaPorRutina, setEntradaPorRutina] = useState<Record<string, EntradaCalorEjercicio[]>>({});
   const [registros, setRegistros] = useState<RegistroEntrenamiento[]>([]);
   const [rmsActuales, setRmsActuales] = useState<RMActual[]>([]);
@@ -137,6 +165,7 @@ export default function AlumnoRutinaPage() {
   const [repsRealizadas, setRepsRealizadas] = useState("");
   const [rpe, setRpe] = useState("");
   const [rirReal, setRirReal] = useState("");
+  const [seriesRealizadas, setSeriesRealizadas] = useState<Record<number, { peso: string; repeticiones: string }>>({});
   const [mostrarProximos, setMostrarProximos] = useState(true);
   const [mostrarCompletados, setMostrarCompletados] = useState(false);
   const [fechaCompletados, setFechaCompletados] = useState("");
@@ -257,6 +286,7 @@ if (rutinaIds.length > 0) {
     if (rutinaIds.length === 0) {
       setRutinasAsignadas(asignacionesTipadas);
       setEjerciciosPorRutina({});
+      setSeriesPorEjercicio({});
       setEntradaPorRutina({});
       setRegistros([]);
       setRmsActuales([]);
@@ -295,6 +325,35 @@ if (rutinaIds.length > 0) {
         const video = videosEjercicios.find((v) => v.id === item.ejercicio_id);
         return { ...item, youtube_url: video?.youtube_url || null };
       }) || [];
+
+    const ejerciciosAvanzadosIds = ejerciciosConVideo
+      .filter((item) => item.tipo_configuracion === "avanzado")
+      .map((item) => item.id);
+
+    let seriesAgrupadas: Record<string, RutinaEjercicioSerie[]> = {};
+
+    if (ejerciciosAvanzadosIds.length > 0) {
+      const { data: seriesData, error: seriesError } = await supabase
+        .from("rutina_ejercicio_series")
+        .select("id,rutina_ejercicio_id,numero_serie,repeticiones,peso")
+        .in("rutina_ejercicio_id", ejerciciosAvanzadosIds)
+        .order("numero_serie", { ascending: true });
+
+      if (seriesError) {
+        alert(seriesError.message);
+        setLoading(false);
+        return;
+      }
+
+      seriesAgrupadas = ((seriesData || []) as RutinaEjercicioSerie[]).reduce<Record<string, RutinaEjercicioSerie[]>>(
+        (acc, serie) => {
+          acc[serie.rutina_ejercicio_id] = acc[serie.rutina_ejercicio_id] || [];
+          acc[serie.rutina_ejercicio_id].push(serie);
+          return acc;
+        },
+        {}
+      );
+    }
 
     const agrupadosEjercicios: Record<string, RutinaEjercicio[]> = {};
 
@@ -371,6 +430,7 @@ if (rutinaIds.length > 0) {
 
     setRutinasAsignadas(asignacionesTipadas);
     setEjerciciosPorRutina(agrupadosEjercicios);
+    setSeriesPorEjercicio(seriesAgrupadas);
     setEntradaPorRutina(agrupadaEntrada);
     setRegistros(registrosData || []);
     setRmsActuales(rms || []);
@@ -576,7 +636,6 @@ async function recalcularRMActual(ejercicioId: string) {
 
     try {
       for (const ejercicioCache of ejerciciosDelCache) {
-        // Guardar registro de entrenamiento
         const { error: deleteError } = await supabase
           .from("registros_entrenamiento")
           .delete()
@@ -586,30 +645,55 @@ async function recalcularRMActual(ejercicioId: string) {
 
         if (deleteError) throw deleteError;
 
-        const { data: nuevoRegistro, error: registroError } = await supabase
-          .from("registros_entrenamiento")
-          .insert({
-            alumno_id: alumnoId,
-            rutina_id: ejercicioCache.rutina_id,
-            rutina_asignacion_id: asignacionId,
-            rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
-            ejercicio_id: ejercicioCache.ejercicio_id,
-            nombre_ejercicio: ejercicioCache.nombre_ejercicio,
-            peso_kg: ejercicioCache.peso_kg,
-            repeticiones: ejercicioCache.repeticiones,
-            rpe: ejercicioCache.rpe,
-            rir: ejercicioCache.rir,
-            rm_calculado: ejercicioCache.rm_calculado,
-            completado: true,
-          })
-          .select("id")
-          .single();
+        const seriesParaGuardar =
+          ejercicioCache.tipo_configuracion === "avanzado" && ejercicioCache.series_realizadas?.length
+            ? ejercicioCache.series_realizadas
+            : [
+                {
+                  numero_serie: 1,
+                  peso_kg: ejercicioCache.peso_kg,
+                  repeticiones: ejercicioCache.repeticiones,
+                  rm_calculado: ejercicioCache.rm_calculado,
+                },
+              ];
 
-        if (registroError) throw registroError;
-        if (!nuevoRegistro) throw new Error("No se guardó el registro");
+        const registrosInsertados: {
+          id: string;
+          rm_calculado?: number | null;
+          peso_kg?: number | null;
+          repeticiones?: number | null;
+        }[] = [];
 
-        // Guardar RM si aplica
-        if (ejercicioCache.ejercicio_id && ejercicioCache.rm_calculado) {
+        for (const serie of seriesParaGuardar) {
+          const { data: nuevoRegistro, error: registroError } = await supabase
+            .from("registros_entrenamiento")
+            .insert({
+              alumno_id: alumnoId,
+              rutina_id: ejercicioCache.rutina_id,
+              rutina_asignacion_id: asignacionId,
+              rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
+              ejercicio_id: ejercicioCache.ejercicio_id,
+              nombre_ejercicio:
+                ejercicioCache.tipo_configuracion === "avanzado"
+                  ? `${ejercicioCache.nombre_ejercicio} - Serie ${serie.numero_serie}`
+                  : ejercicioCache.nombre_ejercicio,
+              peso_kg: serie.peso_kg,
+              repeticiones: serie.repeticiones,
+              rpe: ejercicioCache.rpe,
+              rir: ejercicioCache.rir,
+              rm_calculado: serie.rm_calculado,
+              completado: true,
+            })
+            .select("id,rm_calculado,peso_kg,repeticiones")
+            .single();
+
+          if (registroError) throw registroError;
+          if (!nuevoRegistro) throw new Error("No se guardó el registro");
+
+          registrosInsertados.push(nuevoRegistro);
+        }
+
+        if (ejercicioCache.ejercicio_id && registrosInsertados.length > 0) {
           await supabase
             .from("rms_historial")
             .delete()
@@ -618,20 +702,26 @@ async function recalcularRMActual(ejercicioId: string) {
             .eq("rutina_ejercicio_id", ejercicioCache.rutina_ejercicio_id)
             .eq("rutina_asignacion_id", asignacionId);
 
-          await supabase.from("rms_historial").insert({
-            alumno_id: alumnoId,
-            ejercicio_id: ejercicioCache.ejercicio_id,
-            rutina_id: rutinaId,
-            rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
-            rutina_asignacion_id: asignacionId,
-            registro_entrenamiento_id: nuevoRegistro.id,
-            peso_kg: ejercicioCache.peso_kg,
-            repeticiones: ejercicioCache.repeticiones,
-            rm_calculado: ejercicioCache.rm_calculado,
-            origen: "entrenamiento",
-          });
+          const mejorRegistro = registrosInsertados
+            .filter((registro) => registro.rm_calculado !== null && registro.rm_calculado !== undefined)
+            .sort((a, b) => Number(b.rm_calculado || 0) - Number(a.rm_calculado || 0))[0];
 
-          await recalcularRMActual(ejercicioCache.ejercicio_id);
+          if (mejorRegistro) {
+            await supabase.from("rms_historial").insert({
+              alumno_id: alumnoId,
+              ejercicio_id: ejercicioCache.ejercicio_id,
+              rutina_id: rutinaId,
+              rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
+              rutina_asignacion_id: asignacionId,
+              registro_entrenamiento_id: mejorRegistro.id,
+              peso_kg: mejorRegistro.peso_kg,
+              repeticiones: mejorRegistro.repeticiones,
+              rm_calculado: mejorRegistro.rm_calculado,
+              origen: "entrenamiento",
+            });
+
+            await recalcularRMActual(ejercicioCache.ejercicio_id);
+          }
         }
       }
 
@@ -790,37 +880,52 @@ async function recalcularRMActual(ejercicioId: string) {
   }
 
   function abrirCompletado(item: RutinaEjercicio, asignacionId: string) {
-  const asignacionActual = rutinasAsignadas.find(
-    (asignacion) => asignacion.asignacion_id === asignacionId
-  );
+    const asignacionActual = rutinasAsignadas.find(
+      (asignacion) => asignacion.asignacion_id === asignacionId
+    );
 
-  if (!asignacionActual) {
-    alert("No se encontró la asignación de esta rutina.");
-    return;
+    if (!asignacionActual) {
+      alert("No se encontró la asignación de esta rutina.");
+      return;
+    }
+
+    if (ejercicioEstaCompletado(asignacionActual.asignacion_id, item.id)) {
+      alert("Este ejercicio ya fue completado.");
+      return;
+    }
+
+    setEjercicioSeleccionado({
+      ...item,
+      rutina_asignacion_id: asignacionActual.asignacion_id,
+    } as RutinaEjercicio);
+
+    const pesoSugerido = calcularPesoPorRM(item);
+
+    if (pesoSugerido === "Peso corporal") {
+      setPesoUsado("0");
+    } else {
+      setPesoUsado(pesoSugerido ? String(pesoSugerido).replace(" kg", "") : "");
+    }
+
+    setRepsRealizadas("");
+    setRpe("");
+    setRirReal("");
+
+    if (item.tipo_configuracion === "avanzado") {
+      const series = seriesPorEjercicio[item.id] || [];
+      const valoresIniciales = series.reduce<Record<number, { peso: string; repeticiones: string }>>((acc, serie) => {
+        acc[serie.numero_serie] = {
+          peso: serie.peso || "",
+          repeticiones: serie.repeticiones || "",
+        };
+        return acc;
+      }, {});
+
+      setSeriesRealizadas(valoresIniciales);
+    } else {
+      setSeriesRealizadas({});
+    }
   }
-
-  if (ejercicioEstaCompletado(asignacionActual.asignacion_id, item.id)) {
-    alert("Este ejercicio ya fue completado.");
-    return;
-  }
-
-  setEjercicioSeleccionado({
-    ...item,
-    rutina_asignacion_id: asignacionActual.asignacion_id,
-  } as RutinaEjercicio);
-
-  const pesoSugerido = calcularPesoPorRM(item);
-
-  if (pesoSugerido === "Peso corporal") {
-    setPesoUsado("0");
-  } else {
-    setPesoUsado(pesoSugerido ? String(pesoSugerido).replace(" kg", "") : "");
-  }
-
-  setRepsRealizadas("");
-  setRpe("");
-  setRirReal("");
-}
 
   async function guardarCompletado() {
     if (!ejercicioSeleccionado || guardandoEjercicio) return;
@@ -850,29 +955,89 @@ async function recalcularRMActual(ejercicioId: string) {
       return;
     }
 
-    if (pesoUsado === "" || !repsRealizadas || !rpe) {
+    if (!rpe) {
+      alert("Completá el RPE.");
+      setGuardandoEjercicio(false);
+      return;
+    }
+
+    const esAvanzado = ejercicioSeleccionado.tipo_configuracion === "avanzado";
+    const seriesConfiguradas = seriesPorEjercicio[ejercicioSeleccionado.id] || [];
+
+    if (!esAvanzado && (pesoUsado === "" || !repsRealizadas)) {
       alert("Completá peso, repeticiones y RPE.");
       setGuardandoEjercicio(false);
       return;
     }
 
-    const pesoNumero = Number(pesoUsado);
-    const repsNumero = Number(repsRealizadas);
+    if (esAvanzado) {
+      const seriesIncompletas = seriesConfiguradas.some((serie) => {
+        const valores = seriesRealizadas[serie.numero_serie];
+        return !valores?.peso || !valores?.repeticiones;
+      });
+
+      if (seriesIncompletas) {
+        alert("Completá peso y repeticiones en cada serie.");
+        setGuardandoEjercicio(false);
+        return;
+      }
+    }
+
     const rpeNumero = Number(rpe);
     const rirNumero = rirReal ? Number(rirReal) : null;
 
-    if (
-      Number.isNaN(pesoNumero) ||
-      Number.isNaN(repsNumero) ||
-      Number.isNaN(rpeNumero)
-    ) {
-      alert("Revisá los valores ingresados.");
+    if (Number.isNaN(rpeNumero)) {
+      alert("Revisá el RPE ingresado.");
       setGuardandoEjercicio(false);
       return;
     }
 
     const esPesoCorporal = ejercicioSeleccionado.porcentaje_rm === "0";
-    const rmCalculado = esPesoCorporal ? null : calcularEpley(pesoNumero, repsNumero);
+
+    const seriesRealizadasFinales: SerieCompletadaCache[] = esAvanzado
+      ? seriesConfiguradas.map((serie) => {
+          const valores = seriesRealizadas[serie.numero_serie];
+          const pesoNumeroSerie = Number(valores?.peso || 0);
+          const repsNumeroSerie = Number(valores?.repeticiones || 0);
+
+          return {
+            numero_serie: serie.numero_serie,
+            peso_kg: pesoNumeroSerie,
+            repeticiones: repsNumeroSerie,
+            rm_calculado: esPesoCorporal ? null : calcularEpley(pesoNumeroSerie, repsNumeroSerie),
+          };
+        })
+      : [];
+
+    if (
+      esAvanzado &&
+      seriesRealizadasFinales.some(
+        (serie) => Number.isNaN(serie.peso_kg) || Number.isNaN(serie.repeticiones)
+      )
+    ) {
+      alert("Revisá los valores ingresados en las series.");
+      setGuardandoEjercicio(false);
+      return;
+    }
+
+    const pesoNumero = esAvanzado ? seriesRealizadasFinales[0]?.peso_kg || 0 : Number(pesoUsado);
+    const repsNumero = esAvanzado ? seriesRealizadasFinales[0]?.repeticiones || 0 : Number(repsRealizadas);
+
+    if (!esAvanzado && (Number.isNaN(pesoNumero) || Number.isNaN(repsNumero))) {
+      alert("Revisá los valores ingresados.");
+      setGuardandoEjercicio(false);
+      return;
+    }
+
+    const mejorSerie = seriesRealizadasFinales
+      .filter((serie) => serie.rm_calculado !== null)
+      .sort((a, b) => Number(b.rm_calculado || 0) - Number(a.rm_calculado || 0))[0];
+
+    const rmCalculado = esAvanzado
+      ? mejorSerie?.rm_calculado || null
+      : esPesoCorporal
+      ? null
+      : calcularEpley(pesoNumero, repsNumero);
 
     // Agregar al caché local
     const nuevoEjercicioEnCache: EjercicioCompletadoCache = {
@@ -886,6 +1051,8 @@ async function recalcularRMActual(ejercicioId: string) {
       ejercicio_id: ejercicioSeleccionado.ejercicio_id || null,
       rutina_id: ejercicioSeleccionado.rutina_id,
       rutina_asignacion_id: asignacionActual.asignacion_id,
+      tipo_configuracion: ejercicioSeleccionado.tipo_configuracion || "simple",
+      series_realizadas: esAvanzado ? seriesRealizadasFinales : undefined,
     };
 
     setEjerciciosCompletadosCache((prev) => [...prev, nuevoEjercicioEnCache]);
@@ -896,6 +1063,7 @@ async function recalcularRMActual(ejercicioId: string) {
     setRepsRealizadas("");
     setRpe("");
     setRirReal("");
+    setSeriesRealizadas({});
     setGuardandoEjercicio(false);
 
     // Verificar si la rutina quedó completa (en caché)
@@ -1167,8 +1335,32 @@ async function recalcularRMActual(ejercicioId: string) {
                         </h4>
 
                         <p className="text-zinc-400 mt-1">
-                          {item.series || "-"} series · {textoPrescripcion(item)}
+                          {item.series || "-"} series · {item.tipo_configuracion === "avanzado"
+                            ? textoPrescripcionAvanzada(seriesPorEjercicio[item.id] || [])
+                            : textoPrescripcion(item)}
                         </p>
+
+                        {item.tipo_configuracion === "avanzado" && (
+                          <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+                            <p className="text-xs font-semibold text-zinc-400 mb-2">
+                              Series indicadas
+                            </p>
+
+                            <div className="space-y-1 text-sm text-zinc-300">
+                              {(seriesPorEjercicio[item.id] || []).map((serie) => (
+                                <div
+                                  key={serie.id}
+                                  className="flex justify-between gap-3"
+                                >
+                                  <span>Serie {serie.numero_serie}</span>
+                                  <span>
+                                    {serie.repeticiones || "-"} reps · {serie.peso || "-"} kg
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         <div className="flex flex-wrap gap-2 mt-3 text-sm">
                           {item.peso && (
@@ -1665,21 +1857,67 @@ async function recalcularRMActual(ejercicioId: string) {
               </p>
 
               <div className="space-y-3">
-                <input
-                  type="number"
-                  value={pesoUsado}
-                  onChange={(e) => setPesoUsado(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                  placeholder="Peso usado en kg (0 = peso corporal)"
-                />
+                {ejercicioSeleccionado.tipo_configuracion === "avanzado" ? (
+                  <div className="space-y-2 rounded-xl border border-zinc-800 p-3">
+                    <p className="text-sm font-semibold text-zinc-300">Cargar cada serie</p>
 
-                <input
-                  type="number"
-                  value={repsRealizadas}
-                  onChange={(e) => setRepsRealizadas(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                  placeholder="Repeticiones realizadas"
-                />
+                    {(seriesPorEjercicio[ejercicioSeleccionado.id] || []).map((serie) => (
+                      <div key={serie.id} className="grid grid-cols-[70px_1fr_1fr] gap-2 items-center">
+                        <span className="text-sm text-zinc-400">Serie {serie.numero_serie}</span>
+
+                        <input
+                          type="number"
+                          value={seriesRealizadas[serie.numero_serie]?.peso || ""}
+                          onChange={(e) =>
+                            setSeriesRealizadas((actual) => ({
+                              ...actual,
+                              [serie.numero_serie]: {
+                                peso: e.target.value,
+                                repeticiones: actual[serie.numero_serie]?.repeticiones || "",
+                              },
+                            }))
+                          }
+                          className="w-full bg-zinc-800 rounded-xl p-3"
+                          placeholder="Peso"
+                        />
+
+                        <input
+                          type="number"
+                          value={seriesRealizadas[serie.numero_serie]?.repeticiones || ""}
+                          onChange={(e) =>
+                            setSeriesRealizadas((actual) => ({
+                              ...actual,
+                              [serie.numero_serie]: {
+                                peso: actual[serie.numero_serie]?.peso || "",
+                                repeticiones: e.target.value,
+                              },
+                            }))
+                          }
+                          className="w-full bg-zinc-800 rounded-xl p-3"
+                          placeholder="Reps"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="number"
+                      value={pesoUsado}
+                      onChange={(e) => setPesoUsado(e.target.value)}
+                      className="w-full bg-zinc-800 rounded-xl p-3"
+                      placeholder="Peso usado en kg (0 = peso corporal)"
+                    />
+
+                    <input
+                      type="number"
+                      value={repsRealizadas}
+                      onChange={(e) => setRepsRealizadas(e.target.value)}
+                      className="w-full bg-zinc-800 rounded-xl p-3"
+                      placeholder="Repeticiones realizadas"
+                    />
+                  </>
+                )}
 
                 <select
                   value={rpe}
