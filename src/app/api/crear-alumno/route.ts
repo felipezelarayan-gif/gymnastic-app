@@ -18,7 +18,12 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL;
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://gymnastic-app-u64l.vercel.app";
+
+  console.log("Invite redirect URL:", `${siteUrl}/bienvenida`);
 
   const { data: userData, error: userError } =
     await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
