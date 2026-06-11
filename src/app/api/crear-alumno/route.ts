@@ -27,7 +27,7 @@ export async function POST(request: Request) {
         apellido,
         rol: rolFinal,
       },
-      redirectTo: siteUrl ? `${siteUrl}/reset-password` : undefined,
+      redirectTo: siteUrl ? `${siteUrl}/bienvenida` : undefined,
     });
 
   if (userError || !userData.user) {
