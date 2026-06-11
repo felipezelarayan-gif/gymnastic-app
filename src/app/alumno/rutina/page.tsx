@@ -664,16 +664,8 @@ async function recalcularRMActual(ejercicioId: string) {
     );
   }
 
-  function hayProgresoEnRutina(rutinaId: string, asignacionId: string): boolean {
-    const hayEjercicios = ejerciciosCompletadosCache.some(
-      (item) => item.rutina_asignacion_id === asignacionId && item.rutina_id === rutinaId
-    );
-
-    const hayEntrada = entradaCalorCompletadaCache.some(
-      (item) => item.rutina_asignacion_id === asignacionId && item.rutina_id === rutinaId
-    );
-
-    return hayEjercicios || hayEntrada;
+  function hayProgresoEnRutina(_rutinaId: string, _asignacionId: string): boolean {
+    return true;
   }
 
   async function verificarRutinaCacheCompleta(rutinaId: string, asignacionId: string) {
