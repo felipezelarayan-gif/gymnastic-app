@@ -281,18 +281,17 @@ export default function AlumnoHomePage() {
   const entrenamientosSemana = useMemo(() => {
     const desde = inicioSemana();
 
-    const dias = new Set(
+    const rutinasUnicas = new Set(
       registros
         .filter((registro) => {
           if (!registro.created_at) return false;
           return new Date(registro.created_at) >= desde;
         })
-        .map((registro) =>
-          new Date(registro.created_at || "").toLocaleDateString("es-AR")
-        )
+        .map((registro) => registro.rutina_id)
+        .filter(Boolean)
     );
 
-    return dias.size;
+    return rutinasUnicas.size;
   }, [registros]);
 
   const mejorRM = useMemo(() => {

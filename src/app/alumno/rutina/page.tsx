@@ -90,6 +90,19 @@ type RegistroEntrenamiento = {
   completado?: boolean | null;
 };
 
+type EjercicioCompletadoCache = {
+  rutina_ejercicio_id: string;
+  nombre_ejercicio: string;
+  peso_kg: number;
+  repeticiones: number;
+  rpe: number;
+  rir: number | null;
+  rm_calculado: number | null;
+  ejercicio_id?: string | null;
+  rutina_id: string;
+  rutina_asignacion_id: string;
+};
+
 const opcionesRPE = Array.from({ length: 10 }, (_, index) => index + 1);
 const opcionesRIR = Array.from({ length: 10 }, (_, index) => index + 1);
 
@@ -127,6 +140,9 @@ export default function AlumnoRutinaPage() {
   const [mostrarProximos, setMostrarProximos] = useState(true);
   const [mostrarCompletados, setMostrarCompletados] = useState(false);
   const [fechaCompletados, setFechaCompletados] = useState("");
+  const [guardandoEjercicio, setGuardandoEjercicio] = useState(false);
+  const [ejerciciosCompletadosCache, setEjerciciosCompletadosCache] = useState<EjercicioCompletadoCache[]>([]);
+  const [guardandoRutina, setGuardandoRutina] = useState(false);
 
   useEffect(() => {
     cargarTodo();
@@ -362,6 +378,16 @@ if (rutinaIds.length > 0) {
   }
 
   function ejercicioEstaCompletado(rutinaAsignacionId: string, rutinaEjercicioId: string) {
+    // Primero verifica en caché local
+    const enCache = ejerciciosCompletadosCache.some(
+      (item) =>
+        item.rutina_asignacion_id === rutinaAsignacionId &&
+        item.rutina_ejercicio_id === rutinaEjercicioId
+    );
+    
+    if (enCache) return true;
+    
+    // Luego verifica en registros de BD
     return registros.some(
       (registro) =>
         registro.rutina_asignacion_id === rutinaAsignacionId &&
@@ -498,6 +524,141 @@ async function recalcularRMActual(ejercicioId: string) {
     }
   }
 }
+
+  function estaRutinaCacheCompleta(rutinaId: string, asignacionId: string): boolean {
+    const ejercicios = ejerciciosPorRutina[rutinaId] || [];
+    if (ejercicios.length === 0) return false;
+
+    const idsCompletadosEnCache = new Set(
+      ejerciciosCompletadosCache
+        .filter((item) => item.rutina_asignacion_id === asignacionId)
+        .map((item) => item.rutina_ejercicio_id)
+    );
+
+    return ejercicios.every((ejercicio) =>
+      idsCompletadosEnCache.has(ejercicio.id)
+    );
+  }
+
+  async function verificarRutinaCacheCompleta(rutinaId: string, asignacionId: string) {
+    const asignacionActual = rutinasAsignadas.find(
+      (asignacion) => asignacion.asignacion_id === asignacionId
+    );
+
+    if (!asignacionActual) return;
+
+    const ejercicios = ejerciciosPorRutina[rutinaId] || [];
+    if (ejercicios.length === 0) return;
+
+    // Verificar en caché local
+    const idsCompletadosEnCache = new Set(
+      ejerciciosCompletadosCache
+        .filter((item) => item.rutina_asignacion_id === asignacionId)
+        .map((item) => item.rutina_ejercicio_id)
+    );
+
+    const todosCompletados = ejercicios.every((ejercicio) =>
+      idsCompletadosEnCache.has(ejercicio.id)
+    );
+
+    if (todosCompletados) {
+      // Guardar todo a BD
+      await guardarCacheABD(asignacionId, rutinaId);
+    }
+  }
+
+  async function guardarCacheABD(asignacionId: string, rutinaId: string) {
+    setGuardandoRutina(true);
+    
+    const ejerciciosDelCache = ejerciciosCompletadosCache.filter(
+      (item) => item.rutina_asignacion_id === asignacionId
+    );
+
+    try {
+      for (const ejercicioCache of ejerciciosDelCache) {
+        // Guardar registro de entrenamiento
+        const { error: deleteError } = await supabase
+          .from("registros_entrenamiento")
+          .delete()
+          .eq("alumno_id", alumnoId)
+          .eq("rutina_asignacion_id", asignacionId)
+          .eq("rutina_ejercicio_id", ejercicioCache.rutina_ejercicio_id);
+
+        if (deleteError) throw deleteError;
+
+        const { data: nuevoRegistro, error: registroError } = await supabase
+          .from("registros_entrenamiento")
+          .insert({
+            alumno_id: alumnoId,
+            rutina_id: ejercicioCache.rutina_id,
+            rutina_asignacion_id: asignacionId,
+            rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
+            ejercicio_id: ejercicioCache.ejercicio_id,
+            nombre_ejercicio: ejercicioCache.nombre_ejercicio,
+            peso_kg: ejercicioCache.peso_kg,
+            repeticiones: ejercicioCache.repeticiones,
+            rpe: ejercicioCache.rpe,
+            rir: ejercicioCache.rir,
+            rm_calculado: ejercicioCache.rm_calculado,
+            completado: true,
+          })
+          .select("id")
+          .single();
+
+        if (registroError) throw registroError;
+        if (!nuevoRegistro) throw new Error("No se guardó el registro");
+
+        // Guardar RM si aplica
+        if (ejercicioCache.ejercicio_id && ejercicioCache.rm_calculado) {
+          await supabase
+            .from("rms_historial")
+            .delete()
+            .eq("alumno_id", alumnoId)
+            .eq("rutina_id", rutinaId)
+            .eq("rutina_ejercicio_id", ejercicioCache.rutina_ejercicio_id)
+            .eq("rutina_asignacion_id", asignacionId);
+
+          await supabase.from("rms_historial").insert({
+            alumno_id: alumnoId,
+            ejercicio_id: ejercicioCache.ejercicio_id,
+            rutina_id: rutinaId,
+            rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
+            rutina_asignacion_id: asignacionId,
+            registro_entrenamiento_id: nuevoRegistro.id,
+            peso_kg: ejercicioCache.peso_kg,
+            repeticiones: ejercicioCache.repeticiones,
+            rm_calculado: ejercicioCache.rm_calculado,
+            origen: "entrenamiento",
+          });
+
+          await recalcularRMActual(ejercicioCache.ejercicio_id);
+        }
+      }
+
+      // Marcar rutina como completada
+      await supabase
+        .from("rutina_asignaciones")
+        .update({
+          activa: false,
+          completada: true,
+          fecha_completada: new Date().toISOString(),
+        })
+        .eq("id", asignacionId);
+
+      // Limpiar caché
+      setEjerciciosCompletadosCache((prev) =>
+        prev.filter((item) => item.rutina_asignacion_id !== asignacionId)
+      );
+
+      setGuardandoRutina(false);
+      
+      // Recargar
+      await recargarManteniendoScroll();
+    } catch (error: any) {
+      setGuardandoRutina(false);
+      alert(error.message || "Error al guardar la rutina");
+    }
+  }
 
   async function revisarSiRutinaQuedoCompleta(
   rutinaId: string,
@@ -662,15 +823,18 @@ async function recalcularRMActual(ejercicioId: string) {
 }
 
   async function guardarCompletado() {
-    if (!ejercicioSeleccionado) return;
+    if (!ejercicioSeleccionado || guardandoEjercicio) return;
+    
+    setGuardandoEjercicio(true);
 
     const asignacionActual = rutinasAsignadas.find(
-  (asignacion) =>
-    asignacion.asignacion_id === ejercicioSeleccionado.rutina_asignacion_id
-);
+      (asignacion) =>
+        asignacion.asignacion_id === ejercicioSeleccionado.rutina_asignacion_id
+    );
 
     if (!asignacionActual) {
       alert("No se encontró la asignación de esta rutina.");
+      setGuardandoEjercicio(false);
       return;
     }
 
@@ -682,11 +846,13 @@ async function recalcularRMActual(ejercicioId: string) {
     ) {
       alert("Este ejercicio ya fue completado.");
       setEjercicioSeleccionado(null);
+      setGuardandoEjercicio(false);
       return;
     }
 
     if (pesoUsado === "" || !repsRealizadas || !rpe) {
       alert("Completá peso, repeticiones y RPE.");
+      setGuardandoEjercicio(false);
       return;
     }
 
@@ -701,86 +867,42 @@ async function recalcularRMActual(ejercicioId: string) {
       Number.isNaN(rpeNumero)
     ) {
       alert("Revisá los valores ingresados.");
+      setGuardandoEjercicio(false);
       return;
     }
 
     const esPesoCorporal = ejercicioSeleccionado.porcentaje_rm === "0";
     const rmCalculado = esPesoCorporal ? null : calcularEpley(pesoNumero, repsNumero);
 
-    await supabase
-  .from("registros_entrenamiento")
-  .delete()
-  .eq("alumno_id", alumnoId)
-  .eq("rutina_asignacion_id", asignacionActual.asignacion_id)
-  .eq("rutina_ejercicio_id", ejercicioSeleccionado.id);
+    // Agregar al caché local
+    const nuevoEjercicioEnCache: EjercicioCompletadoCache = {
+      rutina_ejercicio_id: ejercicioSeleccionado.id,
+      nombre_ejercicio: ejercicioSeleccionado.nombre_ejercicio,
+      peso_kg: pesoNumero,
+      repeticiones: repsNumero,
+      rpe: rpeNumero,
+      rir: rirNumero,
+      rm_calculado: rmCalculado,
+      ejercicio_id: ejercicioSeleccionado.ejercicio_id || null,
+      rutina_id: ejercicioSeleccionado.rutina_id,
+      rutina_asignacion_id: asignacionActual.asignacion_id,
+    };
 
-const { data: nuevoRegistro, error: registroError } = await supabase
-  .from("registros_entrenamiento")
-  .insert({
-    alumno_id: alumnoId,
-    rutina_id: ejercicioSeleccionado.rutina_id,
-    rutina_asignacion_id: asignacionActual.asignacion_id,
-    rutina_ejercicio_id: ejercicioSeleccionado.id,
-    ejercicio_id: ejercicioSeleccionado.ejercicio_id || null,
-    nombre_ejercicio: ejercicioSeleccionado.nombre_ejercicio,
-    peso_kg: pesoNumero,
-    repeticiones: repsNumero,
-    rpe: rpeNumero,
-    rir: rirNumero,
-    rm_calculado: rmCalculado,
-    completado: true,
-  })
-  .select("id")
-  .single();
+    setEjerciciosCompletadosCache((prev) => [...prev, nuevoEjercicioEnCache]);
 
-    if (registroError) {
-      alert(registroError.message);
-      return;
-    }
-
-    if (!nuevoRegistro) {
-      alert("No se pudo guardar el registro del entrenamiento.");
-      return;
-    }
-
-    if (ejercicioSeleccionado.ejercicio_id && !esPesoCorporal && rmCalculado) {
-
-    await supabase
-  .from("rms_historial")
-  .delete()
-  .eq("alumno_id", alumnoId)
-  .eq("rutina_id", ejercicioSeleccionado.rutina_id)
-  .eq("rutina_ejercicio_id", ejercicioSeleccionado.id)
-  .eq("rutina_asignacion_id", asignacionActual.asignacion_id);
-
-    await supabase.from("rms_historial").insert({
-  alumno_id: alumnoId,
-  ejercicio_id: ejercicioSeleccionado.ejercicio_id,
-  rutina_id: ejercicioSeleccionado.rutina_id,
-  rutina_ejercicio_id: ejercicioSeleccionado.id,
-  rutina_asignacion_id: asignacionActual.asignacion_id,
-  registro_entrenamiento_id: nuevoRegistro.id,
-  peso_kg: pesoNumero,
-  repeticiones: repsNumero,
-  rm_calculado: rmCalculado,
-  origen: "entrenamiento",
-});
-
-    await recalcularRMActual(ejercicioSeleccionado.ejercicio_id);
-    }
-
-    await revisarSiRutinaQuedoCompleta(
-  ejercicioSeleccionado.rutina_id,
-  asignacionActual.asignacion_id
-);
-
+    // Cerrar modal
     setEjercicioSeleccionado(null);
     setPesoUsado("");
     setRepsRealizadas("");
     setRpe("");
     setRirReal("");
+    setGuardandoEjercicio(false);
 
-    await recargarManteniendoScroll();
+    // Verificar si la rutina quedó completa (en caché)
+    await verificarRutinaCacheCompleta(
+      ejercicioSeleccionado.rutina_id,
+      asignacionActual.asignacion_id
+    );
   }
 
   async function deshacerCompletado(rutinaId: string, rutinaEjercicioId: string) {
@@ -796,6 +918,28 @@ const { data: nuevoRegistro, error: registroError } = await supabase
       return;
     }
 
+    // Primero, intentar remover del caché
+    const estaEnCache = ejerciciosCompletadosCache.some(
+      (item) =>
+        item.rutina_asignacion_id === asignacionActual.asignacion_id &&
+        item.rutina_ejercicio_id === rutinaEjercicioId
+    );
+
+    if (estaEnCache) {
+      // Remover del caché
+      setEjerciciosCompletadosCache((prev) =>
+        prev.filter(
+          (item) =>
+            !(
+              item.rutina_asignacion_id === asignacionActual.asignacion_id &&
+              item.rutina_ejercicio_id === rutinaEjercicioId
+            )
+        )
+      );
+      return;
+    }
+
+    // Si no está en caché, remover de BD
     const { data: registroActual } = await supabase
       .from("registros_entrenamiento")
       .select("ejercicio_id")
@@ -1105,11 +1249,27 @@ const { data: nuevoRegistro, error: registroError } = await supabase
                 </div>
               )}
 
-              {completada && (
+              {completada ? (
                 <div className="mt-5 rounded-xl border border-emerald-800 bg-emerald-500/10 p-4 text-center font-semibold text-emerald-400">
                   ✓ Rutina completada
                 </div>
-              )}
+              ) : estaRutinaCacheCompleta(asignacion.rutina_id, asignacion.asignacion_id) ? (
+                <button
+                  type="button"
+                  onClick={() => guardarCacheABD(asignacion.asignacion_id, asignacion.rutina_id)}
+                  disabled={guardandoRutina}
+                  className={`mt-5 w-full rounded-xl py-3 font-semibold flex items-center justify-center gap-2 ${
+                    guardandoRutina
+                      ? "bg-emerald-600 opacity-70 cursor-not-allowed"
+                      : "bg-emerald-500 hover:bg-emerald-600"
+                  }`}
+                >
+                  {guardandoRutina && (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  )}
+                  {guardandoRutina ? "Guardando rutina..." : "Completar Rutina"}
+                </button>
+              ) : null}
             </section>
           </div>
         )}
@@ -1565,9 +1725,17 @@ const { data: nuevoRegistro, error: registroError } = await supabase
                 <button
                   type="button"
                   onClick={guardarCompletado}
-                  className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold"
+                  disabled={guardandoEjercicio}
+                  className={`flex-1 rounded-xl py-3 font-semibold flex items-center justify-center gap-2 ${
+                    guardandoEjercicio
+                      ? "bg-emerald-600 opacity-70 cursor-not-allowed"
+                      : "bg-emerald-500 hover:bg-emerald-600"
+                  }`}
                 >
-                  Guardar
+                  {guardandoEjercicio && (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  )}
+                  {guardandoEjercicio ? "Guardando..." : "Guardar"}
                 </button>
               </div>
             </div>
