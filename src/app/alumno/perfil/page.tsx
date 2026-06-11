@@ -36,6 +36,8 @@ export default function AlumnoPerfilPage() {
   const [editandoDatosPersonales, setEditandoDatosPersonales] = useState(false);
   const [editandoDatosFisicos, setEditandoDatosFisicos] = useState(false);
   const [editandoObservaciones, setEditandoObservaciones] = useState(false);
+  const [mostrarOnboarding, setMostrarOnboarding] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
   async function cargarPerfil() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -46,10 +48,11 @@ export default function AlumnoPerfilPage() {
     }
 
     const user = sessionData.session.user;
+    setUserId(user.id);
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("rol")
+      .select("rol,onboarding_completo")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -63,6 +66,7 @@ export default function AlumnoPerfilPage() {
       window.location.href = "/";
       return;
     }
+    setMostrarOnboarding(!profile.onboarding_completo);
 
     const { data, error } = await supabase
       .from("alumnos")
@@ -112,6 +116,25 @@ export default function AlumnoPerfilPage() {
     setEditandoDatosPersonales(false);
     setEditandoDatosFisicos(false);
     setEditandoObservaciones(false);
+  }
+
+  async function completarOnboarding() {
+    if (!userId) {
+      setMostrarOnboarding(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ onboarding_completo: true })
+      .eq("id", userId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setMostrarOnboarding(false);
   }
 
   async function guardarDatosPersonales() {
@@ -316,6 +339,39 @@ async function eliminarFoto() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
       <div className="max-w-4xl mx-auto">
+        {mostrarOnboarding && (
+          <section className="mb-5 rounded-2xl border border-emerald-800 bg-emerald-500/10 p-5">
+            <h2 className="text-xl font-bold text-emerald-400">
+              👋 Bienvenido a la aplicación
+            </h2>
+
+            <p className="mt-2 text-zinc-300">
+              Te recomendamos completar tu perfil antes de comenzar a entrenar.
+            </p>
+
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  setVerDatosPersonales(true);
+                  setEditandoDatosPersonales(true);
+                  await completarOnboarding();
+                }}
+                className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-black"
+              >
+                Completar ahora
+              </button>
+
+              <button
+                type="button"
+                onClick={completarOnboarding}
+                className="rounded-xl border border-zinc-700 px-4 py-2"
+              >
+                Más tarde
+              </button>
+            </div>
+          </section>
+        )}
         <Link href="/alumno" className="text-zinc-400 hover:text-white">
           ← Volver al panel
         </Link>

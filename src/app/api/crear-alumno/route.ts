@@ -2,12 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const { nombre, apellido, email, telefono, password, rol } =
-    await request.json();
+  const { nombre, apellido, email, telefono, rol } = await request.json();
 
-  if (!nombre || !email || !password) {
+  if (!nombre || !email) {
     return NextResponse.json(
-      { error: "Nombre, email y contraseña son obligatorios." },
+      { error: "Nombre y email son obligatorios." },
       { status: 400 }
     );
   }
@@ -19,21 +18,21 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL;
+
   const { data: userData, error: userError } =
-    await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
+    await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data: {
         nombre,
         apellido,
         rol: rolFinal,
       },
+      redirectTo: siteUrl ? `${siteUrl}/reset-password` : undefined,
     });
 
   if (userError || !userData.user) {
     return NextResponse.json(
-      { error: userError?.message || "No se pudo crear el usuario." },
+      { error: userError?.message || "No se pudo invitar al usuario." },
       { status: 400 }
     );
   }

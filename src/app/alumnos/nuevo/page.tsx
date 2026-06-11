@@ -7,7 +7,6 @@ export default function NuevoAlumnoPage() {
   const [apellido, setApellido] = useState("");
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
-  const [password, setPassword] = useState("");
   const [guardando, setGuardando] = useState(false);
 
   async function crearAlumno() {
@@ -18,11 +17,6 @@ export default function NuevoAlumnoPage() {
 
     if (!email.trim()) {
       alert("Ingresá el email del alumno.");
-      return;
-    }
-
-    if (!password.trim() || password.length < 6) {
-      alert("Ingresá una contraseña temporal de al menos 6 caracteres.");
       return;
     }
 
@@ -38,7 +32,6 @@ export default function NuevoAlumnoPage() {
     apellido: apellido.trim(),
     email: email.trim().toLowerCase(),
     telefono: telefono.trim(),
-    password,
     rol: "alumno",
   }),
 });
@@ -53,7 +46,7 @@ if (!response.ok) {
 
     setGuardando(false);
 
-    alert("Alumno creado correctamente.");
+    alert("Alumno creado correctamente. Se envió una invitación por email.");
     window.location.href = "/alumnos";
   }
 
@@ -67,7 +60,7 @@ if (!response.ok) {
         <header className="mt-6 mb-6">
           <h1 className="text-3xl font-bold">Agregar alumno</h1>
           <p className="text-zinc-400 mt-2">
-            Crea el alumno y su acceso a la app.
+            Crea el alumno y envía una invitación por email para acceder a la app.
           </p>
         </header>
 
@@ -102,14 +95,6 @@ if (!response.ok) {
               placeholder="Teléfono"
             />
 
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700"
-              placeholder="Contraseña temporal *"
-            />
-
             <div className="flex gap-3 pt-3">
               <a
                 href="/alumnos"
@@ -124,7 +109,7 @@ if (!response.ok) {
                 disabled={guardando}
                 className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600 disabled:opacity-50"
               >
-                {guardando ? "Creando..." : "Crear alumno"}
+                {guardando ? "Creando..." : "Crear alumno e invitar"}
               </button>
             </div>
           </div>
