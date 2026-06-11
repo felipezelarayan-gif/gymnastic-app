@@ -103,7 +103,9 @@ export default function MisProgresosPage() {
       .eq("completado", true)
       .order("created_at", { ascending: false });
 
-    setRegistros(registrosData || []);
+    const registrosCompletados = registrosData || [];
+
+    setRegistros(registrosCompletados);
 
     const { data: rmsData } = await supabase
       .from("rms_actuales")
@@ -112,8 +114,21 @@ export default function MisProgresosPage() {
 
     setRmsActuales(rmsData || []);
 
-    const idsEjercicios =
-      rmsData?.map((rm) => rm.ejercicio_id).filter(Boolean) || [];
+    const idsEjercicios = Array.from(
+      new Set(
+        [
+          ...(rmsData?.map((rm) => rm.ejercicio_id) || []),
+          ...registrosCompletados
+            .filter(
+              (registro) =>
+                registro.ejercicio_id &&
+                registro.rm_calculado !== null &&
+                registro.rm_calculado !== undefined
+            )
+            .map((registro) => registro.ejercicio_id as string),
+        ].filter(Boolean)
+      )
+    );
 
     if (idsEjercicios.length > 0) {
       const { data: ejerciciosData } = await supabase
@@ -156,10 +171,40 @@ export default function MisProgresosPage() {
   const ultimoEntrenamiento = registros[0]?.created_at || null;
 
   const rmsOrdenados = useMemo(() => {
-    return [...rmsActuales].sort(
+    const mapa = new Map<string, RMActual>();
+
+    rmsActuales.forEach((rm) => {
+      if (!rm.ejercicio_id) return;
+      mapa.set(rm.ejercicio_id, rm);
+    });
+
+    registros.forEach((registro) => {
+      if (
+        !registro.ejercicio_id ||
+        registro.rm_calculado === null ||
+        registro.rm_calculado === undefined
+      ) {
+        return;
+      }
+
+      const actual = mapa.get(registro.ejercicio_id);
+
+      if (Number(registro.rm_calculado) > Number(actual?.rm_calculado || 0)) {
+        mapa.set(registro.ejercicio_id, {
+          id: `registro-${registro.id}`,
+          ejercicio_id: registro.ejercicio_id,
+          rm_calculado: registro.rm_calculado,
+          peso_kg: registro.peso_kg,
+          repeticiones: registro.repeticiones,
+          actualizado_en: registro.created_at,
+        });
+      }
+    });
+
+    return Array.from(mapa.values()).sort(
       (a, b) => Number(b.rm_calculado || 0) - Number(a.rm_calculado || 0)
     );
-  }, [rmsActuales]);
+  }, [rmsActuales, registros]);
 
   const rmsMostrados = verTodosRM ? rmsOrdenados : rmsOrdenados.slice(0, 5);
 

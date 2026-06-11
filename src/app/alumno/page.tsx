@@ -53,12 +53,18 @@ type RegistroEntrenamiento = {
   rutina_id?: string | null;
   rutina_ejercicio_id?: string | null;
   created_at?: string | null;
+  ejercicio_id?: string | null;
+  nombre_ejercicio?: string | null;
+  peso_kg?: number | null;
+  repeticiones?: number | null;
+  rm_calculado?: number | null;
 };
 
 type RMActual = {
   id: string;
   ejercicio_id: string;
   rm_calculado?: number | null;
+  actualizado_en?: string | null;
 };
 
 type Ejercicio = {
@@ -187,7 +193,9 @@ export default function AlumnoHomePage() {
 
     const { data: registrosData } = await supabase
       .from("registros_entrenamiento")
-      .select("id,alumno_id,rutina_id,rutina_ejercicio_id,created_at")
+      .select(
+        "id,alumno_id,rutina_id,rutina_ejercicio_id,created_at,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rm_calculado"
+      )
       .eq("alumno_id", alumnoData.id)
       .eq("completado", true)
       .order("created_at", { ascending: false });
@@ -201,8 +209,16 @@ export default function AlumnoHomePage() {
 
     setRmsActuales(rmsData || []);
 
-    const idsEjercicios =
-      rmsData?.map((rm) => rm.ejercicio_id).filter(Boolean) || [];
+    const idsEjercicios = Array.from(
+      new Set(
+        [
+          ...(rmsData?.map((rm) => rm.ejercicio_id) || []),
+          ...((registrosData || [])
+            .map((registro) => registro.ejercicio_id)
+            .filter(Boolean) as string[]),
+        ].filter(Boolean)
+      )
+    );
 
     if (idsEjercicios.length > 0) {
       const { data: ejerciciosData } = await supabase
@@ -295,7 +311,32 @@ export default function AlumnoHomePage() {
   }, [registros]);
 
   const mejorRM = useMemo(() => {
-    const mejor = [...rmsActuales].sort(
+    const mapa = new Map<string, RMActual & { nombre_ejercicio?: string | null }>();
+
+    rmsActuales.forEach((rm) => {
+      if (!rm.ejercicio_id) return;
+      mapa.set(rm.ejercicio_id, rm);
+    });
+
+    registros.forEach((registro) => {
+      if (!registro.ejercicio_id || registro.rm_calculado === null || registro.rm_calculado === undefined) {
+        return;
+      }
+
+      const actual = mapa.get(registro.ejercicio_id);
+
+      if (Number(registro.rm_calculado) > Number(actual?.rm_calculado || 0)) {
+        mapa.set(registro.ejercicio_id, {
+          id: `registro-${registro.id}`,
+          ejercicio_id: registro.ejercicio_id,
+          rm_calculado: registro.rm_calculado,
+          actualizado_en: registro.created_at,
+          nombre_ejercicio: registro.nombre_ejercicio,
+        });
+      }
+    });
+
+    const mejor = Array.from(mapa.values()).sort(
       (a, b) => Number(b.rm_calculado || 0) - Number(a.rm_calculado || 0)
     )[0];
 
@@ -304,10 +345,10 @@ export default function AlumnoHomePage() {
     const ejercicio = ejercicios.find((item) => item.id === mejor.ejercicio_id);
 
     return {
-      nombre: ejercicio?.nombre || "Ejercicio",
+      nombre: mejor.nombre_ejercicio || ejercicio?.nombre || "Ejercicio",
       rm: mejor.rm_calculado || 0,
     };
-  }, [rmsActuales, ejercicios]);
+  }, [rmsActuales, registros, ejercicios]);
 
   const ejerciciosPendientesRutina = rutinaPendiente
     ? cantidadPendientes(rutinaPendiente.rutina_id)

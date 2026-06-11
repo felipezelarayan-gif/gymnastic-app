@@ -25,6 +25,17 @@ type RMHistorial = {
   origen?: string | null;
 };
 
+type RegistroEntrenamientoRM = {
+  id: string;
+  alumno_id: string;
+  ejercicio_id?: string | null;
+  nombre_ejercicio?: string | null;
+  peso_kg?: number | string | null;
+  repeticiones?: number | string | null;
+  rm_calculado?: number | string | null;
+  created_at?: string | null;
+};
+
 type EjercicioNombre = {
   ejercicio_id: string;
   nombre_ejercicio: string;
@@ -83,11 +94,59 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
       return;
     }
 
+    const { data: registrosData, error: registrosError } = await supabase
+      .from("registros_entrenamiento")
+      .select(
+        "id,alumno_id,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rm_calculado,created_at"
+      )
+      .eq("alumno_id", alumnoId)
+      .eq("completado", true)
+      .not("rm_calculado", "is", null)
+      .order("created_at", { ascending: false });
+
+    if (registrosError) {
+      alert(registrosError.message);
+      setLoading(false);
+      return;
+    }
+
+    const rmsPorEjercicio = new Map<string, RMActual>();
+
+    ((actualesData || []) as RMActual[]).forEach((item) => {
+      if (!item.ejercicio_id) return;
+      rmsPorEjercicio.set(item.ejercicio_id, item);
+    });
+
+    ((registrosData || []) as RegistroEntrenamientoRM[]).forEach((registro) => {
+      if (!registro.ejercicio_id || registro.rm_calculado === null || registro.rm_calculado === undefined) {
+        return;
+      }
+
+      const actual = rmsPorEjercicio.get(registro.ejercicio_id);
+
+      if (Number(registro.rm_calculado) > Number(actual?.rm_calculado || 0)) {
+        rmsPorEjercicio.set(registro.ejercicio_id, {
+          id: `registro-${registro.id}`,
+          alumno_id: registro.alumno_id,
+          ejercicio_id: registro.ejercicio_id,
+          peso_kg: registro.peso_kg,
+          repeticiones: registro.repeticiones,
+          rm_calculado: registro.rm_calculado,
+          actualizado_en: registro.created_at,
+        });
+      }
+    });
+
+    const rmsActualesCombinados = Array.from(rmsPorEjercicio.values()).sort(
+      (a, b) => Number(b.rm_calculado || 0) - Number(a.rm_calculado || 0)
+    );
+
     const ejercicioIds = Array.from(
       new Set(
         [
-          ...(actualesData || []).map((item) => item.ejercicio_id),
+          ...rmsActualesCombinados.map((item) => item.ejercicio_id),
           ...(historialData || []).map((item) => item.ejercicio_id),
+          ...(registrosData || []).map((item) => item.ejercicio_id),
         ].filter(Boolean)
       )
     );
@@ -95,14 +154,29 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
     let nombresData: EjercicioNombre[] = [];
 
     if (ejercicioIds.length > 0) {
-      const { data: rutinaEjerciciosData } = await supabase
-        .from("rutina_ejercicios")
-        .select("ejercicio_id,nombre_ejercicio")
-        .in("ejercicio_id", ejercicioIds);
+      const [{ data: rutinaEjerciciosData }, { data: ejerciciosData }] = await Promise.all([
+        supabase
+          .from("rutina_ejercicios")
+          .select("ejercicio_id,nombre_ejercicio")
+          .in("ejercicio_id", ejercicioIds),
+        supabase.from("ejercicios").select("id,nombre").in("id", ejercicioIds),
+      ]);
 
       const mapa = new Map<string, string>();
 
+      (ejerciciosData || []).forEach((item) => {
+        if (item.id && item.nombre) {
+          mapa.set(item.id, item.nombre);
+        }
+      });
+
       (rutinaEjerciciosData || []).forEach((item) => {
+        if (item.ejercicio_id && item.nombre_ejercicio) {
+          mapa.set(item.ejercicio_id, item.nombre_ejercicio);
+        }
+      });
+
+      ((registrosData || []) as RegistroEntrenamientoRM[]).forEach((item) => {
         if (item.ejercicio_id && item.nombre_ejercicio) {
           mapa.set(item.ejercicio_id, item.nombre_ejercicio);
         }
@@ -116,7 +190,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
       );
     }
 
-    setRmsActuales((actualesData || []) as RMActual[]);
+    setRmsActuales(rmsActualesCombinados);
     setHistorial((historialData || []) as RMHistorial[]);
     setNombres(nombresData);
     setLoading(false);
