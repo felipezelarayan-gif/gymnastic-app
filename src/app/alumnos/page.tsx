@@ -16,21 +16,11 @@ type Alumno = {
 };
 
 type RutinaAsignada = {
-  id: string;
-  rutina_id: string;
   alumno_id: string;
   completada?: boolean | null;
   fecha_completada?: string | null;
   fecha_asignacion?: string | null;
 };
-
-type RegistroEntrenamiento = {
-  id: string;
-  alumno_id: string;
-  rutina_id?: string | null;
-  completado?: boolean | null;
-};
-
 
 type OrdenarPor =
   | "nombre"
@@ -42,10 +32,9 @@ type Orden = "asc" | "desc";
 
 export default function AlumnosPage() {
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
-  const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>([]);
-  const [registrosEntrenamiento, setRegistrosEntrenamiento] = useState<
-    RegistroEntrenamiento[]
-  >([]);
+  const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>(
+    []
+  );
 
   const [busqueda, setBusqueda] = useState("");
   const [ordenarPor, setOrdenarPor] = useState<OrdenarPor>("nombre");
@@ -92,11 +81,14 @@ export default function AlumnosPage() {
       return;
     }
 
+    // Extraer IDs de alumnos para filtrar asignaciones
+    const idsAlumnos = (alumnosData as Alumno[]).map((a) => a.id);
+
+    // Solo traer columnas necesarias, filtradas por IDs de alumnos
     const { data: rutinasData, error: rutinasError } = await supabase
       .from("rutina_asignaciones")
-      .select(
-        "id,rutina_id,alumno_id,completada,fecha_completada,fecha_asignacion"
-      );
+      .select("alumno_id,completada,fecha_completada,fecha_asignacion")
+      .in("alumno_id", idsAlumnos);
 
     if (rutinasError) {
       alert(rutinasError.message);
@@ -104,20 +96,8 @@ export default function AlumnosPage() {
       return;
     }
 
-    const { data: registrosData, error: registrosError } = await supabase
-      .from("registros_entrenamiento")
-      .select("id,alumno_id,rutina_id,completado")
-      .eq("completado", true);
-
-    if (registrosError) {
-      alert(registrosError.message);
-      setLoading(false);
-      return;
-    }
-
     setAlumnos(alumnosData as Alumno[]);
     setRutinasAsignadas((rutinasData || []) as RutinaAsignada[]);
-    setRegistrosEntrenamiento((registrosData || []) as RegistroEntrenamiento[]);
     setLoading(false);
   }
 
@@ -160,53 +140,80 @@ export default function AlumnosPage() {
     return `${alumno.nombre || ""} ${alumno.apellido || ""}`.trim();
   }
 
-  function entrenamientosFinalizados(alumnoId: string) {
-  return rutinasAsignadas.filter(
-    (rutina) =>
-      rutina.alumno_id === alumnoId &&
-      rutina.completada === true
-  ).length;
-}
+  // Pre-computar maps para evitar filtrar en cada render por cada alumno
+  const { pendientesPorAlumno, finalizadosPorAlumno, ultimoEntrenamientoPorAlumno } =
+    useMemo(() => {
+      const pendientes = new Map<string, number>();
+      const finalizados = new Map<string, number>();
+      const ultimoFecha = new Map<string, string>();
 
-  function entrenamientosPendientes(alumnoId: string) {
-  return rutinasAsignadas.filter(
-    (rutina) =>
-      rutina.alumno_id === alumnoId &&
-      !rutina.completada
-  ).length;
-}
+      for (const rutina of rutinasAsignadas) {
+        const id = rutina.alumno_id;
 
-  function ultimoEntrenamiento(alumnoId: string) {
-  const completadas = rutinasAsignadas
-    .filter(
-      (rutina) =>
-        rutina.alumno_id === alumnoId &&
-        rutina.completada === true
-    )
-    .sort((a, b) => {
-      const fechaA = a.fecha_completada || a.fecha_asignacion || "";
-      const fechaB = b.fecha_completada || b.fecha_asignacion || "";
-      return fechaB.localeCompare(fechaA);
-    });
+        if (rutina.completada === true) {
+          finalizados.set(id, (finalizados.get(id) || 0) + 1);
 
-  const ultima = completadas[0];
+          // Rastrear la fecha de la última asignación completada
+          const fecha = rutina.fecha_completada || rutina.fecha_asignacion || "";
+          const actual = ultimoFecha.get(id) || "";
+          if (fecha > actual) {
+            ultimoFecha.set(id, fecha);
+          }
+        } else {
+          pendientes.set(id, (pendientes.get(id) || 0) + 1);
+        }
+      }
 
-  if (!ultima) return "Sin entrenamientos completados";
+      // Convertir fechas a strings legibles
+      const diasSemana = [
+        "Domingo",
+        "Lunes",
+        "Martes",
+        "Miércoles",
+        "Jueves",
+        "Viernes",
+        "Sábado",
+      ];
 
-  const fecha = ultima.fecha_completada || ultima.fecha_asignacion;
-  if (!fecha) return "Sin fecha registrada";
+      const ultimoReadable = new Map<string, string>();
+      for (const [id, fechaStr] of ultimoFecha) {
+        const fechaUltima = new Date(fechaStr);
+        const hoy = new Date();
 
-  const fechaUltima = new Date(fecha);
-  const hoy = new Date();
+        // Normalizar a medianoche para comparar solo fechas
+        const soloFechaUltima = new Date(
+          fechaUltima.getFullYear(),
+          fechaUltima.getMonth(),
+          fechaUltima.getDate()
+        );
+        const soloHoy = new Date(
+          hoy.getFullYear(),
+          hoy.getMonth(),
+          hoy.getDate()
+        );
 
-  const diferenciaMs = hoy.getTime() - fechaUltima.getTime();
-  const dias = Math.floor(diferenciaMs / (1000 * 60 * 60 * 24));
+        const diffMs = soloHoy.getTime() - soloFechaUltima.getTime();
+        const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (dias <= 0) return "Hoy";
-  if (dias === 1) return "Hace 1 día";
+        if (diffDias === 0) {
+          ultimoReadable.set(id, "Hoy");
+        } else if (diffDias === 1) {
+          ultimoReadable.set(id, "Ayer");
+        } else if (diffDias <= 6) {
+          // Esta semana: mostrar el día de la semana
+          const diaNombre = diasSemana[fechaUltima.getDay()];
+          ultimoReadable.set(id, `${diaNombre} de esta semana`);
+        } else {
+          ultimoReadable.set(id, `Hace ${diffDias} días`);
+        }
+      }
 
-  return `Hace ${dias} días`;
-}
+      return {
+        pendientesPorAlumno: pendientes,
+        finalizadosPorAlumno: finalizados,
+        ultimoEntrenamientoPorAlumno: ultimoReadable,
+      };
+    }, [rutinasAsignadas]);
 
   const alumnosFiltrados = useMemo(() => {
     const texto = busqueda.toLowerCase().trim();
@@ -245,8 +252,8 @@ export default function AlumnosPage() {
       }
 
       if (ordenarPor === "entrenamientos_finalizados") {
-        const finalizadosA = entrenamientosFinalizados(a.id);
-        const finalizadosB = entrenamientosFinalizados(b.id);
+        const finalizadosA = finalizadosPorAlumno.get(a.id) || 0;
+        const finalizadosB = finalizadosPorAlumno.get(b.id) || 0;
 
         return orden === "asc"
           ? finalizadosA - finalizadosB
@@ -254,8 +261,8 @@ export default function AlumnosPage() {
       }
 
       if (ordenarPor === "entrenamientos_pendientes") {
-        const pendientesA = entrenamientosPendientes(a.id);
-        const pendientesB = entrenamientosPendientes(b.id);
+        const pendientesA = pendientesPorAlumno.get(a.id) || 0;
+        const pendientesB = pendientesPorAlumno.get(b.id) || 0;
 
         return orden === "asc"
           ? pendientesA - pendientesB
@@ -266,14 +273,7 @@ export default function AlumnosPage() {
     });
 
     return resultado;
-  }, [
-    alumnos,
-    busqueda,
-    ordenarPor,
-    orden,
-    rutinasAsignadas,
-    registrosEntrenamiento,
-  ]);
+  }, [alumnos, busqueda, ordenarPor, orden, pendientesPorAlumno, finalizadosPorAlumno]);
 
   if (loading) {
     return (
@@ -387,7 +387,7 @@ export default function AlumnosPage() {
                     </h3>
 
                     <p className="text-xs text-emerald-400 mt-1">
-                      {entrenamientosPendientes(alumno.id)} pendientes
+                      {pendientesPorAlumno.get(alumno.id) || 0} pendientes
                     </p>
                   </div>
                 </a>
@@ -421,17 +421,21 @@ export default function AlumnosPage() {
                       </h3>
 
                       <p className="text-zinc-400 text-sm mt-1">
-                        Último entrenamiento: {ultimoEntrenamiento(alumno.id)}
+                        Último entrenamiento:{" "}
+                        {ultimoEntrenamientoPorAlumno.get(alumno.id) ||
+                          "Sin entrenamientos completados"}
                       </p>
 
                       <div className="flex flex-wrap gap-2 mt-2 text-xs text-zinc-500">
                         {alumno.email && <span>{alumno.email}</span>}
                         {alumno.telefono && <span>· {alumno.telefono}</span>}
                         <span>
-                          · {entrenamientosFinalizados(alumno.id)} finalizados
+                          · {finalizadosPorAlumno.get(alumno.id) || 0}{" "}
+                          finalizados
                         </span>
                         <span>
-                          · {entrenamientosPendientes(alumno.id)} pendientes
+                          · {pendientesPorAlumno.get(alumno.id) || 0}{" "}
+                          pendientes
                         </span>
                       </div>
                     </div>
@@ -439,7 +443,7 @@ export default function AlumnosPage() {
 
                   <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-2 text-center">
                     <p className="text-xl font-bold text-emerald-400">
-                      {entrenamientosPendientes(alumno.id)}
+                      {pendientesPorAlumno.get(alumno.id) || 0}
                     </p>
                     <p className="text-xs text-zinc-500">pendientes</p>
                   </div>

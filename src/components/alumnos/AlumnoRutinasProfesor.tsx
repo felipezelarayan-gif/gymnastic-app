@@ -217,7 +217,7 @@ export default function AlumnoRutinasProfesor({
     if (rutinaIds.length > 0) {
       const { data: ejerciciosData, error: ejerciciosError } = await supabase
         .from("rutina_ejercicios")
-        .select("*")
+        .select("id,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
         .in("rutina_id", rutinaIds)
         .order("orden", { ascending: true });
 
@@ -229,7 +229,7 @@ export default function AlumnoRutinasProfesor({
 
       const { data: entradaData, error: entradaError } = await supabase
         .from("rutina_entrada_calor")
-        .select("*")
+        .select("id,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,observaciones,orden")
         .in("rutina_id", rutinaIds)
         .order("orden", { ascending: true });
 
@@ -353,7 +353,7 @@ export default function AlumnoRutinasProfesor({
 async function recalcularRMActual(ejercicioId: string) {
   const { data: historial, error: historialError } = await supabase
     .from("rms_historial")
-    .select("*")
+    .select("ejercicio_id,peso_kg,repeticiones,rm_calculado")
     .eq("alumno_id", id)
     .eq("ejercicio_id", ejercicioId)
     .order("rm_calculado", { ascending: false })

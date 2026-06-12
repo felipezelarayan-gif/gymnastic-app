@@ -98,7 +98,7 @@ export default function MisProgresosPage() {
 
     const { data: registrosData } = await supabase
       .from("registros_entrenamiento")
-      .select("*")
+      .select("id,alumno_id,rutina_id,rutina_ejercicio_id,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rpe,rir,rm_calculado,completado,created_at")
       .eq("alumno_id", alumnoData.id)
       .eq("completado", true)
       .order("created_at", { ascending: false });
@@ -109,7 +109,7 @@ export default function MisProgresosPage() {
 
     const { data: rmsData } = await supabase
       .from("rms_actuales")
-      .select("*")
+      .select("id,ejercicio_id,rm_calculado,peso_kg,repeticiones,actualizado_en")
       .eq("alumno_id", alumnoData.id);
 
     setRmsActuales(rmsData || []);

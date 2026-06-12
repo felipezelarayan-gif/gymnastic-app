@@ -470,7 +470,7 @@ if (rutinaIds.length > 0) {
 
     const { data: rutinaEjercicios, error: ejerciciosError } = await supabase
       .from("rutina_ejercicios")
-      .select("*")
+      .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
       .in("rutina_id", rutinaIds)
       .order("orden", { ascending: true });
 
@@ -531,7 +531,7 @@ if (rutinaIds.length > 0) {
 
     const { data: entrada, error: entradaError } = await supabase
       .from("rutina_entrada_calor")
-      .select("*")
+      .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,duracion,repeticiones,observaciones,orden")
       .in("rutina_id", rutinaIds)
       .order("orden", { ascending: true });
 
@@ -675,7 +675,7 @@ async function recalcularRMActual(ejercicioId: string) {
 
   const { data: historial, error: historialError } = await supabase
     .from("rms_historial")
-    .select("*")
+    .select("ejercicio_id,peso_kg,repeticiones,rm_calculado")
     .eq("alumno_id", alumnoId)
     .eq("ejercicio_id", ejercicioId)
     .order("rm_calculado", { ascending: false })

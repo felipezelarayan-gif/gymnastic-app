@@ -207,7 +207,7 @@ export default function RutinaDetallePage({
   async function cargarRutina() {
     const { data, error } = await supabase
       .from("rutinas")
-      .select("*")
+      .select("id,nombre,descripcion,objetivo,estructura,entrada_calor")
       .eq("id", id)
       .single();
 
@@ -236,7 +236,7 @@ export default function RutinaDetallePage({
   async function cargarEntradaCalor() {
     const { data, error } = await supabase
       .from("rutina_entrada_calor")
-      .select("*")
+      .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,duracion,repeticiones,observaciones,orden")
       .eq("rutina_id", id)
       .order("orden", { ascending: true });
 
@@ -251,7 +251,7 @@ export default function RutinaDetallePage({
   async function cargarRutinaEjercicios() {
     const { data, error } = await supabase
       .from("rutina_ejercicios")
-      .select("*")
+      .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,descanso,rir,porcentaje_rm,observaciones,orden,tipo_configuracion")
       .eq("rutina_id", id)
       .order("orden", { ascending: true });
 
@@ -309,7 +309,9 @@ export default function RutinaDetallePage({
     const { data, error } = await supabase
       .from("rutina_asignaciones")
       .select(`
-        *,
+        id,
+        alumno_id,
+        rutina_id,
         alumnos (
           nombre,
           apellido,
@@ -324,7 +326,12 @@ export default function RutinaDetallePage({
       return;
     }
 
-    setAsignaciones(data || []);
+    const normalizadas = (data || []).map((item) => ({
+      ...item,
+      alumnos: Array.isArray(item.alumnos) ? item.alumnos[0] : item.alumnos,
+    })) as Asignacion[];
+
+    setAsignaciones(normalizadas);
   }
 
   async function guardarEdicionRutina() {

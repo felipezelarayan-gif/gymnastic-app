@@ -72,7 +72,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
 
     const { data: actualesData, error: actualesError } = await supabase
       .from("rms_actuales")
-      .select("*")
+      .select("id,alumno_id,ejercicio_id,peso_kg,repeticiones,rm_calculado,actualizado_en")
       .eq("alumno_id", alumnoId)
       .order("actualizado_en", { ascending: false });
 
@@ -84,7 +84,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
 
     const { data: historialData, error: historialError } = await supabase
       .from("rms_historial")
-      .select("*")
+      .select("id,alumno_id,ejercicio_id,peso_kg,repeticiones,rm_calculado,fecha,origen")
       .eq("alumno_id", alumnoId)
       .order("fecha", { ascending: false });
 
@@ -216,7 +216,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
   async function recalcularRMActual(ejercicioId: string) {
     const { data: historialEjercicio, error } = await supabase
       .from("rms_historial")
-      .select("*")
+      .select("ejercicio_id,peso_kg,repeticiones,rm_calculado")
       .eq("alumno_id", alumnoId)
       .eq("ejercicio_id", ejercicioId)
       .order("rm_calculado", { ascending: false })

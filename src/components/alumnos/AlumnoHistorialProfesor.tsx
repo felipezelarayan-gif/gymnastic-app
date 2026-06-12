@@ -70,7 +70,7 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
     if (!profile || profile.rol !== "profe") { window.location.href = "/alumno"; return; }
 
     const { data: alumnoData } = await supabase.from("alumnos").select("id,nombre,apellido").eq("id", id).single();
-    const { data: registrosData } = await supabase.from("registros_entrenamiento").select("*").eq("alumno_id", id).eq("completado", true).order("created_at", { ascending: false });
+    const { data: registrosData } = await supabase.from("registros_entrenamiento").select("id,alumno_id,rutina_id,rutina_asignacion_id,rutina_ejercicio_id,entrada_calor_id,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rpe,rir,rm_calculado,completado,created_at").eq("alumno_id", id).eq("completado", true).order("created_at", { ascending: false });
     const { data: asignacionesData } = await supabase
       .from("rutina_asignaciones")
       .select("id,alumno_id,rutina_id,fecha_completada,fecha_asignacion,completada,rutinas(id,nombre)")

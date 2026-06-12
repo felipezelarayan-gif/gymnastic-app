@@ -54,7 +54,7 @@ export default function RutinasPage() {
   async function cargarRutinas() {
     const { data, error } = await supabase
       .from("rutinas")
-      .select("*")
+      .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id")
       .order("created_at", { ascending: false });
 
     if (error) {

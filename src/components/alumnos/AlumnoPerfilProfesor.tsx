@@ -68,7 +68,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
 
     const { data, error } = await supabase
       .from("alumnos")
-      .select("*")
+      .select("id,nombre,apellido,email,telefono,foto_url,fecha_nacimiento,sexo,observaciones,observaciones_generales,altura_cm,peso_kg,lesiones,sin_lesiones,observaciones_fisicas")
       .eq("id", id)
       .single();
 
