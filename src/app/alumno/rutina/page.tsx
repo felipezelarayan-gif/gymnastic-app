@@ -210,8 +210,10 @@ export default function AlumnoRutinaPage() {
 
     try {
       const progreso = JSON.parse(progresoGuardado) as ProgresoRutinaCache;
-      setEjerciciosCompletadosCache(progreso.ejercicios || []);
-      setEntradaCalorCompletadaCache(progreso.entradas || []);
+      queueMicrotask(() => {
+        setEjerciciosCompletadosCache(progreso.ejercicios || []);
+        setEntradaCalorCompletadaCache(progreso.entradas || []);
+      });
     } catch {
       localStorage.removeItem(claveProgresoLocal(alumnoId));
     } finally {
@@ -737,14 +739,8 @@ async function recalcularRMActual(ejercicioId: string) {
     const ejercicios = ejerciciosPorRutina[rutinaId] || [];
     if (ejercicios.length === 0) return false;
 
-    const idsCompletadosEnCache = new Set(
-      ejerciciosCompletadosCache
-        .filter((item) => item.rutina_asignacion_id === asignacionId && item.rutina_id === rutinaId)
-        .map((item) => item.rutina_ejercicio_id)
-    );
-
     return ejercicios.every((ejercicio) =>
-      idsCompletadosEnCache.has(ejercicio.id)
+      ejercicioEstaCompletado(asignacionId, ejercicio.id)
     );
   }
 
@@ -819,43 +815,36 @@ async function recalcularRMActual(ejercicioId: string) {
                 },
               ];
 
-        const registrosInsertados: {
-          id: string;
-          rm_calculado?: number | null;
-          peso_kg?: number | null;
-          repeticiones?: number | null;
-        }[] = [];
+        const mejorSerieParaGuardar = [...seriesParaGuardar]
+          .sort((a, b) => Number(b.rm_calculado || 0) - Number(a.rm_calculado || 0))[0];
 
-        for (const serie of seriesParaGuardar) {
-          const { data: nuevoRegistro, error: registroError } = await supabase
-            .from("registros_entrenamiento")
-            .insert({
-              alumno_id: alumnoId,
-              rutina_id: ejercicioCache.rutina_id,
-              rutina_asignacion_id: asignacionId,
-              rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
-              ejercicio_id: ejercicioCache.ejercicio_id,
-              nombre_ejercicio:
-                ejercicioCache.tipo_configuracion === "avanzado"
-                  ? `${ejercicioCache.nombre_ejercicio} - Serie ${serie.numero_serie}`
-                  : ejercicioCache.nombre_ejercicio,
-              peso_kg: serie.peso_kg,
-              repeticiones: serie.repeticiones,
-              rpe: ejercicioCache.rpe,
-              rir: ejercicioCache.rir,
-              rm_calculado: serie.rm_calculado,
-              completado: true,
-            })
-            .select("id,rm_calculado,peso_kg,repeticiones")
-            .single();
-
-          if (registroError) throw registroError;
-          if (!nuevoRegistro) throw new Error("No se guardó el registro");
-
-          registrosInsertados.push(nuevoRegistro);
+        if (!mejorSerieParaGuardar) {
+          throw new Error("No se encontró una serie válida para guardar.");
         }
 
-        if (ejercicioCache.ejercicio_id && registrosInsertados.length > 0) {
+        const { data: nuevoRegistro, error: registroError } = await supabase
+          .from("registros_entrenamiento")
+          .insert({
+            alumno_id: alumnoId,
+            rutina_id: ejercicioCache.rutina_id,
+            rutina_asignacion_id: asignacionId,
+            rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
+            ejercicio_id: ejercicioCache.ejercicio_id,
+            nombre_ejercicio: ejercicioCache.nombre_ejercicio,
+            peso_kg: mejorSerieParaGuardar.peso_kg,
+            repeticiones: mejorSerieParaGuardar.repeticiones,
+            rpe: ejercicioCache.rpe,
+            rir: ejercicioCache.rir,
+            rm_calculado: mejorSerieParaGuardar.rm_calculado,
+            completado: true,
+          })
+          .select("id,rm_calculado,peso_kg,repeticiones")
+          .single();
+
+        if (registroError) throw registroError;
+        if (!nuevoRegistro) throw new Error("No se guardó el registro");
+
+        if (ejercicioCache.ejercicio_id) {
           await supabase
             .from("rms_historial")
             .delete()
@@ -864,21 +853,17 @@ async function recalcularRMActual(ejercicioId: string) {
             .eq("rutina_ejercicio_id", ejercicioCache.rutina_ejercicio_id)
             .eq("rutina_asignacion_id", asignacionId);
 
-          const mejorRegistro = registrosInsertados
-            .filter((registro) => registro.rm_calculado !== null && registro.rm_calculado !== undefined)
-            .sort((a, b) => Number(b.rm_calculado || 0) - Number(a.rm_calculado || 0))[0];
-
-          if (mejorRegistro) {
+          if (nuevoRegistro.rm_calculado !== null && nuevoRegistro.rm_calculado !== undefined) {
             await supabase.from("rms_historial").insert({
               alumno_id: alumnoId,
               ejercicio_id: ejercicioCache.ejercicio_id,
               rutina_id: rutinaId,
               rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
               rutina_asignacion_id: asignacionId,
-              registro_entrenamiento_id: mejorRegistro.id,
-              peso_kg: mejorRegistro.peso_kg,
-              repeticiones: mejorRegistro.repeticiones,
-              rm_calculado: mejorRegistro.rm_calculado,
+              registro_entrenamiento_id: nuevoRegistro.id,
+              peso_kg: nuevoRegistro.peso_kg,
+              repeticiones: nuevoRegistro.repeticiones,
+              rm_calculado: nuevoRegistro.rm_calculado,
               origen: "entrenamiento",
             });
 
@@ -888,7 +873,7 @@ async function recalcularRMActual(ejercicioId: string) {
       }
 
       // Marcar rutina como completada
-      await supabase
+      const { error: updateAsignacionError } = await supabase
         .from("rutina_asignaciones")
         .update({
           activa: false,
@@ -896,6 +881,8 @@ async function recalcularRMActual(ejercicioId: string) {
           fecha_completada: new Date().toISOString(),
         })
         .eq("id", asignacionId);
+
+      if (updateAsignacionError) throw updateAsignacionError;
 
       // Limpiar caché de esta rutina
       const ejerciciosRestantes = ejerciciosCompletadosCache.filter(
@@ -923,9 +910,9 @@ async function recalcularRMActual(ejercicioId: string) {
       
       // Recargar
       await recargarManteniendoScroll();
-    } catch (error: any) {
+    } catch (error: unknown) {
       setGuardandoRutina(false);
-      alert(error.message || "Error al guardar la rutina");
+      alert(error instanceof Error ? error.message : "Error al guardar la rutina");
     }
   }
 
@@ -1237,7 +1224,16 @@ async function recalcularRMActual(ejercicioId: string) {
       series_realizadas: esAvanzado ? seriesRealizadasFinales : undefined,
     };
 
-    setEjerciciosCompletadosCache((prev) => [...prev, nuevoEjercicioEnCache]);
+    setEjerciciosCompletadosCache((prev) => [
+      ...prev.filter(
+        (item) =>
+          !(
+            item.rutina_asignacion_id === nuevoEjercicioEnCache.rutina_asignacion_id &&
+            item.rutina_ejercicio_id === nuevoEjercicioEnCache.rutina_ejercicio_id
+          )
+      ),
+      nuevoEjercicioEnCache,
+    ]);
 
     // Cerrar modal
     setEjercicioSeleccionado(null);
