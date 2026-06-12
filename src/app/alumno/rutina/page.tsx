@@ -129,6 +129,12 @@ type EntradaCalorCompletadaCache = {
   ejercicio_id?: string | null;
 };
 
+type VideoEjercicio = {
+  id: string;
+  youtube_url?: string | null;
+  video_url?: string | null;
+};
+
 type ProgresoRutinaCache = {
   ejercicios: EjercicioCompletadoCache[];
   entradas: EntradaCalorCompletadaCache[];
@@ -161,6 +167,32 @@ function textoPrescripcionAvanzada(series: RutinaEjercicioSerie[]) {
 function normalizarRutina(rutinas?: RutinaRelacion) {
   if (Array.isArray(rutinas)) return rutinas[0] || null;
   return rutinas || null;
+}
+
+function obtenerUrlVideo(video?: VideoEjercicio | null) {
+  return video?.youtube_url || video?.video_url || null;
+}
+
+async function cargarVideosEjercicios(idsEjercicios: string[]) {
+  const idsUnicos = Array.from(new Set(idsEjercicios.filter(Boolean)));
+
+  if (idsUnicos.length === 0) return [] as VideoEjercicio[];
+
+  const { data: videosYoutube, error: youtubeError } = await supabase
+    .from("ejercicios")
+    .select("id,youtube_url")
+    .in("id", idsUnicos);
+
+  if (!youtubeError) return (videosYoutube || []) as VideoEjercicio[];
+
+  const { data: videosGenericos, error: videoError } = await supabase
+    .from("ejercicios")
+    .select("id,video_url")
+    .in("id", idsUnicos);
+
+  if (!videoError) return (videosGenericos || []) as VideoEjercicio[];
+
+  return [] as VideoEjercicio[];
 }
 
 export default function AlumnoRutinaPage() {
@@ -451,21 +483,12 @@ if (rutinaIds.length > 0) {
     const idsEjercicios =
       rutinaEjercicios?.map((item) => item.ejercicio_id).filter(Boolean) || [];
 
-    let videosEjercicios: { id: string; youtube_url?: string | null }[] = [];
-
-    if (idsEjercicios.length > 0) {
-      const { data: videos } = await supabase
-        .from("ejercicios")
-        .select("id,youtube_url")
-        .in("id", idsEjercicios);
-
-      videosEjercicios = videos || [];
-    }
+    const videosEjercicios = await cargarVideosEjercicios(idsEjercicios as string[]);
 
     const ejerciciosConVideo =
       rutinaEjercicios?.map((item) => {
         const video = videosEjercicios.find((v) => v.id === item.ejercicio_id);
-        return { ...item, youtube_url: video?.youtube_url || null };
+        return { ...item, youtube_url: obtenerUrlVideo(video) };
       }) || [];
 
     const ejerciciosAvanzadosIds = ejerciciosConVideo
@@ -521,21 +544,12 @@ if (rutinaIds.length > 0) {
     const idsEntrada =
       entrada?.map((item) => item.ejercicio_id).filter(Boolean) || [];
 
-    let videosEntrada: { id: string; youtube_url?: string | null }[] = [];
-
-    if (idsEntrada.length > 0) {
-      const { data: videos } = await supabase
-        .from("ejercicios")
-        .select("id,youtube_url")
-        .in("id", idsEntrada);
-
-      videosEntrada = videos || [];
-    }
+    const videosEntrada = await cargarVideosEjercicios(idsEntrada as string[]);
 
     const entradaConVideo =
       entrada?.map((item) => {
         const video = videosEntrada.find((v) => v.id === item.ejercicio_id);
-        return { ...item, youtube_url: video?.youtube_url || null };
+        return { ...item, youtube_url: obtenerUrlVideo(video) };
       }) || [];
 
     const agrupadaEntrada: Record<string, EntradaCalorEjercicio[]> = {};

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 type Rol = "profe" | "alumno" | null;
@@ -101,47 +102,47 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto p-4 flex gap-2 items-center">
           {isAlumno ? (
             <>
-              <a href="/alumno" className={getDesktopLinkClass("/alumno")}>
+              <Link href="/alumno" className={getDesktopLinkClass("/alumno")} onClick={(e) => { if (isActive("/alumno")) e.preventDefault(); }}>
                 🏠 <span>Inicio</span>
-              </a>
+              </Link>
 
-              <a href="/alumno/rutina" className={getDesktopLinkClass("/alumno/rutina")}>
+              <Link href="/alumno/rutina" className={getDesktopLinkClass("/alumno/rutina")} onClick={(e) => { if (isActive("/alumno/rutina")) e.preventDefault(); }}>
                 📋 <span>Mi rutina</span>
-              </a>
+              </Link>
 
-              <a href="/alumno/progreso" className={getDesktopLinkClass("/alumno/progreso")}>
+              <Link href="/alumno/progreso" className={getDesktopLinkClass("/alumno/progreso")} onClick={(e) => { if (isActive("/alumno/progreso")) e.preventDefault(); }}>
                 📈 <span>Progreso</span>
-              </a>
+              </Link>
 
-              <a href="/alumno/perfil" className={getDesktopLinkClass("/alumno/perfil")}>
+              <Link href="/alumno/perfil" className={getDesktopLinkClass("/alumno/perfil")} onClick={(e) => { if (isActive("/alumno/perfil")) e.preventDefault(); }}>
                 👤 <span>Mi perfil</span>
-              </a>
+              </Link>
 
-              <a href="/alumno/configuracion" className={getDesktopLinkClass("/alumno/configuracion")}>
+              <Link href="/alumno/configuracion" className={getDesktopLinkClass("/alumno/configuracion")} onClick={(e) => { if (isActive("/alumno/configuracion")) e.preventDefault(); }}>
                 ⚙️ <span>Configuración</span>
-              </a>
+              </Link>
             </>
           ) : (
             <>
-              <a href="/" className={getDesktopLinkClass("/")}>
+              <Link href="/" className={getDesktopLinkClass("/")} onClick={(e) => { if (isActive("/")) e.preventDefault(); }}>
                 🏠 <span>Home</span>
-              </a>
+              </Link>
 
-              <a href="/alumnos" className={getDesktopLinkClass("/alumnos")}>
+              <Link href="/alumnos" className={getDesktopLinkClass("/alumnos")} onClick={(e) => { if (isActive("/alumnos")) e.preventDefault(); }}>
                 👥 <span>Alumnos</span>
-              </a>
+              </Link>
 
-              <a href="/rutinas" className={getDesktopLinkClass("/rutinas")}>
+              <Link href="/rutinas" className={getDesktopLinkClass("/rutinas")} onClick={(e) => { if (isActive("/rutinas")) e.preventDefault(); }}>
                 📋 <span>Rutinas</span>
-              </a>
+              </Link>
 
-              <a href="/ejercicios" className={getDesktopLinkClass("/ejercicios")}>
+              <Link href="/ejercicios" className={getDesktopLinkClass("/ejercicios")} onClick={(e) => { if (isActive("/ejercicios")) e.preventDefault(); }}>
                 💪 <span>Ejercicios</span>
-              </a>
+              </Link>
 
-              <a href="/configuracion" className={getDesktopLinkClass("/configuracion")}>
+              <Link href="/configuracion" className={getDesktopLinkClass("/configuracion")} onClick={(e) => { if (isActive("/configuracion")) e.preventDefault(); }}>
                 ⚙️ <span>Configuración</span>
-              </a>
+              </Link>
             </>
           )}
 
@@ -160,19 +161,19 @@ export default function Navbar() {
         <div className="grid grid-cols-5 h-16 px-2">
           {isAlumno ? (
             <>
-              <a href="/alumno" className={getMobileLinkClass("/alumno")}>🏠</a>
-              <a href="/alumno/rutina" className={getMobileLinkClass("/alumno/rutina")}>📋</a>
-              <a href="/alumno/progreso" className={getMobileLinkClass("/alumno/progreso")}>📈</a>
-              <a href="/alumno/perfil" className={getMobileLinkClass("/alumno/perfil")}>👤</a>
-              <a href="/alumno/configuracion" className={getMobileLinkClass("/alumno/configuracion")}>⚙️</a>
+              <Link href="/alumno" className={getMobileLinkClass("/alumno")} onClick={(e) => { if (isActive("/alumno")) e.preventDefault(); }}>🏠</Link>
+              <Link href="/alumno/rutina" className={getMobileLinkClass("/alumno/rutina")} onClick={(e) => { if (isActive("/alumno/rutina")) e.preventDefault(); }}>📋</Link>
+              <Link href="/alumno/progreso" className={getMobileLinkClass("/alumno/progreso")} onClick={(e) => { if (isActive("/alumno/progreso")) e.preventDefault(); }}>📈</Link>
+              <Link href="/alumno/perfil" className={getMobileLinkClass("/alumno/perfil")} onClick={(e) => { if (isActive("/alumno/perfil")) e.preventDefault(); }}>👤</Link>
+              <Link href="/alumno/configuracion" className={getMobileLinkClass("/alumno/configuracion")} onClick={(e) => { if (isActive("/alumno/configuracion")) e.preventDefault(); }}>⚙️</Link>
             </>
           ) : (
             <>
-              <a href="/" className={getMobileLinkClass("/")}>🏠</a>
-              <a href="/alumnos" className={getMobileLinkClass("/alumnos")}>👥</a>
-              <a href="/rutinas" className={getMobileLinkClass("/rutinas")}>📋</a>
-              <a href="/ejercicios" className={getMobileLinkClass("/ejercicios")}>💪</a>
-              <a href="/configuracion" className={getMobileLinkClass("/configuracion")}>⚙️</a>
+              <Link href="/" className={getMobileLinkClass("/")} onClick={(e) => { if (isActive("/")) e.preventDefault(); }}>🏠</Link>
+              <Link href="/alumnos" className={getMobileLinkClass("/alumnos")} onClick={(e) => { if (isActive("/alumnos")) e.preventDefault(); }}>👥</Link>
+              <Link href="/rutinas" className={getMobileLinkClass("/rutinas")} onClick={(e) => { if (isActive("/rutinas")) e.preventDefault(); }}>📋</Link>
+              <Link href="/ejercicios" className={getMobileLinkClass("/ejercicios")} onClick={(e) => { if (isActive("/ejercicios")) e.preventDefault(); }}>💪</Link>
+              <Link href="/configuracion" className={getMobileLinkClass("/configuracion")} onClick={(e) => { if (isActive("/configuracion")) e.preventDefault(); }}>⚙️</Link>
             </>
           )}
         </div>
