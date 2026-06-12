@@ -399,37 +399,32 @@ export default function AlumnoHomePage() {
         {seccionActiva === "inicio" && (
           <>
             {tienePendiente && rutinaPendiente ? (
-              <section className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5 mb-4">
-                <h2 className="text-xl font-semibold">
-                  🎯 Próximo entrenamiento
-                </h2>
-
-                <p className="text-2xl font-bold mt-3">
-                  {rutinaPendiente.rutinas?.nombre || "Rutina asignada"}
-                </p>
-
-                {rutinaPendiente.rutinas?.objetivo && (
-                  <p className="text-zinc-400 mt-1">
-                    {rutinaPendiente.rutinas.objetivo}
+              <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 mb-4">
+                <span className="text-emerald-400 text-xl mt-0.5">🎯</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-emerald-300">
+                    Próximo entrenamiento
                   </p>
-                )}
+                  <p className="text-lg font-bold mt-1">
+                    {rutinaPendiente.rutinas?.nombre || "Rutina asignada"}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2 text-sm">
+                    {rutinaPendiente.rutinas?.estructura && (
+                      <span className="rounded-full bg-zinc-800 px-3 py-1">
+                        {rutinaPendiente.rutinas.estructura}
+                      </span>
+                    )}
 
-                <div className="flex flex-wrap gap-2 mt-4 text-sm">
-                  {rutinaPendiente.rutinas?.estructura && (
-                    <span className="rounded-full bg-zinc-800 px-3 py-1">
-                      {rutinaPendiente.rutinas.estructura}
-                    </span>
-                  )}
-
-                  {ejerciciosPendientesRutina > 0 && (
-                    <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
-                      {ejerciciosPendientesRutina} ejercicios pendientes
-                    </span>
-                  )}
+                    {ejerciciosPendientesRutina > 0 && (
+                      <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
+                        {ejerciciosPendientesRutina} ejercicios pendientes
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </section>
+              </div>
             ) : tuvoRutinas ? (
-              <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 mb-4">
+              <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 mb-4">
                 <span className="text-emerald-400 text-xl mt-0.5">✅</span>
                 <div>
                   <p className="text-sm font-medium text-emerald-300">
