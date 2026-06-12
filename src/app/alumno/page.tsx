@@ -398,57 +398,57 @@ export default function AlumnoHomePage() {
 
         {seccionActiva === "inicio" && (
           <>
-            <section className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5 mb-4">
-              {tienePendiente && rutinaPendiente ? (
-                <>
-                  <h2 className="text-xl font-semibold">
-                    🎯 Próximo entrenamiento
-                  </h2>
+            {tienePendiente && rutinaPendiente ? (
+              <section className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5 mb-4">
+                <h2 className="text-xl font-semibold">
+                  🎯 Próximo entrenamiento
+                </h2>
 
-                  <p className="text-2xl font-bold mt-3">
-                    {rutinaPendiente.rutinas?.nombre || "Rutina asignada"}
+                <p className="text-2xl font-bold mt-3">
+                  {rutinaPendiente.rutinas?.nombre || "Rutina asignada"}
+                </p>
+
+                {rutinaPendiente.rutinas?.objetivo && (
+                  <p className="text-zinc-400 mt-1">
+                    {rutinaPendiente.rutinas.objetivo}
                   </p>
+                )}
 
-                  {rutinaPendiente.rutinas?.objetivo && (
-                    <p className="text-zinc-400 mt-1">
-                      {rutinaPendiente.rutinas.objetivo}
-                    </p>
+                <div className="flex flex-wrap gap-2 mt-4 text-sm">
+                  {rutinaPendiente.rutinas?.estructura && (
+                    <span className="rounded-full bg-zinc-800 px-3 py-1">
+                      {rutinaPendiente.rutinas.estructura}
+                    </span>
                   )}
 
-                  <div className="flex flex-wrap gap-2 mt-4 text-sm">
-                    {rutinaPendiente.rutinas?.estructura && (
-                      <span className="rounded-full bg-zinc-800 px-3 py-1">
-                        {rutinaPendiente.rutinas.estructura}
-                      </span>
-                    )}
-
-                    {ejerciciosPendientesRutina > 0 && (
-                      <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
-                        {ejerciciosPendientesRutina} ejercicios pendientes
-                      </span>
-                    )}
-                  </div>
-                </>
-              ) : tuvoRutinas ? (
-                <>
-                  <h2 className="text-xl font-semibold">
-                    ✅ Planificación completada
-                  </h2>
-
-                  <p className="text-zinc-400 mt-2">
+                  {ejerciciosPendientesRutina > 0 && (
+                    <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
+                      {ejerciciosPendientesRutina} ejercicios pendientes
+                    </span>
+                  )}
+                </div>
+              </section>
+            ) : tuvoRutinas ? (
+              <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 mb-4">
+                <span className="text-emerald-400 text-xl mt-0.5">✅</span>
+                <div>
+                  <p className="text-sm font-medium text-emerald-300">
+                    Planificación completada
+                  </p>
+                  <p className="text-zinc-400 text-sm mt-1">
                     Esperá a que tu profesor te asigne nuevas rutinas.
                   </p>
-                </>
-              ) : (
-                <>
-                  <h2 className="text-xl font-semibold">👋 Bienvenido</h2>
+                </div>
+              </div>
+            ) : (
+              <section className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5 mb-4">
+                <h2 className="text-xl font-semibold">👋 Bienvenido</h2>
 
-                  <p className="text-zinc-400 mt-2">
-                    Todavía no tenés rutinas asignadas.
-                  </p>
-                </>
-              )}
-            </section>
+                <p className="text-zinc-400 mt-2">
+                  Todavía no tenés rutinas asignadas.
+                </p>
+              </section>
+            )}
 
             <section className="grid gap-4">
               <Link
