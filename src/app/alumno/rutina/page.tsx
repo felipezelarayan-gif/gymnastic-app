@@ -967,11 +967,11 @@ async function recalcularRMActual(ejercicioId: string) {
   }
 }
 
-  async function completarEntradaCalor(item: EntradaCalorEjercicio) {
+  async function completarEntradaCalor(item: EntradaCalorEjercicio, asignacionId: string) {
     if (!item.rutina_id) return;
 
     const asignacionActual = rutinasAsignadas.find(
-      (asignacion) => asignacion.rutina_id === item.rutina_id
+      (asignacion) => asignacion.asignacion_id === asignacionId
     );
 
     if (!asignacionActual) {
@@ -995,12 +995,12 @@ async function recalcularRMActual(ejercicioId: string) {
     setEntradaCalorCompletadaCache((prev) => [...prev, nuevaEntrada]);
   }
 
-  async function deshacerEntradaCalor(rutinaId: string, entradaId: string) {
+  async function deshacerEntradaCalor(rutinaId: string, entradaId: string, asignacionId: string) {
     const confirmar = confirm("¿Querés deshacer esta entrada en calor?");
     if (!confirmar) return;
 
     const asignacionActual = rutinasAsignadas.find(
-      (asignacion) => asignacion.rutina_id === rutinaId
+      (asignacion) => asignacion.asignacion_id === asignacionId
     );
 
     if (!asignacionActual) {
@@ -1251,12 +1251,12 @@ async function recalcularRMActual(ejercicioId: string) {
     );
   }
 
-  async function deshacerCompletado(rutinaId: string, rutinaEjercicioId: string) {
+  async function deshacerCompletado(rutinaId: string, rutinaEjercicioId: string, asignacionId: string) {
     const confirmar = confirm("¿Querés deshacer este ejercicio?");
     if (!confirmar) return;
 
     const asignacionActual = rutinasAsignadas.find(
-      (asignacion) => asignacion.rutina_id === rutinaId
+      (asignacion) => asignacion.asignacion_id === asignacionId
     );
 
     if (!asignacionActual) {
@@ -1456,7 +1456,7 @@ async function recalcularRMActual(ejercicioId: string) {
                             type="button"
                             onClick={() =>
                               item.rutina_id &&
-                              deshacerEntradaCalor(item.rutina_id, item.id)
+                              deshacerEntradaCalor(item.rutina_id, item.id, asignacion.asignacion_id)
                             }
                             className="mt-4 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20"
                           >
@@ -1465,7 +1465,7 @@ async function recalcularRMActual(ejercicioId: string) {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => completarEntradaCalor(item)}
+                            onClick={() => completarEntradaCalor(item, asignacion.asignacion_id)}
                             disabled={completada}
                             className={`mt-4 w-full rounded-lg px-3 py-2 text-sm font-semibold ${
                               completada
@@ -1594,7 +1594,7 @@ async function recalcularRMActual(ejercicioId: string) {
                         {itemCompletado ? (
                           <button
                             type="button"
-                            onClick={() => deshacerCompletado(rutina.id, item.id)}
+                            onClick={() => deshacerCompletado(rutina.id, item.id, asignacion.asignacion_id)}
                             className="mt-4 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20"
                           >
                             ↩ Deshacer
