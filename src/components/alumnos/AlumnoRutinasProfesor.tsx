@@ -2,6 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { recalcularRMActual } from "@/lib/recalcularRMActual";
 
 type Alumno = {
   id: string;
@@ -352,60 +353,6 @@ export default function AlumnoRutinasProfesor({
     window.location.href = `/rutinas/${nuevaRutina.id}?alumnoId=${id}`;
   }
 
-async function recalcularRMActual(ejercicioId: string) {
-  const { data: historial, error: historialError } = await supabase
-    .from("rms_historial")
-    .select("ejercicio_id,peso_kg,repeticiones,rm_calculado")
-    .eq("alumno_id", id)
-    .eq("ejercicio_id", ejercicioId)
-    .order("rm_calculado", { ascending: false })
-    .limit(1);
-
-  if (historialError) {
-    alert(historialError.message);
-    return;
-  }
-
-  const mejor = historial?.[0];
-
-  if (!mejor) {
-    await supabase
-      .from("rms_actuales")
-      .delete()
-      .eq("alumno_id", id)
-      .eq("ejercicio_id", ejercicioId);
-
-    return;
-  }
-
-  const { data: existente } = await supabase
-    .from("rms_actuales")
-    .select("id")
-    .eq("alumno_id", id)
-    .eq("ejercicio_id", ejercicioId)
-    .maybeSingle();
-
-  if (!existente) {
-    await supabase.from("rms_actuales").insert({
-      alumno_id: id,
-      ejercicio_id: ejercicioId,
-      peso_kg: mejor.peso_kg,
-      repeticiones: mejor.repeticiones,
-      rm_calculado: mejor.rm_calculado,
-      actualizado_en: new Date().toISOString(),
-    });
-  } else {
-    await supabase
-      .from("rms_actuales")
-      .update({
-        peso_kg: mejor.peso_kg,
-        repeticiones: mejor.repeticiones,
-        rm_calculado: mejor.rm_calculado,
-        actualizado_en: new Date().toISOString(),
-      })
-      .eq("id", existente.id);
-  }
-}
 
   async function quitarAsignacion(asignacionId: string) {
   if (quitandoId) return;
@@ -474,27 +421,36 @@ console.log("REGISTRO IDS", registroIds);
   }
 
   if (ejercicioIds.length > 0) {
-  const { error: rmsActualesError } = await supabase
-    .from("rms_actuales")
-    .delete()
-    .eq("alumno_id", id)
-    .in("ejercicio_id", ejercicioIds);
+    const { error: rmsActualesError } = await supabase
+      .from("rms_actuales")
+      .delete()
+      .eq("alumno_id", id)
+      .in("ejercicio_id", ejercicioIds);
 
-  if (rmsActualesError) {
-    alert(rmsActualesError.message);
-    return;
-  }
-} else {
-  const { error: rmsActualesError } = await supabase
-    .from("rms_actuales")
-    .delete()
-    .eq("alumno_id", id);
+    if (rmsActualesError) {
+      alert(rmsActualesError.message);
+      return;
+    }
 
-  if (rmsActualesError) {
-    alert(rmsActualesError.message);
-    return;
+    try {
+      for (const ejercicioId of ejercicioIds) {
+        await recalcularRMActual({ alumnoId: id, ejercicioId });
+      }
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Error al recalcular RM actual");
+      return;
+    }
+  } else {
+    const { error: rmsActualesError } = await supabase
+      .from("rms_actuales")
+      .delete()
+      .eq("alumno_id", id);
+
+    if (rmsActualesError) {
+      alert(rmsActualesError.message);
+      return;
+    }
   }
-}
 
 await cargarTodo();
 setQuitandoId(null);
