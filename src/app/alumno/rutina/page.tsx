@@ -1059,8 +1059,23 @@ async function recalcularRMActual(ejercicioId: string) {
       })
       .eq("id", asignacionActual.asignacion_id);
 
-    await recargarManteniendoScroll();
+    // Actualizar estado local en vez de recargar todo
+    setRegistros((prev) =>
+      prev.filter(
+        (r) =>
+          !(r.rutina_asignacion_id === asignacionActual.asignacion_id && r.entrada_calor_id === entradaId)
+      )
+    );
+
+    setRutinasAsignadas((prev) =>
+      prev.map((a) =>
+        a.asignacion_id === asignacionActual.asignacion_id
+          ? { ...a, activa: true, completada: false, fecha_completada: null }
+          : a
+      )
+    );
   }
+
 
   function abrirCompletado(item: RutinaEjercicio, asignacionId: string) {
     const asignacionActual = rutinasAsignadas.find(
@@ -1340,7 +1355,47 @@ async function recalcularRMActual(ejercicioId: string) {
       })
       .eq("id", asignacionActual.asignacion_id);
 
-    await recargarManteniendoScroll();
+    // Actualizar estado local en vez de recargar todo
+    setRegistros((prev) =>
+      prev.filter(
+        (r) =>
+          !(r.rutina_asignacion_id === asignacionActual.asignacion_id && r.rutina_ejercicio_id === rutinaEjercicioId)
+      )
+    );
+
+    setRutinasAsignadas((prev) =>
+      prev.map((a) =>
+        a.asignacion_id === asignacionActual.asignacion_id
+          ? { ...a, activa: true, completada: false, fecha_completada: null }
+          : a
+      )
+    );
+
+    // Actualizar RM si se recalcularon
+    if (registroActual?.ejercicio_id) {
+      const { data: nuevoRM } = await supabase
+        .from("rms_actuales")
+        .select("id,ejercicio_id,rm_calculado")
+        .eq("alumno_id", alumnoId)
+        .eq("ejercicio_id", registroActual.ejercicio_id)
+        .maybeSingle();
+
+      if (nuevoRM) {
+        setRmsActuales((prev) => {
+          const existe = prev.find((r) => r.ejercicio_id === registroActual.ejercicio_id);
+          if (existe) {
+            return prev.map((r) =>
+              r.ejercicio_id === registroActual.ejercicio_id ? nuevoRM : r
+            );
+          }
+          return [...prev, nuevoRM];
+        });
+      } else {
+        setRmsActuales((prev) =>
+          prev.filter((r) => r.ejercicio_id !== registroActual.ejercicio_id)
+        );
+      }
+    }
   }
 
   function renderRutinaCard(asignacion: RutinaAsignada) {

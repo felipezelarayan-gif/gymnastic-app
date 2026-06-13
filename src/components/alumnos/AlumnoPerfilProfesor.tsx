@@ -133,9 +133,16 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
     const confirmar = confirm(`¿Seguro que querés borrar a ${nombreCompleto()}?`);
     if (!confirmar) return;
 
-    const { error } = await supabase.from("alumnos").delete().eq("id", id);
-    if (error) {
-      alert(error.message);
+    const res = await fetch("/api/borrar-alumno", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ alumnoId: id }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Error al borrar el alumno.");
       return;
     }
 

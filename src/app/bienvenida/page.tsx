@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -11,6 +11,25 @@ const supabase = createClient(
 export default function BienvenidaPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    verificarInvitacion();
+  }, []);
+
+  async function verificarInvitacion() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("invitacion_pendiente")
+      .eq("id", userData.user.id)
+      .single();
+
+    if (profile?.invitacion_pendiente === false) {
+      window.location.href = "/login";
+    }
+  }
 
   async function crearPassword() {
     if (password.length < 6) {
