@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getEjerciciosVideosPorIdsCached } from "@/lib/ejercicios-cache";
 
 type Rutina = {
   id: string;
@@ -178,21 +179,8 @@ async function cargarVideosEjercicios(idsEjercicios: string[]) {
 
   if (idsUnicos.length === 0) return [] as VideoEjercicio[];
 
-  const { data: videosYoutube, error: youtubeError } = await supabase
-    .from("ejercicios")
-    .select("id,youtube_url")
-    .in("id", idsUnicos);
-
-  if (!youtubeError) return (videosYoutube || []) as VideoEjercicio[];
-
-  const { data: videosGenericos, error: videoError } = await supabase
-    .from("ejercicios")
-    .select("id,video_url")
-    .in("id", idsUnicos);
-
-  if (!videoError) return (videosGenericos || []) as VideoEjercicio[];
-
-  return [] as VideoEjercicio[];
+  const videos = await getEjerciciosVideosPorIdsCached(idsUnicos);
+  return videos as VideoEjercicio[];
 }
 
 export default function AlumnoRutinaPage() {
