@@ -4,6 +4,10 @@ import { use, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import CrearEjercicioModal from "@/components/ejercicios/CrearEjercicioModal";
 import EjercicioHistorialModal from "@/components/ejercicios/EjercicioHistorialModal";
+import {
+  getEjerciciosBasicosCached,
+  invalidarEjerciciosCache,
+} from "@/lib/ejercicios-cache";
 
 type TipoPrescripcion = "repeticiones" | "tiempo";
 
@@ -225,12 +229,14 @@ export default function RutinaDetallePage({
   }
 
   async function cargarEjercicios() {
-    const { data } = await supabase
-      .from("ejercicios")
-      .select("id,nombre,grupo_muscular")
-      .order("nombre");
-
-    setEjercicios(data || []);
+    const data = await getEjerciciosBasicosCached();
+    setEjercicios(
+      (data || []).map((ejercicio) => ({
+        id: ejercicio.id,
+        nombre: ejercicio.nombre,
+        grupo_muscular: ejercicio.grupo_muscular ?? undefined,
+      }))
+    );
   }
 
   async function cargarEntradaCalor() {
@@ -1766,6 +1772,7 @@ export default function RutinaDetallePage({
         abierto={mostrarCrearEjercicio}
         onCerrar={() => setMostrarCrearEjercicio(false)}
         onCreado={async (ejercicio) => {
+          invalidarEjerciciosCache();
           await cargarEjercicios();
           setEjercicioId(ejercicio.id);
           setNombreEjercicio(ejercicio.nombre);

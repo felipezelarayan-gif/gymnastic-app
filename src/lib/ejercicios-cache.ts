@@ -5,7 +5,14 @@ type EjercicioVideo = {
   youtube_url: string | null;
 };
 
+type EjercicioBasico = {
+  id: string;
+  nombre: string;
+  grupo_muscular?: string;
+};
+
 let cacheVideos: EjercicioVideo[] | null = null;
+let cacheBasicos: EjercicioBasico[] | null = null;
 
 export async function getEjerciciosVideosCached(): Promise<EjercicioVideo[]> {
   if (cacheVideos) return cacheVideos;
@@ -32,6 +39,27 @@ export async function getEjerciciosVideosPorIdsCached(
   return videos.filter((v) => ids.includes(v.id));
 }
 
+export async function getEjerciciosBasicosCached(): Promise<EjercicioBasico[]> {
+  if (cacheBasicos) return cacheBasicos;
+
+  const { data, error } = await supabase
+    .from("ejercicios")
+    .select("id,nombre,grupo_muscular")
+    .order("nombre");
+
+  if (error || !data) {
+    return [];
+  }
+
+  cacheBasicos = data.map((ejercicio) => ({
+    id: ejercicio.id,
+    nombre: ejercicio.nombre,
+    grupo_muscular: ejercicio.grupo_muscular ?? undefined,
+  }));
+  return cacheBasicos;
+}
+
 export function invalidarEjerciciosCache() {
   cacheVideos = null;
+  cacheBasicos = null;
 }
