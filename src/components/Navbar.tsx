@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { getRolCached, invalidarRolCache } from "@/lib/rol-cache";
 
 type Rol = "profe" | "alumno" | null;
 
@@ -77,16 +78,12 @@ export default function Navbar() {
   }
 
   async function cargarRol(userId: string) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("rol")
-      .eq("id", userId)
-      .single();
-
-    setRol((data?.rol as Rol) || null);
+    const rol = await getRolCached(userId);
+    setRol(rol as Rol);
   }
 
   async function cerrarSesion() {
+    invalidarRolCache();
     await supabase.auth.signOut();
     window.location.href = "/login";
   }
