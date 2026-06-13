@@ -129,9 +129,14 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
     await cargarAlumno();
   }
 
+  const [borrando, setBorrando] = useState(false);
+
   async function borrarAlumno() {
+    if (borrando) return;
     const confirmar = confirm(`¿Seguro que querés borrar a ${nombreCompleto()}?`);
     if (!confirmar) return;
+
+    setBorrando(true);
 
     const res = await fetch("/api/borrar-alumno", {
       method: "POST",
@@ -143,6 +148,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
 
     if (!res.ok) {
       alert(data.error || "Error al borrar el alumno.");
+      setBorrando(false);
       return;
     }
 
@@ -173,7 +179,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
               <a href={`/alumnos/${id}/rutinas`} className="rounded-xl bg-emerald-500 px-4 py-3 text-center text-sm font-semibold hover:bg-emerald-600">Rutina</a>
               <a href={`/alumnos/${id}/historial`} className="rounded-xl border border-zinc-700 px-4 py-3 text-center text-sm hover:bg-zinc-800">Historial</a>
               <button type="button" onClick={() => setEditando(true)} className="rounded-xl border border-zinc-700 px-4 py-3 text-sm hover:bg-zinc-800">Editar</button>
-              <button type="button" onClick={borrarAlumno} className="rounded-xl border border-red-800 px-4 py-3 text-sm text-red-400 hover:bg-red-950">Borrar</button>
+              <button type="button" onClick={borrarAlumno} disabled={borrando} className="rounded-xl border border-red-800 px-4 py-3 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed">{borrando ? "Borrando..." : "Borrar"}</button>
             </div>
           </div>
         </section>

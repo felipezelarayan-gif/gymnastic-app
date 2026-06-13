@@ -17,6 +17,8 @@ export default function RutinasPage() {
   const [rutinas, setRutinas] = useState<Rutina[]>([]);
   const [loading, setLoading] = useState(true);
   const [mostrarModal, setMostrarModal] = useState(false);
+  const [creando, setCreando] = useState(false);
+  const [borrandoId, setBorrandoId] = useState<string | null>(null);
 
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
@@ -68,10 +70,13 @@ export default function RutinasPage() {
   }
 
   async function crearRutina() {
+    if (creando) return;
     if (!nombre.trim()) {
       alert("Ingresá un nombre para la rutina.");
       return;
     }
+
+    setCreando(true);
 
     const objetivoFinal =
       objetivo === "otro" ? objetivoPersonalizado : objetivo;
@@ -91,6 +96,7 @@ export default function RutinasPage() {
 
     if (error) {
       alert(error.message);
+      setCreando(false);
       return;
     }
 
@@ -101,16 +107,20 @@ export default function RutinasPage() {
     setEstructura("");
     setEstructuraPersonalizada("");
     setMostrarModal(false);
+    setCreando(false);
 
     await cargarRutinas();
   }
 
   async function borrarRutina(rutinaId: string) {
+    if (borrandoId) return;
     const confirmar = confirm(
       "¿Querés borrar esta rutina? También se quitará de todos los alumnos que la tengan asignada."
     );
 
     if (!confirmar) return;
+
+    setBorrandoId(rutinaId);
 
     const { error: asignacionesError } = await supabase
       .from("rutina_asignaciones")
@@ -119,6 +129,7 @@ export default function RutinasPage() {
 
     if (asignacionesError) {
       alert(asignacionesError.message);
+      setBorrandoId(null);
       return;
     }
 
@@ -129,9 +140,11 @@ export default function RutinasPage() {
 
     if (rutinaError) {
       alert(rutinaError.message);
+      setBorrandoId(null);
       return;
     }
 
+    setBorrandoId(null);
     await cargarRutinas();
   }
 
@@ -218,9 +231,10 @@ export default function RutinasPage() {
                   <button
                     type="button"
                     onClick={() => borrarRutina(rutina.id)}
-                    className="rounded-xl border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-950"
+                    disabled={borrandoId === rutina.id}
+                    className="rounded-xl border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Borrar
+                    {borrandoId === rutina.id ? "Borrando..." : "Borrar"}
                   </button>
                 </div>
               </div>
@@ -317,9 +331,10 @@ export default function RutinasPage() {
                 <button
                   type="button"
                   onClick={crearRutina}
-                  className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold"
+                  disabled={creando}
+                  className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Crear
+                  {creando ? "Creando..." : "Crear"}
                 </button>
               </div>
             </div>

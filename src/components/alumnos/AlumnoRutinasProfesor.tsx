@@ -109,6 +109,8 @@ export default function AlumnoRutinasProfesor({
   const [nuevaDescripcion, setNuevaDescripcion] = useState("");
 
   const [rutinaDetalleId, setRutinaDetalleId] = useState<string | null>(null);
+  const [quitandoId, setQuitandoId] = useState<string | null>(null);
+  const [editandoRutina, setEditandoRutina] = useState(false);
   const [ejerciciosPorRutina, setEjerciciosPorRutina] = useState<
     Record<string, RutinaEjercicio[]>
   >({});
@@ -406,8 +408,11 @@ async function recalcularRMActual(ejercicioId: string) {
 }
 
   async function quitarAsignacion(asignacionId: string) {
+  if (quitandoId) return;
   const confirmar = confirm("¿Querés quitar esta rutina del alumno?");
   if (!confirmar) return;
+
+  setQuitandoId(asignacionId);
 
   console.log("QUITAR DESDE PERFIL ALUMNO", asignacionId);
 
@@ -420,6 +425,7 @@ async function recalcularRMActual(ejercicioId: string) {
 
   if (buscarError) {
     alert(buscarError.message);
+    setQuitandoId(null);
     return;
   }
 
@@ -491,6 +497,7 @@ console.log("REGISTRO IDS", registroIds);
 }
 
 await cargarTodo();
+setQuitandoId(null);
 }
 
 async function editarRutinaParaAlumno(asignacion: RutinaAsignada) {
@@ -809,9 +816,10 @@ async function editarRutinaParaAlumno(asignacion: RutinaAsignada) {
   <button
     type="button"
     onClick={() => quitarAsignacion(asignacion.id)}
-    className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950"
+    disabled={quitandoId === asignacion.id}
+    className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
   >
-    Quitar
+    {quitandoId === asignacion.id ? "Quitando..." : "Quitar"}
   </button>
 </div>
                     </div>
