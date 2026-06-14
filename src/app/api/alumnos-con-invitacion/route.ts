@@ -7,20 +7,23 @@ export async function GET() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Obtener todos los alumnos
+  // Obtener todos los alumnos con solo las columnas necesarias
   const { data: alumnos, error: alumnosError } = await supabaseAdmin
     .from("alumnos")
-    .select("*")
+    .select("id,user_id,nombre,apellido,email,telefono,foto_url,fecha_nacimiento,sexo,observaciones,created_at")
     .order("nombre", { ascending: true });
 
   if (alumnosError) {
     return NextResponse.json({ error: alumnosError.message }, { status: 400 });
   }
 
-  // Obtener todos los profiles con invitacion_pendiente
+  // Obtener profiles solo para los user_ids de los alumnos
+  const userIds = (alumnos || []).map((a) => a.user_id).filter(Boolean);
+
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from("profiles")
-    .select("id, invitacion_pendiente");
+    .select("id, invitacion_pendiente")
+    .in("id", userIds);
 
   if (profilesError) {
     return NextResponse.json({ error: profilesError.message }, { status: 400 });
