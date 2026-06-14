@@ -878,6 +878,40 @@ async function recargarManteniendoScroll() {
 
       if (updateAsignacionError) throw updateAsignacionError;
 
+      // Actualizar estados localmente
+      setRutinasAsignadas((prev) =>
+        prev.map((a) =>
+          a.asignacion_id === asignacionId
+            ? { ...a, activa: false, completada: true, fecha_completada: new Date().toISOString() }
+            : a
+        )
+      );
+
+      setRegistros((prev) => [
+        ...prev,
+        ...registrosInsertados.map((r, i) => ({
+          id: r.id,
+          rutina_id: ejerciciosDelCache[i]?.rutina_id || "",
+          rutina_asignacion_id: asignacionId,
+          rutina_ejercicio_id: ejerciciosDelCache[i]?.rutina_ejercicio_id || null,
+          entrada_calor_id: null,
+          ejercicio_id: ejerciciosDelCache[i]?.ejercicio_id || null,
+          nombre_ejercicio: ejerciciosDelCache[i]?.nombre_ejercicio || null,
+          peso_kg: r.peso_kg,
+          repeticiones: r.repeticiones,
+          rpe: ejerciciosDelCache[i]?.rpe ?? null,
+          rir: ejerciciosDelCache[i]?.rir ?? null,
+        })),
+      ]);
+
+      // Refrescar rmsActuales
+      const { data: rmsActualizados, error: rmsActualizadosError } = await supabase
+        .from("rms_actuales")
+        .select("id,ejercicio_id,rm_calculado")
+        .eq("alumno_id", alumnoId);
+      if (rmsActualizadosError) throw rmsActualizadosError;
+      setRmsActuales(rmsActualizados || []);
+
       // Limpiar caché de esta rutina
       const ejerciciosRestantes = ejerciciosCompletadosCache.filter(
         (item) => item.rutina_asignacion_id !== asignacionId
@@ -901,9 +935,6 @@ async function recargarManteniendoScroll() {
       }
 
       setGuardandoRutina(false);
-      
-      // Recargar
-      await recargarManteniendoScroll();
     } catch (error: unknown) {
       setGuardandoRutina(false);
       alert(error instanceof Error ? error.message : "Error al guardar la rutina");
