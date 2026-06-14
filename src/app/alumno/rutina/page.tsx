@@ -738,6 +738,26 @@ async function recargarManteniendoScroll() {
         if (deleteEjerciciosError) throw deleteEjerciciosError;
       }
 
+      // DELETE batch: limpiar rms_historial antes del loop
+      const ejerciciosConEjercicioId = ejerciciosDelCache.filter(
+        (e) => e.ejercicio_id
+      );
+      const idsEjerciciosConEjercicioId = ejerciciosConEjercicioId.map(
+        (e) => e.rutina_ejercicio_id
+      );
+
+      if (idsEjerciciosConEjercicioId.length > 0) {
+        const { error: deleteHistorialError } = await supabase
+          .from("rms_historial")
+          .delete()
+          .eq("alumno_id", alumnoId)
+          .eq("rutina_id", rutinaId)
+          .eq("rutina_asignacion_id", asignacionId)
+          .in("rutina_ejercicio_id", idsEjerciciosConEjercicioId);
+
+        if (deleteHistorialError) throw deleteHistorialError;
+      }
+
       for (const ejercicioCache of ejerciciosDelCache) {
 
         const seriesParaGuardar =
@@ -782,14 +802,6 @@ async function recargarManteniendoScroll() {
         if (!nuevoRegistro) throw new Error("No se guardó el registro");
 
         if (ejercicioCache.ejercicio_id) {
-          await supabase
-            .from("rms_historial")
-            .delete()
-            .eq("alumno_id", alumnoId)
-            .eq("rutina_id", rutinaId)
-            .eq("rutina_ejercicio_id", ejercicioCache.rutina_ejercicio_id)
-            .eq("rutina_asignacion_id", asignacionId);
-
           if (nuevoRegistro.rm_calculado !== null && nuevoRegistro.rm_calculado !== undefined) {
             await supabase.from("rms_historial").insert({
               alumno_id: alumnoId,
