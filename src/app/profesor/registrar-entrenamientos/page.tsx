@@ -824,7 +824,7 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
             repeticiones: reg.repeticiones, rm_calculado: reg.rm_calculado, origen: "entrenamiento",
           };
         })
-        .filter(Boolean);
+        .filter((item): item is NonNullable<typeof item> => item !== null);
 
       if (historialBatch.length > 0) {
         const { error: histError } = await supabase.from("rms_historial").insert(historialBatch);
