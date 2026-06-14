@@ -258,39 +258,16 @@ export default function AlumnoHomePage() {
     return (
       rutinasAsignadas.find((rutina) => {
         if (rutina.completada) return false;
+        if (rutina.activa === false) return false;
 
-        const ejerciciosDeRutina = ejerciciosRutina.filter(
-          (ejercicio) => ejercicio.rutina_id === rutina.rutina_id
-        );
-
-        if (ejerciciosDeRutina.length === 0) return true;
-
-        const completados = registros.filter(
-          (registro) => registro.rutina_id === rutina.rutina_id
-        );
-
-        return completados.length < ejerciciosDeRutina.length;
+        return true;
       }) || null
     );
-  }, [rutinasAsignadas, ejerciciosRutina, registros]);
+  }, [rutinasAsignadas]);
 
   const rutinasCompletadas = useMemo(() => {
-    return rutinasAsignadas.filter((item) => {
-      if (item.completada) return true;
-
-      const ejerciciosDeRutina = ejerciciosRutina.filter(
-        (ejercicio) => ejercicio.rutina_id === item.rutina_id
-      );
-
-      if (ejerciciosDeRutina.length === 0) return false;
-
-      const completados = registros.filter(
-        (registro) => registro.rutina_id === item.rutina_id
-      );
-
-      return completados.length >= ejerciciosDeRutina.length;
-    }).length;
-  }, [rutinasAsignadas, ejerciciosRutina, registros]);
+    return rutinasAsignadas.filter((item) => item.completada).length;
+  }, [rutinasAsignadas]);
 
   const ejerciciosCompletados = registros.length;
 

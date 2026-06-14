@@ -147,15 +147,6 @@ type CacheRegistrarEntrenamientos = {
   alumnoSeleccionado: Alumno | null;
 };
 
-type AlumnoRelacion = Alumno | Alumno[] | null;
-
-type AlumnoSugerenciaResponse = {
-  alumno_id?: string | null;
-  alumnos?: AlumnoRelacion;
-  rm_calculado?: number | null;
-  created_at?: string | null;
-};
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CACHE_KEY = "registrar-entrenamientos-cache-v3";
@@ -171,11 +162,6 @@ function nombreAlumno(alumno: Alumno): string {
 function normalizarRutina(rutinas?: RutinaRelacion): Rutina | null {
   if (Array.isArray(rutinas)) return rutinas[0] || null;
   return rutinas || null;
-}
-
-function normalizarAlumnoRelacion(alumnos?: AlumnoRelacion): Alumno | null {
-  if (Array.isArray(alumnos)) return alumnos[0] || null;
-  return alumnos || null;
 }
 
 function textoPrescripcion(item: {
@@ -938,33 +924,35 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
       || entradaCalorCompletadaCache.some((e) => e.rutina_asignacion_id === asignacion.asignacion_id);
 
     return (
-      <div key={asignacion.asignacion_id} className={abierta ? "rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5" : "hidden"}>
-        <button type="button" onClick={() => toggleRutina(asignacion.asignacion_id)} className="flex w-full items-start justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-left transition hover:bg-zinc-800/70">
-          <div>
-            <h2 className="text-2xl font-bold text-zinc-100">{rutina.nombre}</h2>
-            <p className="mt-2 text-sm text-zinc-500">
-              {asignacion.fecha_asignacion ? `Asignada: ${asignacion.fecha_asignacion}` : "Rutina asignada"}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
+      <div key={asignacion.asignacion_id} className={`rounded-2xl border p-5 ${completada ? "border-emerald-800 bg-emerald-500/5" : "border-zinc-800 bg-zinc-900"}`}>
+        <button type="button" onClick={() => toggleRutina(asignacion.asignacion_id)} className="flex w-full items-center justify-between gap-4">
+          <div className="text-left">
+            <h2 className="text-xl font-bold">{rutina.nombre}</h2>
+            <div className="mt-2 flex flex-wrap gap-2">
               {(rutina as Rutina).objetivo && (
                 <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-400">{(rutina as Rutina).objetivo}</span>
               )}
               {(rutina as Rutina).estructura && (
                 <span className="rounded-full bg-zinc-800 px-3 py-1 text-sm text-zinc-300">{(rutina as Rutina).estructura}</span>
               )}
+              {asignacion.fecha_asignacion && (
+                <span className="rounded-full bg-zinc-800 px-3 py-1 text-sm text-zinc-300">
+                  Asignada: {asignacion.fecha_asignacion}
+                </span>
+              )}
               {completada && (
-                <span className="rounded-full bg-emerald-600/20 px-3 py-1 text-sm font-bold text-emerald-200">COMPLETADA</span>
+                <span className="rounded-full bg-emerald-600 px-3 py-1 text-sm font-bold text-white">COMPLETADA</span>
               )}
             </div>
           </div>
-          <span className="pt-1 text-xl text-zinc-400">{abierta ? "▲" : "▼"}</span>
+          <span className="text-xl">{abierta ? "▲" : "▼"}</span>
         </button>
 
         {abierta && (
-          <div className="mt-5 space-y-5">
+          <div className="mt-5 space-y-4">
             {/* Entrada en calor */}
-            <section>
-              <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-zinc-500">Entrada en calor</h3>
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+              <h3 className="mb-3 text-base font-semibold">Entrada en calor</h3>
               {entrada.length === 0 ? (
                 <p className="text-sm text-zinc-500">Sin entrada en calor cargada.</p>
               ) : (
@@ -972,29 +960,22 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
                   {entrada.map((item) => {
                     const itemCompletado = entradaEstaCompletada(asignacion.asignacion_id, item.id);
                     return (
-                      <div key={item.id} className={`rounded-2xl border p-5 ${itemCompletado ? "border-emerald-700 bg-emerald-500/10" : "border-zinc-800 bg-zinc-900"}`}>
-                        <div className="flex items-start gap-3">
-                          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${itemCompletado ? "bg-emerald-500/20 text-emerald-200" : "bg-zinc-800 text-zinc-500"}`}>
-                            ✓
-                          </span>
-                          <div>
-                            <h4 className="text-lg font-bold text-zinc-100">{item.nombre_ejercicio}</h4>
-                            <p className="mt-1 text-sm text-zinc-400">
-                              {item.series || "-"} series · {textoPrescripcion(item)}
-                            </p>
-                          </div>
-                        </div>
+                      <div key={item.id} className={`rounded-xl border p-4 ${itemCompletado ? "border-emerald-800 bg-emerald-500/5" : "border-zinc-800"}`}>
+                        <h4 className="text-base font-semibold">{item.nombre_ejercicio}</h4>
+                        <p className="mt-1 text-sm text-zinc-400">
+                          {item.series || "-"} series · {textoPrescripcion(item)}
+                        </p>
                         {item.observaciones && (
                           <p className="mt-2 text-sm text-zinc-500">{item.observaciones}</p>
                         )}
                         {itemCompletado ? (
                           <button type="button" onClick={() => item.rutina_id && deshacerEntradaCalor(item.rutina_id, item.id, asignacion.asignacion_id)}
-                            className="mt-4 w-full rounded-2xl border border-yellow-700 bg-yellow-500/10 px-4 py-3 text-sm font-bold text-yellow-300 transition hover:bg-yellow-500/20 active:scale-[0.99]">
+                            className="mt-3 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20">
                             ↩ Deshacer entrada en calor
                           </button>
                         ) : (
                           <button type="button" onClick={() => completarEntradaCalor(item, asignacion.asignacion_id)} disabled={completada}
-                            className={`mt-4 w-full rounded-2xl border px-4 py-3 text-sm font-bold transition active:scale-[0.99] ${completada ? "cursor-not-allowed border-zinc-800 bg-zinc-800 text-zinc-500" : "border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30"}`}>
+                            className={`mt-3 w-full rounded-lg px-3 py-2 text-sm font-semibold ${completada ? "cursor-not-allowed bg-zinc-800 text-zinc-500" : "bg-emerald-500 text-white hover:bg-emerald-600"}`}>
                             Completar entrada en calor
                           </button>
                         )}
@@ -1006,8 +987,8 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
             </section>
 
             {/* Ejercicios */}
-            <section>
-              <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-zinc-500">Ejercicios</h3>
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+              <h3 className="mb-3 text-base font-semibold">Ejercicios</h3>
               {ejercicios.length === 0 ? (
                 <p className="text-sm text-zinc-500">Sin ejercicios cargados.</p>
               ) : (
@@ -1017,20 +998,13 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
                     const itemCompletado = ejercicioEstaCompletado(asignacion.asignacion_id, item.id);
 
                     return (
-                      <div key={item.id} className={`rounded-2xl border p-5 ${itemCompletado ? "border-emerald-700 bg-emerald-500/10" : "border-zinc-800 bg-zinc-900"}`}>
-                        <div className="flex items-start gap-3">
-                          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${itemCompletado ? "bg-emerald-500/20 text-emerald-200" : "bg-zinc-800 text-zinc-500"}`}>
-                            ✓
-                          </span>
-                          <div>
-                            <h4 className="text-lg font-bold text-zinc-100">{item.nombre_ejercicio}</h4>
-                            <p className="mt-1 text-sm text-zinc-400">
-                              {item.series || "-"} series · {item.tipo_configuracion === "avanzado"
-                                ? textoPrescripcionAvanzada(seriesPorEjercicio[item.id] || [])
-                                : textoPrescripcion(item)}
-                            </p>
-                          </div>
-                        </div>
+                      <div key={item.id} className={`rounded-xl border p-4 ${itemCompletado ? "border-emerald-800 bg-emerald-500/5" : "border-zinc-800"}`}>
+                        <h4 className="text-base font-semibold">{item.nombre_ejercicio}</h4>
+                        <p className="mt-1 text-sm text-zinc-400">
+                          {item.series || "-"} series · {item.tipo_configuracion === "avanzado"
+                            ? textoPrescripcionAvanzada(seriesPorEjercicio[item.id] || [])
+                            : textoPrescripcion(item)}
+                        </p>
 
                         {item.tipo_configuracion === "avanzado" && (
                           <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
@@ -1070,12 +1044,12 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
 
                         {itemCompletado ? (
                           <button type="button" onClick={() => deshacerCompletado(rutina.id, item.id, asignacion.asignacion_id)}
-                            className="mt-4 w-full rounded-2xl border border-yellow-700 bg-yellow-500/10 px-4 py-3 text-sm font-bold text-yellow-300 transition hover:bg-yellow-500/20 active:scale-[0.99]">
+                            className="mt-3 w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20">
                             ↩ Deshacer
                           </button>
                         ) : (
                           <button type="button" onClick={() => abrirCompletado(item, asignacion.asignacion_id)} disabled={completada}
-                            className={`mt-4 w-full rounded-2xl border px-4 py-3 text-sm font-bold transition active:scale-[0.99] ${completada ? "cursor-not-allowed border-zinc-800 bg-zinc-800 text-zinc-500" : "border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30"}`}>
+                            className={`mt-3 w-full rounded-lg px-3 py-2 text-sm font-semibold ${completada ? "cursor-not-allowed bg-zinc-800 text-zinc-500" : "bg-emerald-500 text-white hover:bg-emerald-600"}`}>
                             Completar
                           </button>
                         )}
@@ -1088,18 +1062,18 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
 
             {/* Botón inferior */}
             {completada ? (
-              <div className="rounded-2xl border border-emerald-600 bg-emerald-600/20 p-4 text-center font-bold text-emerald-200">
+              <div className="rounded-xl border border-emerald-800 bg-emerald-500/10 p-4 text-center font-semibold text-emerald-400">
                 ✓ Rutina completada
               </div>
             ) : estaRutinaCacheCompleta(asignacion.rutina_id, asignacion.asignacion_id) ? (
               <button type="button" onClick={() => guardarCacheABD(asignacion.asignacion_id, asignacion.rutina_id)} disabled={guardandoRutina}
-                className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-bold text-white transition active:scale-[0.99] ${guardandoRutina ? "cursor-not-allowed bg-emerald-600 opacity-70" : "bg-emerald-500 hover:bg-emerald-600"}`}>
+                className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-semibold ${guardandoRutina ? "cursor-not-allowed bg-emerald-600 opacity-70" : "bg-emerald-500 hover:bg-emerald-600"}`}>
                 {guardandoRutina && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
                 {guardandoRutina ? "Guardando rutina..." : "Completar Rutina"}
               </button>
             ) : hayProgreso ? (
               <button type="button" onClick={guardarProgresoActual}
-                className="w-full rounded-2xl border border-blue-500 bg-blue-500/20 py-4 text-base font-bold text-blue-200 transition hover:bg-blue-500/30 active:scale-[0.99]">
+                className="w-full rounded-xl border border-blue-700 bg-blue-500/10 py-3 font-semibold text-blue-300 hover:bg-blue-500/20">
                 Guardar progreso
               </button>
             ) : null}
@@ -1121,33 +1095,28 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
       });
 
     return (
-      <div key={asignacion.asignacion_id} className={abierta ? "rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5" : "hidden"}>
-        <button type="button" onClick={() => toggleRutina(asignacion.asignacion_id)} className="flex w-full items-start justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-left transition hover:bg-zinc-800/70">
-          <div>
-            <h2 className="text-2xl font-bold text-zinc-100">{rutina?.nombre || "Rutina completada"}</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
+      <div key={asignacion.asignacion_id} className="rounded-2xl border border-emerald-800 bg-emerald-500/5 p-5">
+        <button type="button" onClick={() => toggleRutina(asignacion.asignacion_id)} className="flex w-full items-center justify-between gap-4">
+          <div className="text-left">
+            <h2 className="text-xl font-bold">{rutina?.nombre || "Rutina completada"}</h2>
+            <div className="mt-2 flex flex-wrap gap-2">
               {rutina?.estructura && <span className="rounded-full bg-zinc-800 px-3 py-1 text-sm text-zinc-300">{rutina.estructura}</span>}
               {rutina?.objetivo && <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-400">{rutina.objetivo}</span>}
-              <span className="rounded-full bg-emerald-600/20 px-3 py-1 text-sm font-bold text-emerald-200">COMPLETADA</span>
+              <span className="rounded-full bg-emerald-600 px-3 py-1 text-sm font-bold text-white">COMPLETADA</span>
             </div>
           </div>
-          <span className="pt-1 text-xl text-zinc-400">{abierta ? "▲" : "▼"}</span>
+          <span className="text-xl">{abierta ? "▲" : "▼"}</span>
         </button>
 
         {abierta && (
-          <div className="mt-5 space-y-3">
+          <div className="mt-4 space-y-3">
             {registrosDeEstaRutina.length === 0 ? (
               <p className="text-sm text-zinc-400">No hay detalles guardados.</p>
             ) : (
               registrosDeEstaRutina.map((registro) => (
-                <div key={registro.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-sm font-bold text-emerald-200">
-                      ✓
-                    </span>
-                    <h3 className="text-lg font-bold text-zinc-100">{registro.nombre_ejercicio || "Ejercicio"}</h3>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                <div key={registro.id} className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+                  <h3 className="font-semibold">{registro.nombre_ejercicio || "Ejercicio"}</h3>
+                  <div className="mt-2 flex flex-wrap gap-2 text-sm">
                     {registro.peso_kg != null && <span className="rounded-full bg-zinc-800 px-3 py-1">Peso: {registro.peso_kg} kg</span>}
                     {registro.repeticiones != null && <span className="rounded-full bg-zinc-800 px-3 py-1">Reps: {registro.repeticiones}</span>}
                     {registro.rpe != null && <span className="rounded-full bg-zinc-800 px-3 py-1">RPE: {registro.rpe}</span>}
@@ -1157,7 +1126,7 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
               ))
             )}
             <button type="button" onClick={() => deshacerRutinaCompleta(asignacion)}
-              className="w-full rounded-2xl border border-yellow-700 bg-yellow-500/10 px-4 py-3 text-sm font-bold text-yellow-300 transition hover:bg-yellow-500/20 active:scale-[0.99]">
+              className="w-full rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20">
               ↩ Deshacer rutina completada
             </button>
           </div>
@@ -1179,58 +1148,14 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
 
   if (rutinasAsignadas.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/60 p-6 text-center text-sm text-zinc-400">
+      <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-center text-sm text-zinc-400">
         Este alumno no tiene rutinas asignadas.
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
-      {proximasRutinas.length > 0 && (
-        <div>
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-zinc-500">Rutinas activas</h3>
-          <div className="flex flex-wrap gap-2">
-            {proximasRutinas.map((asignacion) => {
-              const rutina = asignacion.rutinas || { id: asignacion.rutina_id, nombre: "Rutina" };
-              const abierta = !!rutinasAbiertas[asignacion.asignacion_id];
-              return (
-                <button
-                  key={asignacion.asignacion_id}
-                  type="button"
-                  onClick={() => toggleRutina(asignacion.asignacion_id)}
-                  className={`rounded-xl border px-4 py-2 text-sm font-semibold transition active:scale-[0.99] ${abierta ? "border-blue-500 bg-blue-500/20 text-blue-200" : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"}`}
-                >
-                  {rutina.nombre}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {rutinasCompletadas.length > 0 && (
-        <div>
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-zinc-500">Completadas</h3>
-          <div className="flex flex-wrap gap-2">
-            {rutinasCompletadas.slice(0, 2).map((asignacion) => {
-              const rutina = asignacion.rutinas || { id: asignacion.rutina_id, nombre: "Rutina completada" };
-              const abierta = !!rutinasAbiertas[asignacion.asignacion_id];
-              return (
-                <button
-                  key={asignacion.asignacion_id}
-                  type="button"
-                  onClick={() => toggleRutina(asignacion.asignacion_id)}
-                  className={`rounded-xl border px-4 py-2 text-sm font-semibold transition active:scale-[0.99] ${abierta ? "border-emerald-600 bg-emerald-600/20 text-emerald-200" : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800"}`}
-                >
-                  ✓ {rutina.nombre}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
+    <div className="space-y-4">
       {proximasRutinas.map(renderRutinaCard)}
       {rutinasCompletadas.slice(0, 2).map(renderCompletadoCard)}
 
@@ -1281,11 +1206,11 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
 
             <div className="mt-5 flex gap-3">
               <button type="button" onClick={() => setEjercicioSeleccionado(null)}
-                className="flex-1 rounded-2xl border border-zinc-700 bg-zinc-900 py-3 font-semibold text-zinc-200 transition hover:bg-zinc-800 active:scale-[0.99]">
+                className="flex-1 rounded-xl border border-zinc-700 py-3">
                 Cancelar
               </button>
               <button type="button" onClick={guardarCompletado} disabled={guardandoEjercicio}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-3 font-bold text-white transition active:scale-[0.99] ${guardandoEjercicio ? "cursor-not-allowed bg-emerald-600 opacity-70" : "bg-emerald-500 hover:bg-emerald-600"}`}>
+                className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-3 font-semibold ${guardandoEjercicio ? "cursor-not-allowed bg-emerald-600 opacity-70" : "bg-emerald-500 hover:bg-emerald-600"}`}>
                 {guardandoEjercicio && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
                 {guardandoEjercicio ? "Guardando..." : "Guardar"}
               </button>
@@ -1304,8 +1229,6 @@ export default function RegistrarEntrenamientosPage() {
   const [alumnosEntrenando, setAlumnosEntrenando] = useState<Alumno[]>([]);
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<Alumno | null>(null);
   const [alumnosConRutina, setAlumnosConRutina] = useState<Set<string>>(new Set());
-  const [alumnosRecientes, setAlumnosRecientes] = useState<Alumno[]>([]);
-  const [alumnosTopRM, setAlumnosTopRM] = useState<Alumno[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -1322,7 +1245,6 @@ export default function RegistrarEntrenamientosPage() {
     }
     cargarAlumnos();
     cargarAlumnosConRutina();
-    cargarSugerenciasAlumnos();
   }, []);
 
   useEffect(() => {
@@ -1342,74 +1264,6 @@ export default function RegistrarEntrenamientosPage() {
     setAlumnosConRutina(ids);
   }
 
-  async function cargarSugerenciasAlumnos() {
-    const { data: asignacionesActivas } = await supabase
-      .from("rutina_asignaciones")
-      .select("alumno_id")
-      .eq("activa", true)
-      .neq("completada", true);
-
-    const idsActivos = new Set((asignacionesActivas ?? []).map((item) => item.alumno_id).filter(Boolean));
-
-    if (idsActivos.size === 0) {
-      setAlumnosRecientes([]);
-      setAlumnosTopRM([]);
-      return;
-    }
-
-    const tomarAlumno = (item: AlumnoSugerenciaResponse) => {
-      const alumno = normalizarAlumnoRelacion(item.alumnos);
-      if (!alumno || !idsActivos.has(alumno.id)) return null;
-      return alumno;
-    };
-
-    const deduplicar = (items: Alumno[], excluir = new Set<string>(), limite = 3) => {
-      const vistos = new Set<string>(excluir);
-      const resultado: Alumno[] = [];
-
-      for (const alumno of items) {
-        if (vistos.has(alumno.id)) continue;
-        vistos.add(alumno.id);
-        resultado.push(alumno);
-        if (resultado.length >= limite) break;
-      }
-
-      return resultado;
-    };
-
-    const { data: recientesData } = await supabase
-      .from("registros_entrenamiento")
-      .select("alumno_id, created_at, alumnos(id,nombre,apellido,email)")
-      .in("alumno_id", Array.from(idsActivos))
-      .order("created_at", { ascending: false })
-      .limit(30);
-
-    const recientes = deduplicar(
-      ((recientesData || []) as AlumnoSugerenciaResponse[])
-        .map(tomarAlumno)
-        .filter((alumno): alumno is Alumno => Boolean(alumno))
-    );
-
-    const idsRecientes = new Set(recientes.map((alumno) => alumno.id));
-
-    const { data: topRMData } = await supabase
-      .from("rms_actuales")
-      .select("alumno_id, rm_calculado, alumnos(id,nombre,apellido,email)")
-      .in("alumno_id", Array.from(idsActivos))
-      .order("rm_calculado", { ascending: false })
-      .limit(30);
-
-    const topRM = deduplicar(
-      ((topRMData || []) as AlumnoSugerenciaResponse[])
-        .map(tomarAlumno)
-        .filter((alumno): alumno is Alumno => Boolean(alumno)),
-      idsRecientes
-    );
-
-    setAlumnosRecientes(recientes);
-    setAlumnosTopRM(topRM);
-  }
-
   function agregarAlumno(alumno: Alumno) {
     const tieneRutinaActiva = alumnosConRutina.has(alumno.id);
 
@@ -1422,13 +1276,11 @@ export default function RegistrarEntrenamientosPage() {
     if (!yaExiste) setAlumnosEntrenando((prev) => [...prev, alumno]);
     setAlumnoSeleccionado(alumno);
     setBusqueda("");
-    cargarSugerenciasAlumnos();
   }
 
   function quitarAlumno(alumno: Alumno) {
     setAlumnosEntrenando((prev) => prev.filter((item) => item.id !== alumno.id));
     if (alumnoSeleccionado?.id === alumno.id) setAlumnoSeleccionado(null);
-    cargarSugerenciasAlumnos();
   }
 
   const alumnosFiltrados = useMemo(() => {
@@ -1444,7 +1296,7 @@ export default function RegistrarEntrenamientosPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 text-zinc-100">
-      <section className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5 shadow-lg">
+      <section className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-5 shadow-lg">
         <div className="flex items-center justify-between gap-2">
           <div>
             <h1 className="text-2xl font-bold">Registrar entrenamientos</h1>
@@ -1458,7 +1310,7 @@ export default function RegistrarEntrenamientosPage() {
 
       <section className="grid gap-6 lg:grid-cols-[320px_1fr]">
         {/* Sidebar */}
-        <aside className="flex flex-col gap-4 rounded-3xl border border-zinc-800 bg-zinc-950/70 p-4">
+        <aside className="flex flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
           <div>
             <h2 className="text-base font-semibold">Buscar alumno</h2>
             <input
@@ -1476,59 +1328,13 @@ export default function RegistrarEntrenamientosPage() {
               ) : (
                 alumnosFiltrados.map((alumno) => (
                   <button key={alumno.id} type="button" onClick={() => agregarAlumno(alumno)}
-                    className="flex w-full flex-col border-b border-zinc-800 px-3 py-3 text-left transition last:border-b-0 hover:bg-zinc-900 active:bg-zinc-800">
+                    className="flex w-full flex-col border-b border-zinc-800 px-3 py-2 text-left transition last:border-b-0 hover:bg-zinc-900">
                     <span className="text-sm font-medium">
                       {nombreAlumno(alumno)} {alumnosConRutina.has(alumno.id) && <span>⭐</span>}
                     </span>
                     {alumno.email && <span className="text-xs text-zinc-500">{alumno.email}</span>}
                   </button>
                 ))
-              )}
-            </div>
-          )}
-
-          {!busqueda && (alumnosRecientes.length > 0 || alumnosTopRM.length > 0) && (
-            <div className="space-y-4">
-              {alumnosRecientes.length > 0 && (
-                <div>
-                  <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Recientes</h2>
-                  <div className="flex flex-col gap-2">
-                    {alumnosRecientes.map((alumno) => (
-                      <button
-                        key={alumno.id}
-                        type="button"
-                        onClick={() => agregarAlumno(alumno)}
-                        className="rounded-2xl border border-zinc-800 bg-zinc-900 px-3 py-3 text-left transition hover:border-zinc-700 hover:bg-zinc-800 active:scale-[0.99]"
-                      >
-                        <span className="block text-sm font-semibold text-zinc-200">
-                          {nombreAlumno(alumno)} {alumnosConRutina.has(alumno.id) && <span>⭐</span>}
-                        </span>
-                        {alumno.email && <span className="text-xs text-zinc-500">{alumno.email}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {alumnosTopRM.length > 0 && (
-                <div>
-                  <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Mejores por RM</h2>
-                  <div className="flex flex-col gap-2">
-                    {alumnosTopRM.map((alumno) => (
-                      <button
-                        key={alumno.id}
-                        type="button"
-                        onClick={() => agregarAlumno(alumno)}
-                        className="rounded-2xl border border-zinc-800 bg-zinc-900 px-3 py-3 text-left transition hover:border-zinc-700 hover:bg-zinc-800 active:scale-[0.99]"
-                      >
-                        <span className="block text-sm font-semibold text-zinc-200">
-                          {nombreAlumno(alumno)} {alumnosConRutina.has(alumno.id) && <span>⭐</span>}
-                        </span>
-                        {alumno.email && <span className="text-xs text-zinc-500">{alumno.email}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               )}
             </div>
           )}
@@ -1552,7 +1358,7 @@ export default function RegistrarEntrenamientosPage() {
                 {alumnosEntrenando.map((alumno) => {
                   const activo = alumnoSeleccionado?.id === alumno.id;
                   return (
-                    <div key={alumno.id} className={`rounded-2xl border px-3 py-3 transition ${activo ? "border-blue-500 bg-blue-500/20 text-blue-200" : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"}`}>
+                    <div key={alumno.id} className={`rounded-xl border px-3 py-3 transition ${activo ? "border-blue-500 bg-blue-500/10" : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"}`}>
                       <button type="button" onClick={() => setAlumnoSeleccionado(alumno)} className="w-full text-left">
                         <span className="block text-sm font-semibold">
                           {nombreAlumno(alumno)} {alumnosConRutina.has(alumno.id) && <span>⭐</span>}
@@ -1560,7 +1366,7 @@ export default function RegistrarEntrenamientosPage() {
                         {alumno.email && <span className="text-xs text-zinc-500">{alumno.email}</span>}
                       </button>
                       <button type="button" onClick={() => quitarAlumno(alumno)}
-                        className="mt-3 rounded-full border border-red-900 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/20">
+                        className="mt-2 text-xs text-red-400 transition hover:text-red-300">
                         Quitar
                       </button>
                     </div>
@@ -1572,14 +1378,14 @@ export default function RegistrarEntrenamientosPage() {
         </aside>
 
         {/* Panel principal */}
-        <section className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-5">
           {!alumnoSeleccionado ? (
             <div className="flex h-full min-h-[200px] items-center justify-center rounded-xl border border-dashed border-zinc-800 text-center text-sm text-zinc-500">
               Seleccioná un alumno para ver y registrar su rutina.
             </div>
           ) : (
             <div>
-              <div className="mb-5 flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+              <div className="mb-4 flex items-center gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-sm font-bold text-blue-300">
                   {(alumnoSeleccionado.nombre?.[0] ?? "A").toUpperCase()}
                 </div>

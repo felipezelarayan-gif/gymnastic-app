@@ -141,6 +141,19 @@ if (!data) {
           </a>
 
           <a
+            href="/profesor/registrar-entrenamientos"
+            className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
+          >
+            <h2 className="text-xl font-semibold">
+  🏋️ Registrar entrenamientos
+</h2>
+
+            <p className="text-zinc-400 mt-2">
+  Cargar entrenamientos de alumnos activos.
+</p>
+          </a>
+
+          <a
             href="/ejercicios"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
