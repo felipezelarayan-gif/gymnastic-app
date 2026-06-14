@@ -282,23 +282,33 @@ export default function AlumnoRutinasProfesor({
 
     setGuardando(true);
 
-    const { error } = await supabase.from("rutina_asignaciones").insert({
-      alumno_id: id,
-      rutina_id: rutinaSeleccionada,
-      activa: true,
-      completada: false,
-      fecha_asignacion: new Date().toISOString(),
-    });
+    const { data: nuevaAsignacion, error } = await supabase
+      .from("rutina_asignaciones")
+      .insert({
+        alumno_id: id,
+        rutina_id: rutinaSeleccionada,
+        activa: true,
+        completada: false,
+        fecha_asignacion: new Date().toISOString(),
+      })
+      .select("id,alumno_id,rutina_id,activa,completada,fecha_asignacion,fecha_completada")
+      .single();
 
     setGuardando(false);
 
-    if (error) {
-      alert(error.message);
+    if (error || !nuevaAsignacion) {
+      alert(error?.message || "No se pudo crear la asignación.");
       return;
     }
 
+    const rutinaDisponible = disponibles.find((r) => r.id === rutinaSeleccionada) || null;
+
+    setAsignadas((prev) => [
+      { ...nuevaAsignacion, rutinas: rutinaDisponible },
+      ...prev,
+    ]);
+
     setRutinaSeleccionada("");
-    await cargarTodo();
   }
 
   async function crearRutinaParaAlumno() {
@@ -452,7 +462,7 @@ console.log("REGISTRO IDS", registroIds);
     }
   }
 
-await cargarTodo();
+setAsignadas((prev) => prev.filter((a) => a.id !== asignacionId));
 setQuitandoId(null);
 }
 

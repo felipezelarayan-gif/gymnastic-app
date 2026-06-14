@@ -703,24 +703,26 @@ async function recargarManteniendoScroll() {
         if (deleteEntradasError) throw deleteEntradasError;
       }
 
-      for (const entradaCache of entradasDelCache) {
+      if (entradasDelCache.length > 0) {
+        const entradasBatch = entradasDelCache.map((entradaCache) => ({
+          alumno_id: alumnoId,
+          rutina_id: entradaCache.rutina_id,
+          rutina_asignacion_id: asignacionId,
+          rutina_ejercicio_id: null,
+          entrada_calor_id: entradaCache.entrada_calor_id,
+          ejercicio_id: entradaCache.ejercicio_id || null,
+          nombre_ejercicio: entradaCache.nombre_ejercicio,
+          peso_kg: null,
+          repeticiones: null,
+          rpe: null,
+          rir: null,
+          rm_calculado: null,
+          completado: true,
+        }));
+
         const { error: entradaInsertError } = await supabase
           .from("registros_entrenamiento")
-          .insert({
-            alumno_id: alumnoId,
-            rutina_id: entradaCache.rutina_id,
-            rutina_asignacion_id: asignacionId,
-            rutina_ejercicio_id: null,
-            entrada_calor_id: entradaCache.entrada_calor_id,
-            ejercicio_id: entradaCache.ejercicio_id || null,
-            nombre_ejercicio: entradaCache.nombre_ejercicio,
-            peso_kg: null,
-            repeticiones: null,
-            rpe: null,
-            rir: null,
-            rm_calculado: null,
-            completado: true,
-          });
+          .insert(entradasBatch);
 
         if (entradaInsertError) throw entradaInsertError;
       }
@@ -758,8 +760,8 @@ async function recargarManteniendoScroll() {
         if (deleteHistorialError) throw deleteHistorialError;
       }
 
-      for (const ejercicioCache of ejerciciosDelCache) {
-
+      // 1. Construir batch de registros_entrenamiento
+      const registrosBatch = ejerciciosDelCache.map((ejercicioCache) => {
         const seriesParaGuardar =
           ejercicioCache.tipo_configuracion === "avanzado" && ejercicioCache.series_realizadas?.length
             ? ejercicioCache.series_realizadas
@@ -779,48 +781,88 @@ async function recargarManteniendoScroll() {
           throw new Error("No se encontró una serie válida para guardar.");
         }
 
-        const { data: nuevoRegistro, error: registroError } = await supabase
-          .from("registros_entrenamiento")
-          .insert({
+        return {
+          alumno_id: alumnoId,
+          rutina_id: ejercicioCache.rutina_id,
+          rutina_asignacion_id: asignacionId,
+          rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
+          ejercicio_id: ejercicioCache.ejercicio_id,
+          nombre_ejercicio: ejercicioCache.nombre_ejercicio,
+          peso_kg: mejorSerieParaGuardar.peso_kg,
+          repeticiones: mejorSerieParaGuardar.repeticiones,
+          rpe: ejercicioCache.rpe,
+          rir: ejercicioCache.rir,
+          rm_calculado: mejorSerieParaGuardar.rm_calculado,
+          completado: true,
+        };
+      });
+
+      // 2. INSERT batch registros_entrenamiento
+      const { data: registrosInsertados, error: registrosError } = await supabase
+        .from("registros_entrenamiento")
+        .insert(registrosBatch)
+        .select("id,rm_calculado,peso_kg,repeticiones");
+
+      if (registrosError) throw registrosError;
+
+      if (!registrosInsertados || registrosInsertados.length !== ejerciciosDelCache.length) {
+        throw new Error("No se guardaron todos los registros de entrenamiento");
+      }
+
+      // 3. Construir batch de rms_historial
+      const historialBatch: Array<{
+        alumno_id: string;
+        ejercicio_id: string;
+        rutina_id: string;
+        rutina_ejercicio_id: string;
+        rutina_asignacion_id: string;
+        registro_entrenamiento_id: string;
+        peso_kg: number | null;
+        repeticiones: number | null;
+        rm_calculado: number | null;
+        origen: string;
+      }> = [];
+
+      for (let i = 0; i < ejerciciosDelCache.length; i++) {
+        const ejercicioCache = ejerciciosDelCache[i];
+        const nuevoRegistro = registrosInsertados[i];
+
+        if (
+          ejercicioCache.ejercicio_id &&
+          nuevoRegistro.rm_calculado !== null &&
+          nuevoRegistro.rm_calculado !== undefined
+        ) {
+          historialBatch.push({
             alumno_id: alumnoId,
-            rutina_id: ejercicioCache.rutina_id,
-            rutina_asignacion_id: asignacionId,
-            rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
             ejercicio_id: ejercicioCache.ejercicio_id,
-            nombre_ejercicio: ejercicioCache.nombre_ejercicio,
-            peso_kg: mejorSerieParaGuardar.peso_kg,
-            repeticiones: mejorSerieParaGuardar.repeticiones,
-            rpe: ejercicioCache.rpe,
-            rir: ejercicioCache.rir,
-            rm_calculado: mejorSerieParaGuardar.rm_calculado,
-            completado: true,
-          })
-          .select("id,rm_calculado,peso_kg,repeticiones")
-          .single();
+            rutina_id: rutinaId,
+            rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
+            rutina_asignacion_id: asignacionId,
+            registro_entrenamiento_id: nuevoRegistro.id,
+            peso_kg: nuevoRegistro.peso_kg,
+            repeticiones: nuevoRegistro.repeticiones,
+            rm_calculado: nuevoRegistro.rm_calculado,
+            origen: "entrenamiento",
+          });
+        }
+      }
 
-        if (registroError) throw registroError;
-        if (!nuevoRegistro) throw new Error("No se guardó el registro");
+      // 4. INSERT batch rms_historial
+      if (historialBatch.length > 0) {
+        const { error: historialError } = await supabase
+          .from("rms_historial")
+          .insert(historialBatch);
 
+        if (historialError) throw historialError;
+      }
+
+      // 5. recalcularRMActual (individual, no se puede batch)
+      for (const ejercicioCache of ejerciciosDelCache) {
         if (ejercicioCache.ejercicio_id) {
-          if (nuevoRegistro.rm_calculado !== null && nuevoRegistro.rm_calculado !== undefined) {
-            await supabase.from("rms_historial").insert({
-              alumno_id: alumnoId,
-              ejercicio_id: ejercicioCache.ejercicio_id,
-              rutina_id: rutinaId,
-              rutina_ejercicio_id: ejercicioCache.rutina_ejercicio_id,
-              rutina_asignacion_id: asignacionId,
-              registro_entrenamiento_id: nuevoRegistro.id,
-              peso_kg: nuevoRegistro.peso_kg,
-              repeticiones: nuevoRegistro.repeticiones,
-              rm_calculado: nuevoRegistro.rm_calculado,
-              origen: "entrenamiento",
-            });
-
-            await recalcularRMActual({
-              alumnoId,
-              ejercicioId: ejercicioCache.ejercicio_id,
-            });
-          }
+          await recalcularRMActual({
+            alumnoId,
+            ejercicioId: ejercicioCache.ejercicio_id,
+          });
         }
       }
 
