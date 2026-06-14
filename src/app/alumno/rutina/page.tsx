@@ -690,16 +690,20 @@ async function recargarManteniendoScroll() {
     );
 
     try {
-      for (const entradaCache of entradasDelCache) {
-        const { error: deleteEntradaError } = await supabase
+      // DELETE batch: todas las entradas en una sola consulta
+      if (entradasDelCache.length > 0) {
+        const idsEntradas = entradasDelCache.map((e) => e.entrada_calor_id);
+        const { error: deleteEntradasError } = await supabase
           .from("registros_entrenamiento")
           .delete()
           .eq("alumno_id", alumnoId)
           .eq("rutina_asignacion_id", asignacionId)
-          .eq("entrada_calor_id", entradaCache.entrada_calor_id);
+          .in("entrada_calor_id", idsEntradas);
 
-        if (deleteEntradaError) throw deleteEntradaError;
+        if (deleteEntradasError) throw deleteEntradasError;
+      }
 
+      for (const entradaCache of entradasDelCache) {
         const { error: entradaInsertError } = await supabase
           .from("registros_entrenamiento")
           .insert({
@@ -720,15 +724,21 @@ async function recargarManteniendoScroll() {
 
         if (entradaInsertError) throw entradaInsertError;
       }
-      for (const ejercicioCache of ejerciciosDelCache) {
-        const { error: deleteError } = await supabase
+
+      // DELETE batch: todos los ejercicios en una sola consulta
+      if (ejerciciosDelCache.length > 0) {
+        const idsEjercicios = ejerciciosDelCache.map((e) => e.rutina_ejercicio_id);
+        const { error: deleteEjerciciosError } = await supabase
           .from("registros_entrenamiento")
           .delete()
           .eq("alumno_id", alumnoId)
           .eq("rutina_asignacion_id", asignacionId)
-          .eq("rutina_ejercicio_id", ejercicioCache.rutina_ejercicio_id);
+          .in("rutina_ejercicio_id", idsEjercicios);
 
-        if (deleteError) throw deleteError;
+        if (deleteEjerciciosError) throw deleteEjerciciosError;
+      }
+
+      for (const ejercicioCache of ejerciciosDelCache) {
 
         const seriesParaGuardar =
           ejercicioCache.tipo_configuracion === "avanzado" && ejercicioCache.series_realizadas?.length
@@ -1118,7 +1128,9 @@ async function recargarManteniendoScroll() {
             numero_serie: serie.numero_serie,
             peso_kg: pesoNumeroSerie,
             repeticiones: repsNumeroSerie,
-            rm_calculado: esPesoCorporal ? null : calcularEpley(pesoNumeroSerie, repsNumeroSerie),
+            rm_calculado: pesoNumeroSerie > 0 && repsNumeroSerie > 0
+              ? calcularEpley(pesoNumeroSerie, repsNumeroSerie)
+              : null,
           };
         })
       : [];
@@ -1149,9 +1161,9 @@ async function recargarManteniendoScroll() {
 
     const rmCalculado = esAvanzado
       ? mejorSerie?.rm_calculado || null
-      : esPesoCorporal
-      ? null
-      : calcularEpley(pesoNumero, repsNumero);
+      : pesoNumero > 0 && repsNumero > 0
+      ? calcularEpley(pesoNumero, repsNumero)
+      : null;
 
     // Agregar al caché local
     const nuevoEjercicioEnCache: EjercicioCompletadoCache = {
