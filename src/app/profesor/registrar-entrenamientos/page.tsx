@@ -160,7 +160,7 @@ type AlumnoSugerenciaResponse = {
 
 const CACHE_KEY = "registrar-entrenamientos-cache-v3";
 const opcionesRPE = Array.from({ length: 10 }, (_, i) => i + 1);
-const opcionesRIR = Array.from({ length: 10 }, (_, i) => i + 1);
+const opcionesRIR = Array.from({ length: 6 }, (_, i) => i);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

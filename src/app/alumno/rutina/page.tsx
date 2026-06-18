@@ -143,7 +143,7 @@ type ProgresoRutinaCache = {
 };
 
 const opcionesRPE = Array.from({ length: 10 }, (_, index) => index + 1);
-const opcionesRIR = Array.from({ length: 10 }, (_, index) => index + 1);
+const opcionesRIR = Array.from({ length: 6 }, (_, index) => index);
 
 
 function textoPrescripcion(item: {

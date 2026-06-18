@@ -86,7 +86,7 @@ type Asignacion = {
 };
 
 const porcentajesRM = Array.from({ length: 21 }, (_, index) => index * 5);
-const opcionesRIR = Array.from({ length: 10 }, (_, index) => index + 1);
+const opcionesRIR = Array.from({ length: 6 }, (_, index) => index);
 const opcionesSeries = ["1", "2", "3", "4", "5", "custom"];
 const opcionesTiempo = Array.from({ length: 12 }, (_, index) => (index + 1) * 15);
 
