@@ -38,6 +38,23 @@ type RutinaAsignacionResponse = {
   rutinas?: RutinaRelacion;
 };
 
+type EvaluacionPendiente = {
+  id: string;
+  tipo: "rm";
+  nombre: string;
+  fecha_realizacion?: string | null;
+  puede_cargar_alumno?: boolean | null;
+  ejercicios?: string[];
+};
+
+type EvaluacionRMResultadoDetalle = {
+  evaluacion_rm_id: string;
+  orden?: number | null;
+  ejercicio?: {
+    nombre?: string | null;
+  } | null;
+};
+
 type RutinaEjercicio = {
   id: string;
   rutina_id: string;
@@ -188,6 +205,8 @@ export default function AlumnoRutinaPage() {
   const [loading, setLoading] = useState(true);
   const [alumnoId, setAlumnoId] = useState("");
   const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>([]);
+  const [evaluacionesPendientes, setEvaluacionesPendientes] = useState<EvaluacionPendiente[]>([]);
+  const [evaluacionesDetallesAbiertas, setEvaluacionesDetallesAbiertas] = useState<Record<string, boolean>>({});
   const [rutinasAbiertas, setRutinasAbiertas] = useState<Record<string, boolean>>({});
   const [ejerciciosPorRutina, setEjerciciosPorRutina] = useState<Record<string, RutinaEjercicio[]>>({});
   const [seriesPorEjercicio, setSeriesPorEjercicio] = useState<Record<string, RutinaEjercicioSerie[]>>({});
@@ -375,6 +394,59 @@ export default function AlumnoRutinaPage() {
     }
 
     setAlumnoId(alumno.id);
+
+    const { data: evaluacionesRMData, error: evaluacionesRMError } = await supabase
+      .from("evaluaciones_rm")
+      .select("id,nombre,fecha_realizacion,puede_cargar_alumno,permitir_carga_alumno")
+      .eq("alumno_id", alumno.id)
+      .eq("estado", "pendiente")
+      .is("deleted_at", null)
+      .order("fecha_realizacion", { ascending: true });
+
+    if (evaluacionesRMError) {
+      alert(evaluacionesRMError.message);
+      setLoading(false);
+      return;
+    }
+
+    const evaluacionIds = (evaluacionesRMData || []).map((evaluacion) => evaluacion.id);
+    let ejerciciosPorEvaluacion = new Map<string, string[]>();
+
+    if (evaluacionIds.length > 0) {
+      const { data: resultadosEvaluacionData, error: resultadosEvaluacionError } = await supabase
+        .from("evaluaciones_rm_resultados")
+        .select("evaluacion_rm_id, orden, ejercicio:ejercicios(nombre)")
+        .in("evaluacion_rm_id", evaluacionIds)
+        .order("orden", { ascending: true });
+
+      if (resultadosEvaluacionError) {
+        alert(resultadosEvaluacionError.message);
+        setLoading(false);
+        return;
+      }
+
+      ejerciciosPorEvaluacion = ((resultadosEvaluacionData || []) as EvaluacionRMResultadoDetalle[]).reduce(
+        (mapa, resultado) => {
+          const nombre = resultado.ejercicio?.nombre || "Ejercicio";
+          const actuales = mapa.get(resultado.evaluacion_rm_id) || [];
+          mapa.set(resultado.evaluacion_rm_id, [...actuales, nombre]);
+          return mapa;
+        },
+        new Map<string, string[]>()
+      );
+    }
+
+    setEvaluacionesPendientes(
+      (evaluacionesRMData || []).map((evaluacion) => ({
+        id: evaluacion.id,
+        tipo: "rm" as const,
+        nombre: evaluacion.nombre || "Evaluación de RM",
+        fecha_realizacion: evaluacion.fecha_realizacion,
+        puede_cargar_alumno:
+          evaluacion.puede_cargar_alumno || evaluacion.permitir_carga_alumno,
+        ejercicios: ejerciciosPorEvaluacion.get(evaluacion.id) || [],
+      }))
+    );
 
     const { data: asignacionesData, error: asignacionesError } = await supabase
       .from("rutina_asignaciones")
@@ -658,6 +730,23 @@ async function recargarManteniendoScroll() {
       behavior: "auto",
     });
   }, 0);
+}
+
+function formatearFechaEvaluacion(fecha?: string | null) {
+  if (!fecha) return "Sin fecha asignada";
+
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(fecha));
+}
+
+function toggleDetalleEvaluacion(evaluacionId: string) {
+  setEvaluacionesDetallesAbiertas((actual) => ({
+    ...actual,
+    [evaluacionId]: !actual[evaluacionId],
+  }));
 }
   
 // recalcularRMActual now imported from "@/lib/recalcularRMActual"
@@ -1957,6 +2046,77 @@ async function recargarManteniendoScroll() {
     );
   }
 
+  function renderEvaluacionCard(evaluacion: EvaluacionPendiente) {
+    return (
+      <div
+        key={evaluacion.id}
+        className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-5"
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">
+              Evaluación pendiente
+            </p>
+            <h3 className="text-xl font-bold">{evaluacion.nombre}</h3>
+            <div className="flex flex-wrap gap-2 mt-3 text-sm">
+              <span className="rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
+                Fecha: {formatearFechaEvaluacion(evaluacion.fecha_realizacion)}
+              </span>
+              <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
+                {evaluacion.puede_cargar_alumno
+                  ? "Disponible para completar"
+                  : "Asignada por tu profesor"}
+              </span>
+            </div>
+          </div>
+
+          {evaluacion.puede_cargar_alumno ? (
+            <a
+              href={`/alumno/evaluaciones/rm/${evaluacion.id}`}
+              className="rounded-xl bg-emerald-500 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-emerald-600"
+            >
+              Completar evaluación
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => toggleDetalleEvaluacion(evaluacion.id)}
+              className="rounded-xl border border-zinc-700 px-5 py-3 text-center text-sm font-semibold text-zinc-300 transition hover:bg-zinc-800"
+            >
+              {evaluacionesDetallesAbiertas[evaluacion.id] ? "Ocultar detalles" : "Ver detalles"}
+            </button>
+          )}
+        </div>
+        {!evaluacion.puede_cargar_alumno && evaluacionesDetallesAbiertas[evaluacion.id] && (
+          <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/70 p-4">
+            <p className="text-sm font-semibold text-zinc-300 mb-3">
+              Ejercicios a evaluar
+            </p>
+
+            {evaluacion.ejercicios && evaluacion.ejercicios.length > 0 ? (
+              <ul className="space-y-2 text-sm text-zinc-400">
+                {evaluacion.ejercicios.map((nombre, index) => (
+                  <li key={`${evaluacion.id}-${index}`} className="flex gap-2">
+                    <span className="text-zinc-600">•</span>
+                    <span>{nombre}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-zinc-500">
+                No hay ejercicios cargados para esta evaluación.
+              </p>
+            )}
+
+            <p className="mt-4 text-xs text-zinc-500">
+              Asignada para ser realizada por tu profesor.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const entrenamientosCompletados = rutinasAsignadas
     .filter((asignacion) => asignacionEstaCompletada(asignacion))
     .sort((a, b) => {
@@ -1980,6 +2140,9 @@ async function recargarManteniendoScroll() {
   const noHayEntrenamientos =
     proximosEntrenamientos.length === 0 &&
     entrenamientosCompletados.length === 0;
+
+  const noHayPendientes =
+    noHayEntrenamientos && evaluacionesPendientes.length === 0;
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
@@ -2035,17 +2198,33 @@ async function recargarManteniendoScroll() {
           nuevos entrenamientos.
         </p>
 
-        {noHayEntrenamientos ? (
+        {noHayPendientes ? (
           <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
             <h2 className="text-xl font-semibold">
-              No hay entrenamientos asignados
+              No hay rutinas ni evaluaciones asignadas
             </h2>
             <p className="text-zinc-400 mt-2">
-              Cuando tu profesor cargue una rutina, va a aparecer acá.
+              Cuando tu profesor cargue una rutina o evaluación, va a aparecer acá.
             </p>
           </section>
         ) : (
           <div className="space-y-5">
+            {evaluacionesPendientes.length > 0 && (
+              <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+                <div className="mb-5">
+                  <h2 className="text-2xl font-bold">Evaluaciones pendientes</h2>
+                  <p className="text-zinc-400 mt-1">
+                    {evaluacionesPendientes.length === 1
+                      ? "Tenés 1 evaluación pendiente."
+                      : `Tenés ${evaluacionesPendientes.length} evaluaciones pendientes.`}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {evaluacionesPendientes.map(renderEvaluacionCard)}
+                </div>
+              </section>
+            )}
             <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
               <button
                 type="button"

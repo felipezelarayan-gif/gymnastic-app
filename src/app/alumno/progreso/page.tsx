@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { obtenerRMsActualesAlumno, type RMActualCalculado } from "@/lib/rmActual";
 
 type Alumno = {
   id: string;
@@ -26,14 +27,6 @@ type RegistroEntrenamiento = {
   created_at?: string | null;
 };
 
-type RMActual = {
-  id: string;
-  ejercicio_id: string;
-  rm_calculado?: number | null;
-  peso_kg?: number | null;
-  repeticiones?: number | null;
-  actualizado_en?: string | null;
-};
 
 type Ejercicio = {
   id: string;
@@ -55,7 +48,7 @@ export default function MisProgresosPage() {
 
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const [registros, setRegistros] = useState<RegistroEntrenamiento[]>([]);
-  const [rmsActuales, setRmsActuales] = useState<RMActual[]>([]);
+  const [rmsActuales, setRmsActuales] = useState<RMActualCalculado[]>([]);
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
 
   const [verTodosRM, setVerTodosRM] = useState(false);
@@ -107,27 +100,18 @@ export default function MisProgresosPage() {
 
     setRegistros(registrosCompletados);
 
-    const { data: rmsData } = await supabase
-      .from("rms_actuales")
-      .select("id,ejercicio_id,rm_calculado,peso_kg,repeticiones,actualizado_en")
-      .eq("alumno_id", alumnoData.id);
+    const { data: rmsCalculados, error: rmsError } = await obtenerRMsActualesAlumno(alumnoData.id);
 
-    setRmsActuales(rmsData || []);
+    if (rmsError) {
+      alert(rmsError.message);
+      setLoading(false);
+      return;
+    }
+
+    setRmsActuales(rmsCalculados || []);
 
     const idsEjercicios = Array.from(
-      new Set(
-        [
-          ...(rmsData?.map((rm) => rm.ejercicio_id) || []),
-          ...registrosCompletados
-            .filter(
-              (registro) =>
-                registro.ejercicio_id &&
-                registro.rm_calculado !== null &&
-                registro.rm_calculado !== undefined
-            )
-            .map((registro) => registro.ejercicio_id as string),
-        ].filter(Boolean)
-      )
+      new Set((rmsCalculados || []).map((rm) => rm.ejercicio_id).filter(Boolean))
     );
 
     if (idsEjercicios.length > 0) {
@@ -171,40 +155,8 @@ export default function MisProgresosPage() {
   const ultimoEntrenamiento = registros[0]?.created_at || null;
 
   const rmsOrdenados = useMemo(() => {
-    const mapa = new Map<string, RMActual>();
-
-    rmsActuales.forEach((rm) => {
-      if (!rm.ejercicio_id) return;
-      mapa.set(rm.ejercicio_id, rm);
-    });
-
-    registros.forEach((registro) => {
-      if (
-        !registro.ejercicio_id ||
-        registro.rm_calculado === null ||
-        registro.rm_calculado === undefined
-      ) {
-        return;
-      }
-
-      const actual = mapa.get(registro.ejercicio_id);
-
-      if (Number(registro.rm_calculado) > Number(actual?.rm_calculado || 0)) {
-        mapa.set(registro.ejercicio_id, {
-          id: `registro-${registro.id}`,
-          ejercicio_id: registro.ejercicio_id,
-          rm_calculado: registro.rm_calculado,
-          peso_kg: registro.peso_kg,
-          repeticiones: registro.repeticiones,
-          actualizado_en: registro.created_at,
-        });
-      }
-    });
-
-    return Array.from(mapa.values()).sort(
-      (a, b) => Number(b.rm_calculado || 0) - Number(a.rm_calculado || 0)
-    );
-  }, [rmsActuales, registros]);
+    return rmsActuales;
+  }, [rmsActuales]);
 
   const rmsMostrados = verTodosRM ? rmsOrdenados : rmsOrdenados.slice(0, 5);
 
@@ -264,7 +216,7 @@ export default function MisProgresosPage() {
             <div>
               <h2 className="text-2xl font-bold">🏆 Mis mejores marcas</h2>
               <p className="text-zinc-400 text-sm mt-1">
-                Se muestran los 5 RM más altos.
+                Se muestran los RM vigentes calculados por la regla central del sistema.
               </p>
             </div>
 

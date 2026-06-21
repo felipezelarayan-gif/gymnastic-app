@@ -1,6 +1,5 @@
-
-
 import { supabase } from "@/lib/supabase";
+import { obtenerRMActualAlumnoEjercicio } from "@/lib/rmActual";
 
 type RecalcularRMActualParams = {
   alumnoId: string;
@@ -11,19 +10,14 @@ export async function recalcularRMActual({
   alumnoId,
   ejercicioId,
 }: RecalcularRMActualParams): Promise<void> {
-  const { data: historial, error: historialError } = await supabase
-    .from("rms_historial")
-    .select("ejercicio_id,peso_kg,repeticiones,rm_calculado")
-    .eq("alumno_id", alumnoId)
-    .eq("ejercicio_id", ejercicioId)
-    .order("rm_calculado", { ascending: false })
-    .limit(1);
+  const { data: mejorRM, error: rmError } = await obtenerRMActualAlumnoEjercicio(
+    alumnoId,
+    ejercicioId
+  );
 
-  if (historialError) {
-    throw historialError;
+  if (rmError) {
+    throw rmError;
   }
-
-  const mejorRM = historial?.[0];
 
   if (!mejorRM) {
     const { error: deleteError } = await supabase
@@ -57,6 +51,7 @@ export async function recalcularRMActual({
     repeticiones: mejorRM.repeticiones,
     rm_calculado: mejorRM.rm_calculado,
     actualizado_en: new Date().toISOString(),
+    evaluacion_rm_id: mejorRM.evaluacion_rm_id ?? null,
   };
 
   if (existente) {

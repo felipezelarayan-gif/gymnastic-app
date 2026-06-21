@@ -2,14 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import BackButton from "@/components/BackButton";
 
 type Profile = {
   nombre: string;
   rol: string;
   foto_url?: string | null;
 };
-
 
 const CREAR = [
   {
@@ -19,11 +17,10 @@ const CREAR = [
     desc: "Programar una evaluación de repetición máxima para un alumno.",
   },
   {
-    href: "#",
+    href: "/evaluaciones/crear/fms",
     emoji: "🧩",
     titulo: "Test FMS",
-    desc: "Próximamente. Evaluación de movimiento funcional (Functional Movement Screen).",
-    disabled: true,
+    desc: "Programar una evaluación de movimiento funcional (Functional Movement Screen).",
   },
 ];
 
@@ -36,20 +33,10 @@ const REALIZAR = [
     badge: "Actualiza rm_actual",
   },
   {
-    href: "#",
+    href: "/evaluaciones/realizar/fms",
     emoji: "🎯",
     titulo: "Test FMS",
-    desc: "Próximamente. Puntuar los 7 patrones de movimiento y registrar el resultado.",
-    disabled: true,
-  },
-];
-
-const GESTIONAR = [
-  {
-    href: "/evaluaciones/alumnos",
-    emoji: "📋",
-    titulo: "Evaluaciones por alumno",
-    desc: "Buscar un alumno, ver sus evaluaciones y eliminar evaluaciones RM desde una pantalla específica.",
+    desc: "Puntuar los 7 patrones de movimiento y registrar el resultado.",
   },
 ];
 
@@ -93,9 +80,11 @@ export default function EvaluacionesPage() {
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-5xl mx-auto">
 
-        <div className="mb-6">
-          <BackButton />
-        </div>
+        <nav className="flex items-center gap-2 text-sm text-zinc-500 mb-6">
+          <a href="/" className="hover:text-zinc-300 transition">Panel del profe</a>
+          <span>/</span>
+          <span className="text-zinc-200">Evaluaciones</span>
+        </nav>
 
         <header className="mb-10">
           <h1 className="text-3xl font-bold">📏 Evaluaciones</h1>
@@ -119,14 +108,9 @@ export default function EvaluacionesPage() {
               <a
                 key={card.href}
                 href={card.href}
-                className={`rounded-xl border p-6 transition group ${card.disabled ? "border-zinc-900 bg-zinc-900/40 opacity-60 cursor-not-allowed pointer-events-none" : "border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-700"}`}
+                className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 hover:border-zinc-700 transition group"
               >
                 <h2 className="text-xl font-semibold">{card.emoji} {card.titulo}</h2>
-                {card.disabled && (
-                  <span className="mt-2 inline-block text-[10px] font-semibold uppercase tracking-widest bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">
-                    Próximamente
-                  </span>
-                )}
                 <p className="text-zinc-400 mt-2 text-sm leading-relaxed">{card.desc}</p>
               </a>
             ))}
@@ -160,14 +144,9 @@ export default function EvaluacionesPage() {
               <a
                 key={card.href}
                 href={card.href}
-                className={`rounded-xl border p-6 transition group ${card.disabled ? "border-zinc-900 bg-zinc-900/40 opacity-60 cursor-not-allowed pointer-events-none" : "border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-700"}`}
+                className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 hover:border-zinc-700 transition group"
               >
                 <h2 className="text-xl font-semibold">{card.emoji} {card.titulo}</h2>
-                {card.disabled && (
-                  <span className="mt-2 inline-block text-[10px] font-semibold uppercase tracking-widest bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">
-                    Próximamente
-                  </span>
-                )}
                 <p className="text-zinc-400 mt-2 text-sm leading-relaxed">{card.desc}</p>
                 {card.badge && (
                   <span className="mt-4 inline-block text-xs font-medium bg-emerald-900/50 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full">
@@ -189,30 +168,6 @@ export default function EvaluacionesPage() {
                 Tests físicos, morfológicos, posturales y evaluaciones personalizadas.
               </p>
             </div>
-          </div>
-        </section>
-
-        {/* Sección: Evaluaciones por alumno */}
-        {/* Sección: Gestionar */}
-        <section className="mt-10">
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
-              Gestionar evaluaciones
-            </span>
-            <div className="flex-1 h-px bg-zinc-800" />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {GESTIONAR.map((card) => (
-              <a
-                key={card.href}
-                href={card.href}
-                className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 hover:border-zinc-700 transition group"
-              >
-                <h2 className="text-xl font-semibold">{card.emoji} {card.titulo}</h2>
-                <p className="text-zinc-400 mt-2 text-sm leading-relaxed">{card.desc}</p>
-              </a>
-            ))}
           </div>
         </section>
 

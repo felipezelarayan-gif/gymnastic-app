@@ -3,16 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
-
-type RMActual = {
-  id: string;
-  alumno_id: string;
-  ejercicio_id: string;
-  peso_kg?: number | string | null;
-  repeticiones?: number | string | null;
-  rm_calculado?: number | string | null;
-  actualizado_en?: string | null;
-};
+import { obtenerRMsActualesAlumno, type RMActualCalculado } from "@/lib/rmActual";
 
 type RMHistorial = {
   id: string;
@@ -24,17 +15,6 @@ type RMHistorial = {
   fecha?: string | null;
   created_at?: string | null;
   origen?: string | null;
-};
-
-type RegistroEntrenamientoRM = {
-  id: string;
-  alumno_id: string;
-  ejercicio_id?: string | null;
-  nombre_ejercicio?: string | null;
-  peso_kg?: number | string | null;
-  repeticiones?: number | string | null;
-  rm_calculado?: number | string | null;
-  created_at?: string | null;
 };
 
 type EjercicioNombre = {
@@ -58,7 +38,7 @@ function numero(valor?: number | string | null) {
 
 export default function AlumnoRMProfesor({ alumnoId }: Props) {
   const [loading, setLoading] = useState(true);
-  const [rmsActuales, setRmsActuales] = useState<RMActual[]>([]);
+  const [rmsActuales, setRmsActuales] = useState<RMActualCalculado[]>([]);
   const [historial, setHistorial] = useState<RMHistorial[]>([]);
   const [nombres, setNombres] = useState<EjercicioNombre[]>([]);
   const [abiertos, setAbiertos] = useState<Record<string, boolean>>({});
@@ -70,18 +50,6 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
 
   async function cargarRM() {
     setLoading(true);
-
-    const { data: actualesData, error: actualesError } = await supabase
-      .from("rms_actuales")
-      .select("id,alumno_id,ejercicio_id,peso_kg,repeticiones,rm_calculado,actualizado_en")
-      .eq("alumno_id", alumnoId)
-      .order("actualizado_en", { ascending: false });
-
-    if (actualesError) {
-      alert(actualesError.message);
-      setLoading(false);
-      return;
-    }
 
     const { data: historialData, error: historialError } = await supabase
       .from("rms_historial")
@@ -95,59 +63,19 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
       return;
     }
 
-    const { data: registrosData, error: registrosError } = await supabase
-      .from("registros_entrenamiento")
-      .select(
-        "id,alumno_id,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rm_calculado,created_at"
-      )
-      .eq("alumno_id", alumnoId)
-      .eq("completado", true)
-      .not("rm_calculado", "is", null)
-      .order("created_at", { ascending: false });
+    const { data: rmsActualesCombinados, error: rmsActualesError } = await obtenerRMsActualesAlumno(alumnoId);
 
-    if (registrosError) {
-      alert(registrosError.message);
+    if (rmsActualesError) {
+      alert(rmsActualesError.message);
       setLoading(false);
       return;
     }
-
-    const rmsPorEjercicio = new Map<string, RMActual>();
-
-    ((actualesData || []) as RMActual[]).forEach((item) => {
-      if (!item.ejercicio_id) return;
-      rmsPorEjercicio.set(item.ejercicio_id, item);
-    });
-
-    ((registrosData || []) as RegistroEntrenamientoRM[]).forEach((registro) => {
-      if (!registro.ejercicio_id || registro.rm_calculado === null || registro.rm_calculado === undefined) {
-        return;
-      }
-
-      const actual = rmsPorEjercicio.get(registro.ejercicio_id);
-
-      if (Number(registro.rm_calculado) > Number(actual?.rm_calculado || 0)) {
-        rmsPorEjercicio.set(registro.ejercicio_id, {
-          id: `registro-${registro.id}`,
-          alumno_id: registro.alumno_id,
-          ejercicio_id: registro.ejercicio_id,
-          peso_kg: registro.peso_kg,
-          repeticiones: registro.repeticiones,
-          rm_calculado: registro.rm_calculado,
-          actualizado_en: registro.created_at,
-        });
-      }
-    });
-
-    const rmsActualesCombinados = Array.from(rmsPorEjercicio.values()).sort(
-      (a, b) => Number(b.rm_calculado || 0) - Number(a.rm_calculado || 0)
-    );
 
     const ejercicioIds = Array.from(
       new Set(
         [
           ...rmsActualesCombinados.map((item) => item.ejercicio_id),
           ...(historialData || []).map((item) => item.ejercicio_id),
-          ...(registrosData || []).map((item) => item.ejercicio_id),
         ].filter(Boolean)
       )
     );
@@ -172,12 +100,6 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
       });
 
       (rutinaEjerciciosData || []).forEach((item) => {
-        if (item.ejercicio_id && item.nombre_ejercicio) {
-          mapa.set(item.ejercicio_id, item.nombre_ejercicio);
-        }
-      });
-
-      ((registrosData || []) as RegistroEntrenamientoRM[]).forEach((item) => {
         if (item.ejercicio_id && item.nombre_ejercicio) {
           mapa.set(item.ejercicio_id, item.nombre_ejercicio);
         }
@@ -256,7 +178,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
         <div>
           <h2 className="text-xl font-semibold">🏆 Récords Máximos (RM)</h2>
           <p className="text-zinc-500 text-sm mt-1">
-            Se muestran solo récords nuevos o registros cargados desde evaluaciones.
+            Se muestran los RM vigentes calculados por la regla central del sistema.
           </p>
         </div>
       </div>

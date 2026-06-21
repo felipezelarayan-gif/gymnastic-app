@@ -47,6 +47,14 @@ type RutinaEjercicio = {
   rutina_id: string;
 };
 
+type EvaluacionPendiente = {
+  id: string;
+  tipo: "rm";
+  nombre: string;
+  fecha_realizacion?: string | null;
+  puede_cargar_alumno?: boolean | null;
+};
+
 type RegistroEntrenamiento = {
   id: string;
   alumno_id: string;
@@ -107,6 +115,9 @@ export default function AlumnoHomePage() {
   const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>(
     []
   );
+  const [evaluacionesPendientes, setEvaluacionesPendientes] = useState<
+    EvaluacionPendiente[]
+  >([]);
   const [ejerciciosRutina, setEjerciciosRutina] = useState<RutinaEjercicio[]>(
     []
   );
@@ -177,6 +188,25 @@ export default function AlumnoHomePage() {
     );
 
     setRutinasAsignadas(asignaciones);
+
+    const { data: evaluacionesRMData } = await supabase
+      .from("evaluaciones_rm")
+      .select("id,nombre,fecha_realizacion,puede_cargar_alumno,permitir_carga_alumno")
+      .eq("alumno_id", alumnoData.id)
+      .eq("estado", "pendiente")
+      .is("deleted_at", null)
+      .order("fecha_realizacion", { ascending: true });
+
+    setEvaluacionesPendientes(
+      (evaluacionesRMData || []).map((evaluacion) => ({
+        id: evaluacion.id,
+        tipo: "rm" as const,
+        nombre: evaluacion.nombre || "Evaluación de RM",
+        fecha_realizacion: evaluacion.fecha_realizacion,
+        puede_cargar_alumno:
+          evaluacion.puede_cargar_alumno || evaluacion.permitir_carga_alumno,
+      }))
+    );
 
     const rutinaIds = asignaciones.map((item) => item.rutina_id);
 
@@ -265,6 +295,27 @@ export default function AlumnoHomePage() {
     );
   }, [rutinasAsignadas]);
 
+  const evaluacionPendiente = useMemo(() => {
+    return evaluacionesPendientes[0] || null;
+  }, [evaluacionesPendientes]);
+
+  const pendientePrincipal = useMemo(() => {
+    if (!rutinaPendiente && !evaluacionPendiente) return null;
+    if (rutinaPendiente && !evaluacionPendiente) return { tipo: "rutina" as const, item: rutinaPendiente };
+    if (!rutinaPendiente && evaluacionPendiente) return { tipo: "evaluacion" as const, item: evaluacionPendiente };
+
+    const fechaRutina = rutinaPendiente?.fecha_asignacion
+      ? new Date(rutinaPendiente.fecha_asignacion).getTime()
+      : Number.MAX_SAFE_INTEGER;
+    const fechaEvaluacion = evaluacionPendiente?.fecha_realizacion
+      ? new Date(evaluacionPendiente.fecha_realizacion).getTime()
+      : Number.MAX_SAFE_INTEGER;
+
+    return fechaEvaluacion < fechaRutina
+      ? { tipo: "evaluacion" as const, item: evaluacionPendiente! }
+      : { tipo: "rutina" as const, item: rutinaPendiente! };
+  }, [rutinaPendiente, evaluacionPendiente]);
+
   const rutinasCompletadas = useMemo(() => {
     return rutinasAsignadas.filter((item) => item.completada).length;
   }, [rutinasAsignadas]);
@@ -332,7 +383,10 @@ export default function AlumnoHomePage() {
     : 0;
 
   const tuvoRutinas = rutinasAsignadas.length > 0;
-  const tienePendiente = Boolean(rutinaPendiente);
+  const tuvoEvaluaciones = evaluacionesPendientes.length > 0;
+  const tieneRutinaPendiente = Boolean(rutinaPendiente);
+  const tieneEvaluacionPendiente = Boolean(evaluacionPendiente);
+  const tienePendiente = Boolean(pendientePrincipal);
 
   if (loading) {
     return (
@@ -375,7 +429,7 @@ export default function AlumnoHomePage() {
 
         {seccionActiva === "inicio" && (
           <>
-            {tienePendiente && rutinaPendiente ? (
+            {tienePendiente && pendientePrincipal?.tipo === "rutina" && rutinaPendiente ? (
               <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 mb-4">
                 <span className="text-emerald-400 text-xl mt-0.5">🎯</span>
                 <div className="flex-1">
@@ -400,7 +454,35 @@ export default function AlumnoHomePage() {
                   </div>
                 </div>
               </div>
-            ) : tuvoRutinas ? (
+            ) : tienePendiente && pendientePrincipal?.tipo === "evaluacion" && evaluacionPendiente ? (
+              <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 mb-4">
+                <span className="text-emerald-400 text-xl mt-0.5">📋</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-emerald-300">
+                    Evaluación pendiente
+                  </p>
+                  <p className="text-lg font-bold mt-1">
+                    {evaluacionPendiente.nombre}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2 text-sm">
+                    {evaluacionPendiente.fecha_realizacion && (
+                      <span className="rounded-full bg-zinc-800 px-3 py-1">
+                        Fecha asignada: {new Intl.DateTimeFormat("es-AR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        }).format(new Date(evaluacionPendiente.fecha_realizacion))}
+                      </span>
+                    )}
+                    <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
+                      {evaluacionPendiente.puede_cargar_alumno
+                        ? "Disponible para completar"
+                        : "Asignada por tu profesor"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : tuvoRutinas || tuvoEvaluaciones ? (
               <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 mb-4">
                 <span className="text-emerald-400 text-xl mt-0.5">✅</span>
                 <div>
@@ -408,7 +490,7 @@ export default function AlumnoHomePage() {
                     Planificación completada
                   </p>
                   <p className="text-zinc-400 text-sm mt-1">
-                    Esperá a que tu profesor te asigne nuevas rutinas.
+                    Esperá a que tu profesor te asigne nuevas rutinas o evaluaciones.
                   </p>
                 </div>
               </div>
@@ -417,7 +499,7 @@ export default function AlumnoHomePage() {
                 <h2 className="text-xl font-semibold">👋 Bienvenido</h2>
 
                 <p className="text-zinc-400 mt-2">
-                  Todavía no tenés rutinas asignadas.
+                  Todavía no tenés rutinas ni evaluaciones asignadas.
                 </p>
               </section>
             )}
@@ -429,7 +511,7 @@ export default function AlumnoHomePage() {
               >
                 <h2 className="text-xl font-semibold">🏋️ Mi rutina</h2>
                 <p className="text-zinc-400 mt-2">
-                  Ver rutina actual y completar ejercicios.
+                  Ver rutina actual, evaluaciones y completar pendientes.
                 </p>
               </Link>
 
