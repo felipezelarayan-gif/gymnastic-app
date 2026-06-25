@@ -14,6 +14,8 @@ type ModoCarga = "protocolo" | "rapida" | null;
 type EvaluacionRM = {
   id: string;
   alumno_id: string;
+  profesor_id?: string | null;
+  estado?: string | null;
   fecha_realizacion: string | null;
   observaciones: string | null;
 };
@@ -21,6 +23,7 @@ type EvaluacionRM = {
 type Alumno = {
   id: string;
   nombre: string;
+  profesor_id?: string | null;
 };
 
 type IntentoProtocolo = {
@@ -151,15 +154,28 @@ export default function RealizarEvaluacionRMDetalle() {
   const [resultados, setResultados] = useState<ResultadoRM[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito] = useState(false);
+  const [profesorId, setProfesorId] = useState<string | null>(null);
 
   useEffect(() => {
     async function cargarEvaluacion() {
       if (!evaluacionId) return;
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const profesorActualId = sessionData.session?.user.id;
+
+      if (!profesorActualId) {
+        alert("No se pudo identificar al profesor. Volvé a iniciar sesión.");
+        window.location.href = "/login";
+        return;
+      }
+
+      setProfesorId(profesorActualId);
+
       const { data: evaluacionData, error: evaluacionError } = await supabase
         .from("evaluaciones_rm")
-        .select("id, alumno_id, fecha_realizacion, observaciones")
+        .select("id, alumno_id, profesor_id, estado, fecha_realizacion, observaciones")
         .eq("id", evaluacionId)
+        .eq("profesor_id", profesorActualId)
         .single();
 
       if (evaluacionError || !evaluacionData) {
@@ -173,7 +189,12 @@ export default function RealizarEvaluacionRMDetalle() {
         { data: resultadosData, error: resultadosError },
         { data: rmsActualesData, error: rmsActualesError },
       ] = await Promise.all([
-        supabase.from("alumnos").select("id, nombre").eq("id", evaluacionData.alumno_id).single(),
+        supabase
+          .from("alumnos")
+          .select("id, nombre, profesor_id")
+          .eq("id", evaluacionData.alumno_id)
+          .eq("profesor_id", profesorActualId)
+          .single(),
         supabase
           .from("evaluaciones_rm_resultados")
           .select("id, evaluacion_rm_id, ejercicio_id, orden, metodo, peso_usado, repeticiones, rm_estimado, rm_final, completado, observaciones, ejercicio:ejercicios(id, nombre)")
@@ -226,6 +247,36 @@ export default function RealizarEvaluacionRMDetalle() {
 
     cargarEvaluacion();
   }, [evaluacionId]);
+  async function validarEvaluacionPropia() {
+    if (!evaluacion || !profesorId) {
+      alert("No se pudo validar la evaluación actual.");
+      return false;
+    }
+
+    const { data: evaluacionPropia, error } = await supabase
+      .from("evaluaciones_rm")
+      .select("id, alumno_id, profesor_id, estado")
+      .eq("id", evaluacion.id)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (error) {
+      alert(error.message);
+      return false;
+    }
+
+    if (!evaluacionPropia) {
+      alert("No tenés permiso para modificar esta evaluación.");
+      return false;
+    }
+
+    if (evaluacionPropia.alumno_id !== evaluacion.alumno_id) {
+      alert("La evaluación no coincide con el alumno cargado.");
+      return false;
+    }
+
+    return true;
+  }
 
   function actualizarResultadoRapido(
     resultadoId: string,
@@ -269,6 +320,13 @@ export default function RealizarEvaluacionRMDetalle() {
     }
 
     setGuardando(true);
+
+    const evaluacionValida = await validarEvaluacionPropia();
+    if (!evaluacionValida) {
+      setGuardando(false);
+      return;
+    }
+
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id ?? null;
 
@@ -285,7 +343,8 @@ export default function RealizarEvaluacionRMDetalle() {
           completado: true,
           actualizado_en: new Date().toISOString(),
         })
-        .eq("id", resultado.id);
+        .eq("id", resultado.id)
+        .eq("evaluacion_rm_id", evaluacion.id);
 
       if (resultadoError) {
         setGuardando(false);
@@ -296,6 +355,7 @@ export default function RealizarEvaluacionRMDetalle() {
       const { data: historialExistente, error: buscarHistorialError } = await supabase
         .from("rms_historial")
         .select("id")
+        .eq("evaluacion_rm_id", evaluacion.id)
         .eq("evaluacion_rm_resultado_id", resultado.id)
         .maybeSingle();
 
@@ -346,7 +406,8 @@ export default function RealizarEvaluacionRMDetalle() {
         estado: "cargado",
         updated_at: new Date().toISOString(),
       })
-      .eq("id", evaluacion.id);
+      .eq("id", evaluacion.id)
+      .eq("profesor_id", profesorId);
 
     setGuardando(false);
 
@@ -416,6 +477,13 @@ export default function RealizarEvaluacionRMDetalle() {
     }
 
     setGuardando(true);
+
+    const evaluacionValida = await validarEvaluacionPropia();
+    if (!evaluacionValida) {
+      setGuardando(false);
+      return;
+    }
+
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id ?? null;
 
@@ -456,7 +524,8 @@ export default function RealizarEvaluacionRMDetalle() {
           mejor_intento_numero: mejorIntento.numero,
           actualizado_en: new Date().toISOString(),
         })
-        .eq("id", resultado.id);
+        .eq("id", resultado.id)
+        .eq("evaluacion_rm_id", evaluacion.id);
 
       if (resultadoError) {
         setGuardando(false);
@@ -467,6 +536,7 @@ export default function RealizarEvaluacionRMDetalle() {
       const { data: historialExistente, error: buscarHistorialError } = await supabase
         .from("rms_historial")
         .select("id")
+        .eq("evaluacion_rm_id", evaluacion.id)
         .eq("evaluacion_rm_resultado_id", resultado.id)
         .maybeSingle();
 
@@ -517,7 +587,8 @@ export default function RealizarEvaluacionRMDetalle() {
         estado: "cargado",
         updated_at: new Date().toISOString(),
       })
-      .eq("id", evaluacion.id);
+      .eq("id", evaluacion.id)
+      .eq("profesor_id", profesorId);
 
     setGuardando(false);
 

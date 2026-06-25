@@ -748,6 +748,15 @@ function toggleDetalleEvaluacion(evaluacionId: string) {
     [evaluacionId]: !actual[evaluacionId],
   }));
 }
+
+function navegarACompletarEvaluacion(evaluacionId: string) {
+  if (hayProgresoPendiente()) {
+    guardarProgresoLocal();
+  }
+
+  permitirSalidaRef.current = true;
+  window.location.href = `/alumno/evaluaciones/rm/${evaluacionId}`;
+}
   
 // recalcularRMActual now imported from "@/lib/recalcularRMActual"
 
@@ -2071,12 +2080,13 @@ function toggleDetalleEvaluacion(evaluacionId: string) {
           </div>
 
           {evaluacion.puede_cargar_alumno ? (
-            <a
-              href={`/alumno/evaluaciones/rm/${evaluacion.id}`}
+            <button
+              type="button"
+              onClick={() => navegarACompletarEvaluacion(evaluacion.id)}
               className="rounded-xl bg-emerald-500 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-emerald-600"
             >
               Completar evaluación
-            </a>
+            </button>
           ) : (
             <button
               type="button"

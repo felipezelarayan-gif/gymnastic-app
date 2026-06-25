@@ -40,6 +40,7 @@ type EvaluacionRM = {
 type Alumno = {
   id: string;
   nombre: string;
+  user_id?: string | null;
 };
 
 type ResultadoRM = {
@@ -154,6 +155,7 @@ export default function RealizarEvaluacionRMDetalle() {
   const [resultados, setResultados] = useState<ResultadoRM[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito] = useState(false);
+  const [alumnoActualId, setAlumnoActualId] = useState<string | null>(null);
 
   function puedeGuardarEvaluacion() {
     if (!evaluacion) return false;
@@ -257,13 +259,15 @@ export default function RealizarEvaluacionRMDetalle() {
         completado: true,
         actualizado_en: new Date().toISOString(),
       })
-      .eq("id", resultado.id);
+      .eq("id", resultado.id)
+      .eq("evaluacion_rm_id", evaluacion.id);
 
     if (resultadoError) throw resultadoError;
 
     const { data: historialExistente, error: buscarHistorialError } = await supabase
       .from("rms_historial")
       .select("id")
+      .eq("evaluacion_rm_id", evaluacion.id)
       .eq("evaluacion_rm_resultado_id", resultado.id)
       .maybeSingle();
 
@@ -294,6 +298,43 @@ export default function RealizarEvaluacionRMDetalle() {
     });
   }
 
+  async function validarEvaluacionAlumnoActual() {
+    if (!evaluacion || !alumnoActualId) {
+      alert("No se pudo validar el alumno actual.");
+      return false;
+    }
+
+    const { data: evaluacionPropia, error } = await supabase
+      .from("evaluaciones_rm")
+      .select("id, alumno_id, estado, puede_cargar_alumno, permitir_carga_alumno, asignada_al_alumno")
+      .eq("id", evaluacion.id)
+      .eq("alumno_id", alumnoActualId)
+      .maybeSingle();
+
+    if (error) {
+      alert(error.message);
+      return false;
+    }
+
+    if (!evaluacionPropia) {
+      alert("No tenés permiso para modificar esta evaluación.");
+      return false;
+    }
+
+    const habilitada =
+      evaluacionPropia.estado === "pendiente" &&
+      (evaluacionPropia.puede_cargar_alumno === true ||
+        evaluacionPropia.permitir_carga_alumno === true ||
+        evaluacionPropia.asignada_al_alumno === true);
+
+    if (!habilitada) {
+      alert("Esta evaluación no está habilitada para ser completada por el alumno.");
+      return false;
+    }
+
+    return true;
+  }
+
   async function guardarEvaluacionRapida() {
     if (guardando || !evaluacion) return;
 
@@ -313,6 +354,12 @@ export default function RealizarEvaluacionRMDetalle() {
 
     setGuardando(true);
 
+    const evaluacionValida = await validarEvaluacionAlumnoActual();
+    if (!evaluacionValida) {
+      setGuardando(false);
+      return;
+    }
+
     for (const resultado of resultados) {
       try {
         await guardarResultadoEnBD(resultado);
@@ -329,7 +376,8 @@ export default function RealizarEvaluacionRMDetalle() {
         estado: "cargado",
         updated_at: new Date().toISOString(),
       })
-      .eq("id", evaluacion.id);
+      .eq("id", evaluacion.id)
+      .eq("alumno_id", alumnoActualId);
 
     setGuardando(false);
 
@@ -360,6 +408,12 @@ export default function RealizarEvaluacionRMDetalle() {
     }
 
     setGuardando(true);
+
+    const evaluacionValida = await validarEvaluacionAlumnoActual();
+    if (!evaluacionValida) {
+      setGuardando(false);
+      return;
+    }
 
     for (const resultado of resultados) {
       const intentos = resultado.intentos_protocolo || [];
@@ -408,7 +462,8 @@ export default function RealizarEvaluacionRMDetalle() {
             mejor_intento_numero: mejorIntento.numero,
             actualizado_en: new Date().toISOString(),
           })
-          .eq("id", resultado.id);
+          .eq("id", resultado.id)
+          .eq("evaluacion_rm_id", evaluacion.id);
 
         if (resultadoError) throw resultadoError;
 
@@ -426,7 +481,8 @@ export default function RealizarEvaluacionRMDetalle() {
         estado: "cargado",
         updated_at: new Date().toISOString(),
       })
-      .eq("id", evaluacion.id);
+      .eq("id", evaluacion.id)
+      .eq("alumno_id", alumnoActualId);
 
     setGuardando(false);
 
@@ -442,10 +498,40 @@ export default function RealizarEvaluacionRMDetalle() {
     async function cargarEvaluacion() {
       if (!evaluacionId) return;
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+
+      if (!userId) {
+        alert("No se pudo identificar al alumno. Volvé a iniciar sesión.");
+        window.location.href = "/login";
+        return;
+      }
+
+      const { data: alumnoActual, error: alumnoActualError } = await supabase
+        .from("alumnos")
+        .select("id, nombre, user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (alumnoActualError) {
+        alert(alumnoActualError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!alumnoActual) {
+        alert("No se encontró el alumno asociado a este usuario.");
+        setLoading(false);
+        return;
+      }
+
+      setAlumnoActualId(alumnoActual.id);
+
       const { data: evaluacionData, error: evaluacionError } = await supabase
         .from("evaluaciones_rm")
         .select("id, alumno_id, fecha_realizacion, observaciones, estado, puede_cargar_alumno, permitir_carga_alumno, asignada_al_alumno")
         .eq("id", evaluacionId)
+        .eq("alumno_id", alumnoActual.id)
         .single();
 
       if (evaluacionError || !evaluacionData) {
@@ -459,7 +545,12 @@ export default function RealizarEvaluacionRMDetalle() {
         { data: resultadosData, error: resultadosError },
         { data: rmsActualesData, error: rmsActualesError },
       ] = await Promise.all([
-        supabase.from("alumnos").select("id, nombre").eq("id", evaluacionData.alumno_id).single(),
+        supabase
+          .from("alumnos")
+          .select("id, nombre, user_id")
+          .eq("id", evaluacionData.alumno_id)
+          .eq("user_id", userId)
+          .single(),
         supabase
           .from("evaluaciones_rm_resultados")
           .select("id, evaluacion_rm_id, ejercicio_id, orden, metodo, peso_usado, repeticiones, rm_estimado, rm_final, completado, observaciones, ejercicio:ejercicios(id, nombre)")

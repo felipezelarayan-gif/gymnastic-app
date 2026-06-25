@@ -11,6 +11,7 @@ type Alumno = {
   nombre: string | null;
   apellido?: string | null;
   email?: string | null;
+  profesor_id?: string | null;
 };
 
 type Rutina = {
@@ -20,6 +21,7 @@ type Rutina = {
   objetivo?: string | null;
   estructura?: string | null;
   entrada_calor?: string | null;
+  profesor_id?: string | null;
 };
 
 type RutinaAsignada = {
@@ -206,7 +208,7 @@ function claveProgresoLocal(alumnoId: string) {
 
 // ─── PanelAlumno ─────────────────────────────────────────────────────────────
 
-function PanelAlumno({ alumno }: { alumno: Alumno }) {
+function PanelAlumno({ alumno, profesorId }: { alumno: Alumno; profesorId: string | null }) {
   const alumnoId = alumno.id;
 
   const [loading, setLoading] = useState(true);
@@ -281,11 +283,45 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
 
   async function cargarTodo() {
     setLoading(true);
+    if (!profesorId) {
+      setRutinasAsignadas([]);
+      setEjerciciosPorRutina({});
+      setSeriesPorEjercicio({});
+      setEntradaPorRutina({});
+      setRegistros([]);
+      setRmsActuales([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: alumnoPropio, error: alumnoPropioError } = await supabase
+      .from("alumnos")
+      .select("id")
+      .eq("id", alumnoId)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (alumnoPropioError) {
+      alert(alumnoPropioError.message);
+      setLoading(false);
+      return;
+    }
+
+    if (!alumnoPropio) {
+      setRutinasAsignadas([]);
+      setEjerciciosPorRutina({});
+      setSeriesPorEjercicio({});
+      setEntradaPorRutina({});
+      setRegistros([]);
+      setRmsActuales([]);
+      setLoading(false);
+      return;
+    }
 
     const asignacionesSelect = `
         id, rutina_id, activa, fecha_asignacion, orden,
         completada, fecha_completada, created_at,
-        rutinas (id, nombre, descripcion, objetivo, estructura, entrada_calor)
+        rutinas (id, nombre, descripcion, objetivo, estructura, entrada_calor, profesor_id)
       `;
 
     const { data: asignacionesActivasData, error: asignacionesActivasError } = await supabase
@@ -322,22 +358,28 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
       return;
     }
 
+    const asignacionesPropias = ((asignacionesData || []) as RutinaAsignacionResponse[]).filter(
+      (item) => {
+        const rutina = normalizarRutina(item.rutinas);
+        return rutina?.profesor_id === profesorId;
+      }
+    );
+
     const rutinaIds = Array.from(
-      new Set((asignacionesData || []).map((item) => item.rutina_id).filter(Boolean))
+      new Set(asignacionesPropias.map((item) => item.rutina_id).filter(Boolean))
     );
 
     let rutinasBase: Rutina[] = [];
     if (rutinaIds.length > 0) {
       const { data: rutinasData } = await supabase
         .from("rutinas")
-        .select("id,nombre,descripcion,objetivo,estructura,entrada_calor")
-        .in("id", rutinaIds);
+        .select("id,nombre,descripcion,objetivo,estructura,entrada_calor,profesor_id")
+        .in("id", rutinaIds)
+        .eq("profesor_id", profesorId);
       rutinasBase = rutinasData || [];
     }
 
-    const asignacionesTipadas = (
-      (asignacionesData || []) as RutinaAsignacionResponse[]
-    ).map((item) => {
+    const asignacionesTipadas = asignacionesPropias.map((item) => {
       const rutinaRelacion = normalizarRutina(item.rutinas);
       const rutinaManual = rutinasBase.find((r) => r.id === item.rutina_id) || null;
       return {
@@ -405,6 +447,14 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
       agrupadosEjercicios[item.rutina_id].push(item);
     });
 
+    const ejercicioIdsPropios = Array.from(
+      new Set(
+        (rutinaEjercicios || [])
+          .map((item) => item.ejercicio_id)
+          .filter(Boolean)
+      )
+    ) as string[];
+
     // Entrada en calor
     const { data: entrada, error: entradaError } = await supabase
       .from("rutina_entrada_calor")
@@ -434,18 +484,30 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
       .in("rutina_asignacion_id", asignacionIds)
       .eq("completado", true);
 
-    // RMs
-    const { data: rms } = await supabase
-      .from("rms_actuales")
-      .select("id,ejercicio_id,rm_calculado")
-      .eq("alumno_id", alumnoId);
+    // RMs: solo ejercicios que pertenecen a rutinas propias cargadas en este panel
+    let rms: RMActual[] = [];
+    if (ejercicioIdsPropios.length > 0) {
+      const { data: rmsData, error: rmsError } = await supabase
+        .from("rms_actuales")
+        .select("id,ejercicio_id,rm_calculado")
+        .eq("alumno_id", alumnoId)
+        .in("ejercicio_id", ejercicioIdsPropios);
+
+      if (rmsError) {
+        alert(rmsError.message);
+        setLoading(false);
+        return;
+      }
+
+      rms = (rmsData || []) as RMActual[];
+    }
 
     setRutinasAsignadas(asignacionesTipadas);
     setEjerciciosPorRutina(agrupadosEjercicios);
     setSeriesPorEjercicio(seriesAgrupadas);
     setEntradaPorRutina(agrupadaEntrada);
     setRegistros(registrosData || []);
-    setRmsActuales(rms || []);
+    setRmsActuales(rms);
     setLoading(false);
   }
 
@@ -497,6 +559,71 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
     setRutinasAbiertas((prev) => ({ ...prev, [asignacionId]: !prev[asignacionId] }));
   }
 
+  async function validarAccionAsignacion(asignacionId: string, rutinaId?: string) {
+    if (!profesorId) {
+      alert("No se pudo validar el profesor actual.");
+      return null;
+    }
+
+    const { data: alumnoPropio, error: alumnoError } = await supabase
+      .from("alumnos")
+      .select("id")
+      .eq("id", alumnoId)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (alumnoError) {
+      alert(alumnoError.message);
+      return null;
+    }
+
+    if (!alumnoPropio) {
+      alert("No tenés permiso para modificar este alumno.");
+      return null;
+    }
+
+    let asignacionQuery = supabase
+      .from("rutina_asignaciones")
+      .select("id, alumno_id, rutina_id")
+      .eq("id", asignacionId)
+      .eq("alumno_id", alumnoId);
+
+    if (rutinaId) {
+      asignacionQuery = asignacionQuery.eq("rutina_id", rutinaId);
+    }
+
+    const { data: asignacionPropia, error: asignacionError } = await asignacionQuery.maybeSingle();
+
+    if (asignacionError) {
+      alert(asignacionError.message);
+      return null;
+    }
+
+    if (!asignacionPropia) {
+      alert("No se encontró una asignación válida para este alumno.");
+      return null;
+    }
+
+    const { data: rutinaPropia, error: rutinaError } = await supabase
+      .from("rutinas")
+      .select("id")
+      .eq("id", asignacionPropia.rutina_id)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (rutinaError) {
+      alert(rutinaError.message);
+      return null;
+    }
+
+    if (!rutinaPropia) {
+      alert("No tenés permiso para modificar esta rutina.");
+      return null;
+    }
+
+    return asignacionPropia;
+  }
+
   // ─── Acciones ──────────────────────────────────────────────────────────────
 
   function guardarProgresoActual() {
@@ -524,6 +651,9 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
   async function deshacerEntradaCalor(rutinaId: string, entradaId: string, asignacionId: string) {
     if (!confirm("¿Querés deshacer esta entrada en calor?")) return;
 
+    const asignacionValidada = await validarAccionAsignacion(asignacionId, rutinaId);
+    if (!asignacionValidada) return;
+
     const estaEnCache = entradaCalorCompletadaCache.some(
       (item) => item.rutina_asignacion_id === asignacionId && item.entrada_calor_id === entradaId
     );
@@ -547,7 +677,9 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
     await supabase
       .from("rutina_asignaciones")
       .update({ activa: true, completada: false, fecha_completada: null })
-      .eq("id", asignacionId);
+      .eq("id", asignacionId)
+      .eq("alumno_id", alumnoId)
+      .eq("rutina_id", rutinaId);
 
     setRegistros((prev) =>
       prev.filter((r) => !(r.rutina_asignacion_id === asignacionId && r.entrada_calor_id === entradaId))
@@ -689,6 +821,9 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
   async function deshacerCompletado(rutinaId: string, rutinaEjercicioId: string, asignacionId: string) {
     if (!confirm("¿Querés deshacer este ejercicio?")) return;
 
+    const asignacionValidada = await validarAccionAsignacion(asignacionId, rutinaId);
+    if (!asignacionValidada) return;
+
     const estaEnCache = ejerciciosCompletadosCache.some(
       (item) => item.rutina_asignacion_id === asignacionId && item.rutina_ejercicio_id === rutinaEjercicioId
     );
@@ -726,7 +861,9 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
 
     await supabase.from("rutina_asignaciones")
       .update({ activa: true, completada: false, fecha_completada: null })
-      .eq("id", asignacionId);
+      .eq("id", asignacionId)
+      .eq("alumno_id", alumnoId)
+      .eq("rutina_id", rutinaId);
 
     setRegistros((prev) =>
       prev.filter((r) => !(r.rutina_asignacion_id === asignacionId && r.rutina_ejercicio_id === rutinaEjercicioId))
@@ -752,6 +889,12 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
 
   async function guardarCacheABD(asignacionId: string, rutinaId: string) {
     setGuardandoRutina(true);
+
+    const asignacionValidada = await validarAccionAsignacion(asignacionId, rutinaId);
+    if (!asignacionValidada) {
+      setGuardandoRutina(false);
+      return;
+    }
 
     const ejerciciosDelCache = ejerciciosCompletadosCache.filter((item) => item.rutina_asignacion_id === asignacionId);
     const entradasDelCache = entradaCalorCompletadaCache.filter((item) => item.rutina_asignacion_id === asignacionId);
@@ -837,7 +980,9 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
 
       await supabase.from("rutina_asignaciones")
         .update({ activa: false, completada: true, fecha_completada: new Date().toISOString() })
-        .eq("id", asignacionId);
+        .eq("id", asignacionId)
+        .eq("alumno_id", alumnoId)
+        .eq("rutina_id", rutinaId);
 
       setRutinasAsignadas((prev) =>
         prev.map((a) => a.asignacion_id === asignacionId
@@ -860,9 +1005,25 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
         })),
       ]);
 
-      const { data: rmsActualizados } = await supabase
-        .from("rms_actuales").select("id,ejercicio_id,rm_calculado").eq("alumno_id", alumnoId);
-      setRmsActuales(rmsActualizados || []);
+      const ejercicioIdsGuardados = Array.from(
+        new Set(
+          ejerciciosDelCache
+            .map((ej) => ej.ejercicio_id)
+            .filter(Boolean)
+        )
+      ) as string[];
+
+      if (ejercicioIdsGuardados.length > 0) {
+        const { data: rmsActualizados } = await supabase
+          .from("rms_actuales")
+          .select("id,ejercicio_id,rm_calculado")
+          .eq("alumno_id", alumnoId)
+          .in("ejercicio_id", ejercicioIdsGuardados);
+        setRmsActuales((prev) => [
+          ...prev.filter((rm) => !ejercicioIdsGuardados.includes(rm.ejercicio_id)),
+          ...((rmsActualizados || []) as RMActual[]),
+        ]);
+      }
 
       const ejRestantes = ejerciciosCompletadosCache.filter((item) => item.rutina_asignacion_id !== asignacionId);
       const entRestantes = entradaCalorCompletadaCache.filter((item) => item.rutina_asignacion_id !== asignacionId);
@@ -894,6 +1055,12 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
   async function deshacerRutinaCompleta(asignacion: RutinaAsignada) {
     if (!confirm("¿Querés deshacer esta rutina completada?")) return;
 
+    const asignacionValidada = await validarAccionAsignacion(
+      asignacion.asignacion_id,
+      asignacion.rutina_id
+    );
+    if (!asignacionValidada) return;
+
     const { data: registrosABorrar } = await supabase
       .from("registros_entrenamiento")
       .select("id,ejercicio_id")
@@ -913,7 +1080,9 @@ function PanelAlumno({ alumno }: { alumno: Alumno }) {
 
     await supabase.from("rutina_asignaciones")
       .update({ activa: true, completada: false, fecha_completada: null })
-      .eq("id", asignacion.asignacion_id);
+      .eq("id", asignacion.asignacion_id)
+      .eq("alumno_id", alumnoId)
+      .eq("rutina_id", asignacion.rutina_id);
 
     if (ejercicioIds.length > 0) {
       await supabase.from("rms_actuales").delete()
@@ -1308,44 +1477,148 @@ export default function RegistrarEntrenamientosPage() {
   const [alumnosTopRM, setAlumnosTopRM] = useState<Alumno[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(false);
+  const [profesorId, setProfesorId] = useState<string | null>(null);
 
   useEffect(() => {
-    const cache = localStorage.getItem(CACHE_KEY);
-    if (cache) {
-      try {
-        const data = JSON.parse(cache) as Partial<CacheRegistrarEntrenamientos>;
-        setAlumnosEntrenando(data.alumnosEntrenando ?? []);
-        setAlumnoSeleccionado(data.alumnoSeleccionado ?? null);
-      } catch {
-        localStorage.removeItem(CACHE_KEY);
+    async function inicializar() {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const profesorActualId = sessionData.session?.user.id;
+
+      if (!profesorActualId) {
+        window.location.href = "/login";
+        return;
       }
+
+      setProfesorId(profesorActualId);
+
+      const cache = localStorage.getItem(CACHE_KEY);
+      if (cache) {
+        try {
+          const data = JSON.parse(cache) as Partial<CacheRegistrarEntrenamientos>;
+          setAlumnosEntrenando(data.alumnosEntrenando ?? []);
+          setAlumnoSeleccionado(data.alumnoSeleccionado ?? null);
+        } catch {
+          localStorage.removeItem(CACHE_KEY);
+        }
+      }
+
+      await cargarAlumnos(profesorActualId);
+      await cargarAlumnosConRutina(profesorActualId);
+      await cargarSugerenciasAlumnos(profesorActualId);
     }
-    cargarAlumnos();
-    cargarAlumnosConRutina();
-    cargarSugerenciasAlumnos();
+
+    inicializar();
   }, []);
 
   useEffect(() => {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ alumnosEntrenando, alumnoSeleccionado }));
   }, [alumnosEntrenando, alumnoSeleccionado]);
 
-  async function cargarAlumnos() {
+  async function cargarAlumnos(profesorIdActual?: string) {
     setLoading(true);
-    const { data } = await supabase.from("alumnos").select("id,nombre,apellido,email").order("nombre", { ascending: true });
+
+    let query = supabase
+      .from("alumnos")
+      .select("id,nombre,apellido,email,profesor_id")
+      .order("nombre", { ascending: true });
+
+    if (profesorIdActual) {
+      query = query.eq("profesor_id", profesorIdActual);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      alert(error.message);
+      setLoading(false);
+      return;
+    }
+
     setAlumnos((data ?? []) as Alumno[]);
     setLoading(false);
   }
 
-  async function cargarAlumnosConRutina() {
-    const { data } = await supabase.from("rutina_asignaciones").select("alumno_id").neq("activa", false).neq("completada", true);
-    const ids = new Set((data ?? []).map((item) => item.alumno_id).filter(Boolean));
+  async function cargarAlumnosConRutina(profesorIdActual?: string) {
+    if (!profesorIdActual) {
+      setAlumnosConRutina(new Set());
+      return;
+    }
+
+    const { data: alumnosPropiosData, error: alumnosPropiosError } = await supabase
+      .from("alumnos")
+      .select("id")
+      .eq("profesor_id", profesorIdActual);
+
+    if (alumnosPropiosError) {
+      alert(alumnosPropiosError.message);
+      return;
+    }
+
+    const alumnosPropiosIds = (alumnosPropiosData || [])
+      .map((alumno) => alumno.id)
+      .filter(Boolean);
+
+    if (alumnosPropiosIds.length === 0) {
+      setAlumnosConRutina(new Set());
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("rutina_asignaciones")
+      .select("alumno_id, rutinas(id, profesor_id)")
+      .in("alumno_id", alumnosPropiosIds)
+      .neq("activa", false)
+      .neq("completada", true);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const ids = new Set(
+      (data ?? [])
+        .filter((item) => {
+          const rutina = normalizarRutina(item.rutinas as RutinaRelacion);
+          return rutina?.profesor_id === profesorIdActual;
+        })
+        .map((item) => item.alumno_id)
+        .filter(Boolean)
+    );
+
     setAlumnosConRutina(ids);
   }
 
-  async function cargarSugerenciasAlumnos() {
+  async function cargarSugerenciasAlumnos(profesorIdActual?: string) {
+    if (!profesorIdActual) {
+      setAlumnosRecientes([]);
+      setAlumnosTopRM([]);
+      return;
+    }
+
+    const { data: alumnosPropiosData, error: alumnosPropiosError } = await supabase
+      .from("alumnos")
+      .select("id")
+      .eq("profesor_id", profesorIdActual);
+
+    if (alumnosPropiosError) {
+      alert(alumnosPropiosError.message);
+      return;
+    }
+
+    const alumnosPropiosIds = (alumnosPropiosData || [])
+      .map((alumno) => alumno.id)
+      .filter(Boolean);
+
+    if (alumnosPropiosIds.length === 0) {
+      setAlumnosRecientes([]);
+      setAlumnosTopRM([]);
+      return;
+    }
+
     const { data: asignacionesActivas } = await supabase
       .from("rutina_asignaciones")
       .select("alumno_id")
+      .in("alumno_id", alumnosPropiosIds)
       .eq("activa", true)
       .neq("completada", true);
 
@@ -1422,13 +1695,13 @@ export default function RegistrarEntrenamientosPage() {
     if (!yaExiste) setAlumnosEntrenando((prev) => [...prev, alumno]);
     setAlumnoSeleccionado(alumno);
     setBusqueda("");
-    cargarSugerenciasAlumnos();
+    cargarSugerenciasAlumnos(profesorId || undefined);
   }
 
   function quitarAlumno(alumno: Alumno) {
     setAlumnosEntrenando((prev) => prev.filter((item) => item.id !== alumno.id));
     if (alumnoSeleccionado?.id === alumno.id) setAlumnoSeleccionado(null);
-    cargarSugerenciasAlumnos();
+    cargarSugerenciasAlumnos(profesorId || undefined);
   }
 
   const alumnosFiltrados = useMemo(() => {
@@ -1588,7 +1861,7 @@ export default function RegistrarEntrenamientosPage() {
                   {alumnoSeleccionado.email && <p className="text-xs text-zinc-500">{alumnoSeleccionado.email}</p>}
                 </div>
               </div>
-              <PanelAlumno key={alumnoSeleccionado.id} alumno={alumnoSeleccionado} />
+              <PanelAlumno key={alumnoSeleccionado.id} alumno={alumnoSeleccionado} profesorId={profesorId} />
             </div>
           )}
         </section>

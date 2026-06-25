@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function NuevoAlumnoPage() {
   const [nombre, setNombre] = useState("");
@@ -22,10 +23,15 @@ export default function NuevoAlumnoPage() {
 
     setGuardando(true);
 
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    const profesorId = sessionData.session?.user?.id;
+
     const response = await fetch("/api/crear-alumno", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   },
   body: JSON.stringify({
     nombre: nombre.trim(),
@@ -33,6 +39,7 @@ export default function NuevoAlumnoPage() {
     email: email.trim().toLowerCase(),
     telefono: telefono.trim(),
     rol: "alumno",
+    profesorId: profesorId || null,
   }),
 });
 

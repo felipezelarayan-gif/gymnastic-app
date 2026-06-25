@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { obtenerRMActualAlumnoEjercicio } from "@/lib/rmActual";
 import BackButton from "@/components/BackButton";
 
-type Alumno = { id: string; nombre: string };
+type Alumno = { id: string; nombre: string; profesor_id?: string | null };
 type Ejercicio = { id: string; nombre: string };
 type TipoEvaluacion = "individual" | "grupal" | null;
 const DRAFT_KEY = "evaluacion_rm_crear_draft";
@@ -18,6 +18,7 @@ const DRAFT_KEY = "evaluacion_rm_crear_draft";
 export default function CrearEvaluacionRM() {
   const router = useRouter();
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
+  const [profesorId, setProfesorId] = useState<string | null>(null);
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
   const [tipoEvaluacion, setTipoEvaluacion] = useState<TipoEvaluacion>(null);
   const [alumnoId, setAlumnoId] = useState("");
@@ -41,16 +42,55 @@ export default function CrearEvaluacionRM() {
 
   useEffect(() => {
     async function cargarDatos() {
-      const [{ data: perfiles }, { data: ejercs }] = await Promise.all([
-        supabase.from("alumnos").select("id, nombre").order("nombre"),
+      const { data: sessionData } = await supabase.auth.getSession();
+      const profesorActualId = sessionData.session?.user.id;
+
+      if (!profesorActualId) {
+        alert("No se pudo identificar al profesor. Volvé a iniciar sesión.");
+        router.push("/login");
+        return;
+      }
+
+      setProfesorId(profesorActualId);
+
+      const [{ data: perfiles, error: perfilesError }, { data: ejercs, error: ejerciciosError }] = await Promise.all([
+        supabase
+          .from("alumnos")
+          .select("id, nombre, profesor_id")
+          .eq("profesor_id", profesorActualId)
+          .order("nombre"),
         supabase.from("ejercicios").select("id, nombre").order("nombre"),
       ]);
+
+      if (perfilesError) {
+        alert(perfilesError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (ejerciciosError) {
+        alert(ejerciciosError.message);
+        setLoading(false);
+        return;
+      }
+
       if (perfiles) setAlumnos(perfiles);
       if (ejercs) setEjercicios(ejercs);
       setLoading(false);
     }
     cargarDatos();
-  }, []);
+  }, [router]);
+  useEffect(() => {
+    if (loading || alumnos.length === 0) return;
+
+    const alumnosPropiosIds = new Set(alumnos.map((alumno) => alumno.id));
+
+    if (alumnoId && !alumnosPropiosIds.has(alumnoId)) {
+      setAlumnoId("");
+    }
+
+    setAlumnosIds((prev) => prev.filter((id) => alumnosPropiosIds.has(id)));
+  }, [loading, alumnos, alumnoId]);
 
   useEffect(() => {
     try {
@@ -170,6 +210,20 @@ export default function CrearEvaluacionRM() {
       return;
     }
 
+    if (!profesorId) {
+      alert("No se pudo validar el profesor actual.");
+      return;
+    }
+
+    const alumnoPropio = alumnos.some(
+      (alumno) => alumno.id === alumnoId && alumno.profesor_id === profesorId
+    );
+
+    if (!alumnoPropio) {
+      alert("No tenés permiso para ver el historial de ese alumno.");
+      return;
+    }
+
     setHistorialLoading(true);
     setHistorialAbierto(true);
     setHistorialRMActual(null);
@@ -213,6 +267,20 @@ export default function CrearEvaluacionRM() {
     if (!userId) {
       setGuardando(false);
       alert("No se pudo identificar al profesor. Volvé a iniciar sesión.");
+      return;
+    }
+
+    const alumnosPropiosIds = new Set(
+      alumnos
+        .filter((alumno) => alumno.profesor_id === userId)
+        .map((alumno) => alumno.id)
+    );
+
+    const todosSonPropios = alumnosParaEvaluar.every((id) => alumnosPropiosIds.has(id));
+
+    if (!todosSonPropios) {
+      setGuardando(false);
+      alert("Hay alumnos seleccionados que no pertenecen a este profesor.");
       return;
     }
 

@@ -11,11 +11,73 @@ type Rutina = {
   estructura?: string | null;
   created_at?: string | null;
   creada_para_alumno_id?: string | null;
+  profesor_id?: string | null;
 };
+
+type RutinasPageCache = {
+  rutinas: Rutina[];
+  savedAt: string;
+};
+
+const RUTINAS_CACHE_PREFIX = "rutinas_page_cache_v1";
+
+function getRutinasCacheKey(userId: string) {
+  return `${RUTINAS_CACHE_PREFIX}_${userId}`;
+}
 
 export default function RutinasPage() {
   const [rutinas, setRutinas] = useState<Rutina[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actualizandoRutinas, setActualizandoRutinas] = useState(false);
+
+  function cargarRutinasDesdeCache(userId: string) {
+    try {
+      const cacheRaw = localStorage.getItem(getRutinasCacheKey(userId));
+      if (!cacheRaw) return false;
+
+      const cache = JSON.parse(cacheRaw) as RutinasPageCache;
+      if (!Array.isArray(cache.rutinas)) return false;
+
+      setRutinas(cache.rutinas);
+      setLoading(false);
+      setActualizandoRutinas(true);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function guardarRutinasEnCache(userId: string, rutinasParaGuardar: Rutina[]) {
+    try {
+      const cache: RutinasPageCache = {
+        rutinas: rutinasParaGuardar,
+        savedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem(getRutinasCacheKey(userId), JSON.stringify(cache));
+    } catch {
+      // Si localStorage falla, la pantalla debe seguir funcionando normal.
+    }
+  }
+
+  async function actualizarRutinasManual() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+
+    if (!userId) {
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      localStorage.removeItem(getRutinasCacheKey(userId));
+    } catch {
+      // Si localStorage falla, igual intentamos recargar desde la base.
+    }
+
+    await cargarRutinas(userId, true);
+  }
+
   const [mostrarModal, setMostrarModal] = useState(false);
   const [creando, setCreando] = useState(false);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
@@ -33,6 +95,12 @@ export default function RutinasPage() {
 
   async function verificarPermiso() {
     const { data: sessionData } = await supabase.auth.getSession();
+    const profesorId = sessionData.session?.user.id;
+
+    if (!profesorId) {
+      window.location.href = "/login";
+      return;
+    }
 
     if (!sessionData.session) {
       window.location.href = "/login";
@@ -50,22 +118,45 @@ export default function RutinasPage() {
       return;
     }
 
-    await cargarRutinas();
+    const tieneCache = cargarRutinasDesdeCache(sessionData.session.user.id);
+    await cargarRutinas(sessionData.session.user.id, !tieneCache);
   }
 
-  async function cargarRutinas() {
-    const { data, error } = await supabase
+  async function cargarRutinas(profesorId?: string, mostrarLoading = true) {
+    if (mostrarLoading) {
+      setLoading(true);
+    }
+
+    if (!mostrarLoading) {
+      setActualizandoRutinas(true);
+    }
+
+    let query = supabase
       .from("rutinas")
-      .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id")
+      .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id,profesor_id")
       .order("created_at", { ascending: false });
+
+    if (profesorId) {
+      query = query.eq("profesor_id", profesorId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       alert(error.message);
+      setActualizandoRutinas(false);
       setLoading(false);
       return;
     }
 
-    setRutinas((data || []) as Rutina[]);
+    const rutinasData = (data || []) as Rutina[];
+
+    if (profesorId) {
+      guardarRutinasEnCache(profesorId, rutinasData);
+    }
+
+    setRutinas(rutinasData);
+    setActualizandoRutinas(false);
     setLoading(false);
   }
 
@@ -86,12 +177,20 @@ export default function RutinasPage() {
 
     const { data: sessionData } = await supabase.auth.getSession();
 
+    const profesorId = sessionData.session?.user.id;
+
+    if (!profesorId) {
+      window.location.href = "/login";
+      return;
+    }
+
     const { error } = await supabase.from("rutinas").insert({
       nombre: nombre.trim(),
       descripcion: descripcion.trim() || null,
       objetivo: objetivoFinal || null,
       estructura: estructuraFinal || null,
-      creada_por: sessionData.session?.user.id,
+      creada_por: profesorId,
+      profesor_id: profesorId,
     });
 
     if (error) {
@@ -109,7 +208,7 @@ export default function RutinasPage() {
     setMostrarModal(false);
     setCreando(false);
 
-    await cargarRutinas();
+    await cargarRutinas(profesorId);
   }
 
   async function borrarRutina(rutinaId: string) {
@@ -145,7 +244,8 @@ export default function RutinasPage() {
     }
 
     setBorrandoId(null);
-    await cargarRutinas();
+    const { data: sessionData } = await supabase.auth.getSession();
+    await cargarRutinas(sessionData.session?.user.id);
   }
 
   if (loading) {
@@ -164,16 +264,30 @@ export default function RutinasPage() {
             <h1 className="text-3xl font-bold">Rutinas</h1>
             <p className="text-zinc-400">
               Creá rutinas y asignalas a tus alumnos.
+              {actualizandoRutinas && (
+                <span className="ml-2 text-xs text-zinc-500">Actualizando...</span>
+              )}
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setMostrarModal(true)}
-            className="rounded-full w-12 h-12 bg-emerald-500 flex items-center justify-center text-2xl font-bold hover:bg-emerald-600"
-          >
-            +
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={actualizarRutinasManual}
+              disabled={loading || actualizandoRutinas}
+              className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {actualizandoRutinas ? "Actualizando..." : "Actualizar"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMostrarModal(true)}
+              className="rounded-full w-12 h-12 bg-emerald-500 flex items-center justify-center text-2xl font-bold hover:bg-emerald-600"
+            >
+              +
+            </button>
+          </div>
         </div>
 
         {rutinas.length === 0 ? (

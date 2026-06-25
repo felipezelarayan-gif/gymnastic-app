@@ -13,6 +13,7 @@ type Alumno = {
   created_at?: string | null;
   invitacion_pendiente?: boolean | null;
   user_id?: string | null;
+  profesor_id?: string | null;
 };
 
 type RutinaAsignada = {
@@ -30,6 +31,17 @@ type OrdenarPor =
 
 type Orden = "asc" | "desc";
 
+type AlumnosPageCache = {
+  alumnos: Alumno[];
+  savedAt: string;
+};
+
+const ALUMNOS_CACHE_PREFIX = "alumnos_page_cache_v2";
+
+function getAlumnosCacheKey(userId: string) {
+  return `${ALUMNOS_CACHE_PREFIX}_${userId}`;
+}
+
 export default function AlumnosPage() {
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>(
@@ -40,6 +52,66 @@ export default function AlumnosPage() {
   const [ordenarPor, setOrdenarPor] = useState<OrdenarPor>("nombre");
   const [orden, setOrden] = useState<Orden>("asc");
   const [loading, setLoading] = useState(true);
+  const [metricasLoading, setMetricasLoading] = useState(false);
+  const [actualizandoAlumnos, setActualizandoAlumnos] = useState(false);
+
+  function cargarAlumnosDesdeCache(userId: string) {
+    try {
+      const cacheRaw = localStorage.getItem(getAlumnosCacheKey(userId));
+      if (!cacheRaw) return false;
+
+      const cache = JSON.parse(cacheRaw) as AlumnosPageCache;
+      if (!Array.isArray(cache.alumnos)) return false;
+
+      const cacheEsSeguro = cache.alumnos.every(
+        (alumno) => alumno.profesor_id === userId
+      );
+
+      if (!cacheEsSeguro) {
+        localStorage.removeItem(getAlumnosCacheKey(userId));
+        return false;
+      }
+
+      setAlumnos(cache.alumnos);
+      setLoading(false);
+      setMetricasLoading(true);
+      setActualizandoAlumnos(true);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function guardarAlumnosEnCache(userId: string, alumnosParaGuardar: Alumno[]) {
+    try {
+      const cache: AlumnosPageCache = {
+        alumnos: alumnosParaGuardar,
+        savedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem(getAlumnosCacheKey(userId), JSON.stringify(cache));
+    } catch {
+      // Si localStorage falla, la pantalla debe seguir funcionando normal.
+    }
+  }
+
+  async function actualizarAlumnosManual() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+
+    if (!userId) {
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      localStorage.removeItem(getAlumnosCacheKey(userId));
+    } catch {
+      // Si localStorage falla, igual intentamos recargar desde la base.
+    }
+
+    await cargarDatos(userId, true);
+  }
 
   useEffect(() => {
     verificarPermiso();
@@ -66,24 +138,61 @@ export default function AlumnosPage() {
       return;
     }
 
-    await cargarDatos();
+    const tieneCache = cargarAlumnosDesdeCache(user.id);
+    await cargarDatos(user.id, !tieneCache);
   }
 
-  async function cargarDatos() {
-    setLoading(true);
+  async function cargarDatos(userId?: string, mostrarLoading = true) {
+    if (mostrarLoading) {
+      setLoading(true);
+    }
+    if (!mostrarLoading) {
+      setActualizandoAlumnos(true);
+    }
 
-    const res = await fetch("/api/alumnos-con-invitacion");
-    const alumnosData = await res.json();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const cacheUserId = userId || sessionData.session?.user.id;
+    const profesorActualId = cacheUserId;
 
-    if (!res.ok) {
-      alert(alumnosData.error || "No se pudieron cargar los alumnos.");
+    if (!profesorActualId) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const { data: alumnosData, error: alumnosError } = await supabase
+      .from("alumnos")
+      .select(
+        "id,nombre,apellido,email,telefono,foto_url,created_at,user_id,profesor_id"
+      )
+      .eq("profesor_id", profesorActualId)
+      .order("nombre", { ascending: true });
+
+    if (alumnosError) {
+      alert(alumnosError.message);
+      setActualizandoAlumnos(false);
       setLoading(false);
       return;
     }
 
-    // Extraer IDs de alumnos para filtrar asignaciones
-    const idsAlumnos = (alumnosData as Alumno[]).map((a) => a.id);
+    const alumnosFiltradosPorProfesor = (alumnosData || []) as Alumno[];
 
+    // Extraer IDs de alumnos para filtrar asignaciones
+    const idsAlumnos = alumnosFiltradosPorProfesor.map((a) => a.id);
+
+    if (cacheUserId) {
+      guardarAlumnosEnCache(cacheUserId, alumnosFiltradosPorProfesor);
+    }
+
+    if (idsAlumnos.length === 0) {
+      setAlumnos(alumnosFiltradosPorProfesor);
+      setRutinasAsignadas([]);
+      setMetricasLoading(false);
+      setActualizandoAlumnos(false);
+      setLoading(false);
+      return;
+    }
+
+    setMetricasLoading(true);
     // Solo traer columnas necesarias, filtradas por IDs de alumnos
     const { data: rutinasData, error: rutinasError } = await supabase
       .from("rutina_asignaciones")
@@ -92,12 +201,16 @@ export default function AlumnosPage() {
 
     if (rutinasError) {
       alert(rutinasError.message);
+      setMetricasLoading(false);
+      setActualizandoAlumnos(false);
       setLoading(false);
       return;
     }
 
-    setAlumnos(alumnosData as Alumno[]);
+    setAlumnos(alumnosFiltradosPorProfesor);
     setRutinasAsignadas((rutinasData || []) as RutinaAsignada[]);
+    setMetricasLoading(false);
+    setActualizandoAlumnos(false);
     setLoading(false);
   }
 
@@ -294,15 +407,29 @@ export default function AlumnosPage() {
               {alumnos.length === 1
                 ? "alumno registrado"
                 : "alumnos registrados"}
+              {actualizandoAlumnos && (
+                <span className="ml-2 text-xs text-zinc-500">Actualizando...</span>
+              )}
             </p>
           </div>
 
-          <a
-            href="/alumnos/nuevo"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition"
-          >
-            + Agregar alumno
-          </a>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={actualizarAlumnosManual}
+              disabled={loading || actualizandoAlumnos}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-5 py-3 font-semibold text-zinc-300 hover:bg-zinc-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {actualizandoAlumnos ? "Actualizando..." : "Actualizar"}
+            </button>
+
+            <a
+              href="/alumnos/nuevo"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition"
+            >
+              + Agregar alumno
+            </a>
+          </div>
         </header>
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-5">
@@ -387,7 +514,7 @@ export default function AlumnosPage() {
                     </h3>
 
                     <p className="text-xs text-emerald-400 mt-1">
-                      {pendientesPorAlumno.get(alumno.id) || 0} pendientes
+                      {metricasLoading ? "..." : pendientesPorAlumno.get(alumno.id) || 0} pendientes
                     </p>
                   </div>
                 </a>
@@ -422,19 +549,21 @@ export default function AlumnosPage() {
 
                       <p className="text-zinc-400 text-sm mt-1">
                         Último entrenamiento:{" "}
-                        {ultimoEntrenamientoPorAlumno.get(alumno.id) ||
-                          "Sin entrenamientos completados"}
+                        {metricasLoading
+                          ? "..."
+                          : ultimoEntrenamientoPorAlumno.get(alumno.id) ||
+                            "Sin entrenamientos completados"}
                       </p>
 
                       <div className="flex flex-wrap gap-2 mt-2 text-xs text-zinc-500">
                         {alumno.email && <span>{alumno.email}</span>}
                         {alumno.telefono && <span>· {alumno.telefono}</span>}
                         <span>
-                          · {finalizadosPorAlumno.get(alumno.id) || 0}{" "}
+                          · {metricasLoading ? "..." : finalizadosPorAlumno.get(alumno.id) || 0}{" "}
                           finalizados
                         </span>
                         <span>
-                          · {pendientesPorAlumno.get(alumno.id) || 0}{" "}
+                          · {metricasLoading ? "..." : pendientesPorAlumno.get(alumno.id) || 0}{" "}
                           pendientes
                         </span>
                       </div>
@@ -443,7 +572,7 @@ export default function AlumnosPage() {
 
                   <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-2 text-center">
                     <p className="text-xl font-bold text-emerald-400">
-                      {pendientesPorAlumno.get(alumno.id) || 0}
+                      {metricasLoading ? "..." : pendientesPorAlumno.get(alumno.id) || 0}
                     </p>
                     <p className="text-xs text-zinc-500">pendientes</p>
                   </div>

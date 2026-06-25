@@ -8,6 +8,7 @@ import BackButton from "@/components/BackButton";
 type EvaluacionPendiente = {
   id: string;
   alumno_id: string;
+  profesor_id?: string | null;
   alumno_nombre: string;
   fecha_realizacion: string | null;
   observaciones: string | null;
@@ -28,13 +29,26 @@ export default function RealizarRM() {
   const [evaluaciones, setEvaluaciones] = useState<EvaluacionPendiente[]>([]);
   const [loading, setLoading] = useState(true);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
+  const [profesorId, setProfesorId] = useState<string | null>(null);
 
   useEffect(() => {
     async function cargarEvaluacionesPendientes() {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const profesorActualId = sessionData.session?.user.id;
+
+      if (!profesorActualId) {
+        alert("No se pudo identificar al profesor. Volvé a iniciar sesión.");
+        window.location.href = "/login";
+        return;
+      }
+
+      setProfesorId(profesorActualId);
+
       const { data: evaluacionesData, error: evaluacionesError } = await supabase
         .from("evaluaciones_rm")
-        .select("id, alumno_id, fecha_realizacion, observaciones")
+        .select("id, alumno_id, profesor_id, fecha_realizacion, observaciones")
         .eq("estado", "pendiente")
+        .eq("profesor_id", profesorActualId)
         .is("deleted_at", null)
         .order("fecha_realizacion", { ascending: true });
 
@@ -58,7 +72,7 @@ export default function RealizarRM() {
       const evaluacionIds = evaluacionesBase.map((evaluacion) => evaluacion.id);
 
       const [{ data: alumnosData, error: alumnosError }, { data: resultadosData, error: resultadosError }] = await Promise.all([
-        supabase.from("alumnos").select("id, nombre").in("id", alumnoIds),
+        supabase.from("alumnos").select("id, nombre, profesor_id").in("id", alumnoIds).eq("profesor_id", profesorActualId),
         supabase.from("evaluaciones_rm_resultados").select("evaluacion_rm_id").in("evaluacion_rm_id", evaluacionIds),
       ]);
 
@@ -88,6 +102,7 @@ export default function RealizarRM() {
         evaluacionesBase.map((evaluacion) => ({
           id: evaluacion.id,
           alumno_id: evaluacion.alumno_id,
+          profesor_id: evaluacion.profesor_id,
           alumno_nombre: alumnosPorId.get(evaluacion.alumno_id) || "Alumno sin nombre",
           fecha_realizacion: evaluacion.fecha_realizacion,
           observaciones: evaluacion.observaciones,
@@ -110,6 +125,31 @@ export default function RealizarRM() {
 
     setBorrandoId(evaluacionId);
 
+    if (!profesorId) {
+      alert("No se pudo validar el profesor actual.");
+      setBorrandoId(null);
+      return;
+    }
+
+    const { data: evaluacionPropia, error: evaluacionPropiaError } = await supabase
+      .from("evaluaciones_rm")
+      .select("id")
+      .eq("id", evaluacionId)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (evaluacionPropiaError) {
+      alert(evaluacionPropiaError.message);
+      setBorrandoId(null);
+      return;
+    }
+
+    if (!evaluacionPropia) {
+      alert("No tenés permiso para borrar esta evaluación.");
+      setBorrandoId(null);
+      return;
+    }
+
     const { error: resultadosError } = await supabase
       .from("evaluaciones_rm_resultados")
       .delete()
@@ -124,7 +164,8 @@ export default function RealizarRM() {
     const { error: evaluacionError } = await supabase
       .from("evaluaciones_rm")
       .delete()
-      .eq("id", evaluacionId);
+      .eq("id", evaluacionId)
+      .eq("profesor_id", profesorId);
 
     if (evaluacionError) {
       alert(evaluacionError.message);

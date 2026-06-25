@@ -13,11 +13,13 @@ type Profile = {
 type Alumno = {
   id: string;
   nombre: string;
+  profesor_id?: string | null;
 };
 
 type EvaluacionAlumno = {
   id: string;
   alumno_id: string;
+  profesor_id?: string | null;
   estado: string | null;
   fecha_realizacion: string | null;
   fecha_asignacion: string | null;
@@ -41,6 +43,7 @@ export default function EvaluacionesPorAlumnoPage() {
   const [cargandoEvaluaciones, setCargandoEvaluaciones] = useState(false);
   const [paginaEvaluaciones, setPaginaEvaluaciones] = useState(1);
   const [borrandoEvaluacionId, setBorrandoEvaluacionId] = useState<string | null>(null);
+  const [profesorId, setProfesorId] = useState<string | null>(null);
 
   useEffect(() => {
     async function cargarInicial() {
@@ -52,6 +55,7 @@ export default function EvaluacionesPorAlumnoPage() {
       }
 
       const user = sessionData.session.user;
+      setProfesorId(user.id);
 
       const { data: profileData } = await supabase
         .from("profiles")
@@ -101,11 +105,16 @@ export default function EvaluacionesPorAlumnoPage() {
       return;
     }
 
+    if (!profesorId) {
+      alert("No se pudo validar el profesor actual.");
+      return;
+    }
     setBuscandoAlumnos(true);
 
     const { data, error } = await supabase
       .from("alumnos")
-      .select("id, nombre")
+      .select("id, nombre, profesor_id")
+      .eq("profesor_id", profesorId)
       .ilike("nombre", `%${busqueda}%`)
       .order("nombre", { ascending: true })
       .limit(20);
@@ -125,6 +134,18 @@ export default function EvaluacionesPorAlumnoPage() {
     setPaginaEvaluaciones(pagina);
     setCargandoEvaluaciones(true);
 
+    if (!profesorId) {
+      alert("No se pudo validar el profesor actual.");
+      setCargandoEvaluaciones(false);
+      return;
+    }
+
+    if (alumno.profesor_id !== profesorId) {
+      alert("No tenés permiso para ver evaluaciones de este alumno.");
+      setCargandoEvaluaciones(false);
+      return;
+    }
+
     const desde = (pagina - 1) * EVALUACIONES_POR_PAGINA;
     const hasta = desde + EVALUACIONES_POR_PAGINA - 1;
 
@@ -134,10 +155,11 @@ export default function EvaluacionesPorAlumnoPage() {
       count,
     } = await supabase
       .from("evaluaciones_rm")
-      .select("id, alumno_id, estado, fecha_realizacion, fecha_asignacion, created_at, nombre, observaciones", {
+      .select("id, alumno_id, profesor_id, estado, fecha_realizacion, fecha_asignacion, created_at, nombre, observaciones", {
         count: "exact",
       })
       .eq("alumno_id", alumno.id)
+      .eq("profesor_id", profesorId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .range(desde, hasta);
@@ -191,6 +213,32 @@ export default function EvaluacionesPorAlumnoPage() {
 
     setBorrandoEvaluacionId(evaluacion.id);
 
+    if (!profesorId) {
+      alert("No se pudo validar el profesor actual.");
+      setBorrandoEvaluacionId(null);
+      return;
+    }
+
+    const { data: evaluacionPropia, error: evaluacionPropiaError } = await supabase
+      .from("evaluaciones_rm")
+      .select("id, alumno_id, profesor_id")
+      .eq("id", evaluacion.id)
+      .eq("alumno_id", evaluacion.alumno_id)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (evaluacionPropiaError) {
+      alert(evaluacionPropiaError.message);
+      setBorrandoEvaluacionId(null);
+      return;
+    }
+
+    if (!evaluacionPropia) {
+      alert("No tenés permiso para borrar esta evaluación.");
+      setBorrandoEvaluacionId(null);
+      return;
+    }
+
     const { error: historialError } = await supabase
       .from("rms_historial")
       .delete()
@@ -227,7 +275,9 @@ export default function EvaluacionesPorAlumnoPage() {
     const { error: evaluacionError } = await supabase
       .from("evaluaciones_rm")
       .delete()
-      .eq("id", evaluacion.id);
+      .eq("id", evaluacion.id)
+      .eq("alumno_id", evaluacion.alumno_id)
+      .eq("profesor_id", profesorId);
 
     if (evaluacionError) {
       alert(evaluacionError.message);

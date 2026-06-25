@@ -20,6 +20,7 @@ type Rutina = {
   creada_para_alumno_id?: string | null;
   creada_desde_perfil_alumno?: boolean | null;
   es_duplicado_limpio?: boolean | null;
+  profesor_id?: string | null;
 };
 
 type RutinaAsignada = {
@@ -97,6 +98,7 @@ export default function AlumnoRutinasProfesor({
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const [asignadas, setAsignadas] = useState<RutinaAsignada[]>([]);
   const [disponibles, setDisponibles] = useState<Rutina[]>([]);
+  const [profesorId, setProfesorId] = useState<string | null>(null);
 
   const [rutinaSeleccionada, setRutinaSeleccionada] = useState("");
   const [mostrar, setMostrar] = useState(5);
@@ -155,11 +157,14 @@ export default function AlumnoRutinasProfesor({
       window.location.href = "/alumno";
       return;
     }
+    const profesorActualId = sessionData.session.user.id;
+    setProfesorId(profesorActualId);
 
     const { data: alumnoData, error: alumnoError } = await supabase
       .from("alumnos")
-      .select("id,nombre,apellido,foto_url")
+      .select("id,nombre,apellido,foto_url,profesor_id")
       .eq("id", id)
+      .eq("profesor_id", profesorActualId)
       .single();
 
     if (alumnoError || !alumnoData) {
@@ -187,7 +192,8 @@ export default function AlumnoRutinasProfesor({
           created_at,
           creada_para_alumno_id,
           creada_desde_perfil_alumno,
-          es_duplicado_limpio
+          es_duplicado_limpio,
+          profesor_id
         )
       `
       )
@@ -200,11 +206,19 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
+    const asignadasPropias = ((asignadasData || []) as RutinaAsignada[]).filter(
+      (asignacion) => {
+        const rutina = normalizarRutina(asignacion.rutinas);
+        return rutina?.profesor_id === profesorActualId;
+      }
+    );
+
     const { data: disponiblesData, error: disponiblesError } = await supabase
       .from("rutinas")
       .select(
-        "id,nombre,descripcion,objetivo,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio"
+        "id,nombre,descripcion,objetivo,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio,profesor_id"
       )
+      .eq("profesor_id", profesorActualId)
       .order("nombre", { ascending: true });
 
     if (disponiblesError) {
@@ -213,7 +227,7 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
-    const rutinaIds = ((asignadasData || []) as RutinaAsignada[])
+    const rutinaIds = asignadasPropias
       .map((item) => item.rutina_id)
       .filter(Boolean);
 
@@ -269,7 +283,7 @@ export default function AlumnoRutinasProfesor({
     }
 
     setAlumno(alumnoData as Alumno);
-    setAsignadas((asignadasData || []) as RutinaAsignada[]);
+    setAsignadas(asignadasPropias);
     setDisponibles((disponiblesData || []) as Rutina[]);
     setLoading(false);
   }
@@ -280,7 +294,50 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
+    if (!profesorId) {
+      alert("No se pudo validar el profesor actual.");
+      return;
+    }
+
     setGuardando(true);
+
+    const { data: alumnoPropio, error: alumnoError } = await supabase
+      .from("alumnos")
+      .select("id")
+      .eq("id", id)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (alumnoError) {
+      alert(alumnoError.message);
+      setGuardando(false);
+      return;
+    }
+
+    if (!alumnoPropio) {
+      alert("No tenés permiso para asignar rutinas a este alumno.");
+      setGuardando(false);
+      return;
+    }
+
+    const { data: rutinaPropia, error: rutinaError } = await supabase
+      .from("rutinas")
+      .select("id,nombre,descripcion,objetivo,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio,profesor_id")
+      .eq("id", rutinaSeleccionada)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (rutinaError) {
+      alert(rutinaError.message);
+      setGuardando(false);
+      return;
+    }
+
+    if (!rutinaPropia) {
+      alert("No tenés permiso para asignar esta rutina.");
+      setGuardando(false);
+      return;
+    }
 
     const { data: nuevaAsignacion, error } = await supabase
       .from("rutina_asignaciones")
@@ -301,10 +358,8 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
-    const rutinaDisponible = disponibles.find((r) => r.id === rutinaSeleccionada) || null;
-
     setAsignadas((prev) => [
-      { ...nuevaAsignacion, rutinas: rutinaDisponible },
+      { ...nuevaAsignacion, rutinas: rutinaPropia as Rutina },
       ...prev,
     ]);
 
@@ -317,7 +372,31 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
+    if (!profesorId) {
+      alert("No se pudo validar el profesor actual.");
+      return;
+    }
+
     setGuardando(true);
+
+    const { data: alumnoPropio, error: alumnoError } = await supabase
+      .from("alumnos")
+      .select("id")
+      .eq("id", id)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (alumnoError) {
+      alert(alumnoError.message);
+      setGuardando(false);
+      return;
+    }
+
+    if (!alumnoPropio) {
+      alert("No tenés permiso para crear rutinas para este alumno.");
+      setGuardando(false);
+      return;
+    }
 
     const { data: nuevaRutina, error: rutinaError } = await supabase
       .from("rutinas")
@@ -328,6 +407,8 @@ export default function AlumnoRutinasProfesor({
         creada_para_alumno_id: id,
         creada_desde_perfil_alumno: true,
         es_duplicado_limpio: false,
+        creada_por: profesorId,
+        profesor_id: profesorId,
       })
       .select("id")
       .single();
@@ -365,199 +446,313 @@ export default function AlumnoRutinasProfesor({
 
 
   async function quitarAsignacion(asignacionId: string) {
-  if (quitandoId) return;
-  const confirmar = confirm("¿Querés quitar esta rutina del alumno?");
-  if (!confirmar) return;
+    if (quitandoId) return;
 
-  setQuitandoId(asignacionId);
+    const confirmar = confirm("¿Querés quitar esta rutina del alumno?");
+    if (!confirmar) return;
 
-  console.log("QUITAR DESDE PERFIL ALUMNO", asignacionId);
-
-  const { data: registrosABorrar, error: buscarError } = await supabase
-    .from("registros_entrenamiento")
-    .select("id, ejercicio_id")
-    .eq("alumno_id", id)
-    .eq("rutina_asignacion_id", asignacionId);
-    console.log("REGISTROS A BORRAR", registrosABorrar);
-
-  if (buscarError) {
-    alert(buscarError.message);
-    setQuitandoId(null);
-    return;
-  }
-
-  const ejercicioIds = Array.from(
-    new Set(
-      (registrosABorrar || [])
-        .map((registro) => registro.ejercicio_id)
-        .filter(Boolean)
-    )
-  ) as string[];
-
-  const registroIds = (registrosABorrar || []).map((registro) => registro.id);
-console.log("EJERCICIO IDS", ejercicioIds);
-console.log("REGISTRO IDS", registroIds);
-
-  if (registroIds.length > 0) {
-    const { error: historialError } = await supabase
-      .from("rms_historial")
-      .delete()
-      .in("registro_entrenamiento_id", registroIds);
-
-    if (historialError) {
-      alert(historialError.message);
+    if (!profesorId) {
+      alert("No se pudo validar el profesor actual.");
       return;
     }
 
-    const { error: registrosError } = await supabase
-      .from("registros_entrenamiento")
-      .delete()
-      .in("id", registroIds);
+    setQuitandoId(asignacionId);
 
-    if (registrosError) {
-      alert(registrosError.message);
-      return;
-    }
-  }
-
-  const { error } = await supabase
-    .from("rutina_asignaciones")
-    .delete()
-    .eq("id", asignacionId);
-
-  if (error) {
-    alert(error.message);
-    return;
-  }
-
-  if (ejercicioIds.length > 0) {
-    const { error: rmsActualesError } = await supabase
-      .from("rms_actuales")
-      .delete()
+    const { data: asignacionBD, error: asignacionError } = await supabase
+      .from("rutina_asignaciones")
+      .select("id, alumno_id, rutina_id")
+      .eq("id", asignacionId)
       .eq("alumno_id", id)
-      .in("ejercicio_id", ejercicioIds);
+      .maybeSingle();
 
-    if (rmsActualesError) {
-      alert(rmsActualesError.message);
+    if (asignacionError) {
+      alert(asignacionError.message);
+      setQuitandoId(null);
       return;
     }
 
-    try {
-      for (const ejercicioId of ejercicioIds) {
-        await recalcularRMActual({ alumnoId: id, ejercicioId });
+    if (!asignacionBD) {
+      alert("No se encontró la asignación.");
+      setQuitandoId(null);
+      return;
+    }
+
+    const { data: alumnoPropio, error: alumnoError } = await supabase
+      .from("alumnos")
+      .select("id")
+      .eq("id", asignacionBD.alumno_id)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (alumnoError) {
+      alert(alumnoError.message);
+      setQuitandoId(null);
+      return;
+    }
+
+    if (!alumnoPropio) {
+      alert("No tenés permiso para modificar ese alumno.");
+      setQuitandoId(null);
+      return;
+    }
+
+    const { data: rutinaPropia, error: rutinaError } = await supabase
+      .from("rutinas")
+      .select("id")
+      .eq("id", asignacionBD.rutina_id)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
+
+    if (rutinaError) {
+      alert(rutinaError.message);
+      setQuitandoId(null);
+      return;
+    }
+
+    if (!rutinaPropia) {
+      alert("No tenés permiso para quitar esta rutina.");
+      setQuitandoId(null);
+      return;
+    }
+
+    const { data: registrosABorrar, error: buscarError } = await supabase
+      .from("registros_entrenamiento")
+      .select("id, ejercicio_id")
+      .eq("alumno_id", asignacionBD.alumno_id)
+      .eq("rutina_asignacion_id", asignacionId);
+
+    if (buscarError) {
+      alert(buscarError.message);
+      setQuitandoId(null);
+      return;
+    }
+
+    const ejercicioIds = Array.from(
+      new Set(
+        (registrosABorrar || [])
+          .map((registro) => registro.ejercicio_id)
+          .filter(Boolean)
+      )
+    ) as string[];
+
+    const registroIds = (registrosABorrar || []).map((registro) => registro.id);
+
+    if (registroIds.length > 0) {
+      const { error: historialError } = await supabase
+        .from("rms_historial")
+        .delete()
+        .in("registro_entrenamiento_id", registroIds);
+
+      if (historialError) {
+        alert(historialError.message);
+        setQuitandoId(null);
+        return;
       }
-    } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "Error al recalcular RM actual");
-      return;
+
+      const { error: registrosError } = await supabase
+        .from("registros_entrenamiento")
+        .delete()
+        .in("id", registroIds);
+
+      if (registrosError) {
+        alert(registrosError.message);
+        setQuitandoId(null);
+        return;
+      }
     }
-  } else {
-    const { error: rmsActualesError } = await supabase
-      .from("rms_actuales")
+
+    const { error } = await supabase
+      .from("rutina_asignaciones")
       .delete()
-      .eq("alumno_id", id);
+      .eq("id", asignacionId)
+      .eq("alumno_id", asignacionBD.alumno_id)
+      .eq("rutina_id", asignacionBD.rutina_id);
 
-    if (rmsActualesError) {
-      alert(rmsActualesError.message);
+    if (error) {
+      alert(error.message);
+      setQuitandoId(null);
       return;
     }
+
+    if (ejercicioIds.length > 0) {
+      const { error: rmsActualesError } = await supabase
+        .from("rms_actuales")
+        .delete()
+        .eq("alumno_id", asignacionBD.alumno_id)
+        .in("ejercicio_id", ejercicioIds);
+
+      if (rmsActualesError) {
+        alert(rmsActualesError.message);
+        setQuitandoId(null);
+        return;
+      }
+
+      try {
+        for (const ejercicioId of ejercicioIds) {
+          await recalcularRMActual({ alumnoId: asignacionBD.alumno_id, ejercicioId });
+        }
+      } catch (error: unknown) {
+        alert(error instanceof Error ? error.message : "Error al recalcular RM actual");
+        setQuitandoId(null);
+        return;
+      }
+    }
+
+    setAsignadas((prev) => prev.filter((a) => a.id !== asignacionId));
+    setQuitandoId(null);
   }
 
-setAsignadas((prev) => prev.filter((a) => a.id !== asignacionId));
-setQuitandoId(null);
-}
+  async function editarRutinaParaAlumno(asignacion: RutinaAsignada) {
+    const rutina = normalizarRutina(asignacion.rutinas);
 
-async function editarRutinaParaAlumno(asignacion: RutinaAsignada) {
-  const rutina = normalizarRutina(asignacion.rutinas);
+    if (!rutina) {
+      alert("No se encontró la rutina.");
+      return;
+    }
 
-  if (!rutina) {
-    alert("No se encontró la rutina.");
-    return;
-  }
+    if (!profesorId) {
+      alert("No se pudo validar el profesor actual.");
+      return;
+    }
 
-  // Ya es una rutina personalizada
-  if (rutina.creada_para_alumno_id === id) {
-    window.location.href = `/rutinas/${rutina.id}?alumnoId=${id}`;
-    return;
-  }
+    const { data: alumnoPropio, error: alumnoError } = await supabase
+      .from("alumnos")
+      .select("id")
+      .eq("id", id)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
 
-  const confirmar = confirm(
-    "Esta rutina se convertirá en una copia exclusiva para este alumno.\n\nLa plantilla original no será modificada."
-  );
+    if (alumnoError) {
+      alert(alumnoError.message);
+      return;
+    }
 
-  if (!confirmar) return;
+    if (!alumnoPropio) {
+      alert("No tenés permiso para editar rutinas de este alumno.");
+      return;
+    }
 
-  // Crear copia de la rutina
-  const { data: nuevaRutina, error: rutinaError } = await supabase
-    .from("rutinas")
-    .insert({
-      nombre: rutina.nombre,
-      descripcion: rutina.descripcion,
-      objetivo: rutina.objetivo,
-      creada_para_alumno_id: id,
-      creada_desde_perfil_alumno: true,
-      es_duplicado_limpio: false,
-    })
-    .select()
-    .single();
+    const { data: rutinaPropia, error: rutinaError } = await supabase
+      .from("rutinas")
+      .select("id,nombre,descripcion,objetivo,profesor_id")
+      .eq("id", rutina.id)
+      .eq("profesor_id", profesorId)
+      .maybeSingle();
 
-  if (rutinaError || !nuevaRutina) {
-    alert(rutinaError?.message || "No se pudo duplicar la rutina.");
-    return;
-  }
+    if (rutinaError) {
+      alert(rutinaError.message);
+      return;
+    }
 
-  // Duplicar ejercicios
-  const { data: ejercicios } = await supabase
-    .from("rutina_ejercicios")
-    .select("*")
-    .eq("rutina_id", rutina.id);
+    if (!rutinaPropia) {
+      alert("No tenés permiso para editar esta rutina.");
+      return;
+    }
 
-  if (ejercicios?.length) {
-    const ejerciciosDuplicados = ejercicios.map(
-      ({ id, created_at, rutina_id, ...rest }) => ({
-        ...rest,
-        rutina_id: nuevaRutina.id,
-      })
+    if (rutina.creada_para_alumno_id === id) {
+      window.location.href = `/rutinas/${rutina.id}?alumnoId=${id}`;
+      return;
+    }
+
+    const confirmar = confirm(
+      "Esta rutina se convertirá en una copia exclusiva para este alumno.\n\nLa plantilla original no será modificada."
     );
 
-    await supabase
+    if (!confirmar) return;
+
+    const { data: nuevaRutina, error: nuevaRutinaError } = await supabase
+      .from("rutinas")
+      .insert({
+        nombre: rutinaPropia.nombre,
+        descripcion: rutinaPropia.descripcion,
+        objetivo: rutinaPropia.objetivo,
+        creada_para_alumno_id: id,
+        creada_desde_perfil_alumno: true,
+        es_duplicado_limpio: false,
+        rutina_origen_id: rutina.id,
+        creada_por: profesorId,
+        profesor_id: profesorId,
+      })
+      .select()
+      .single();
+
+    if (nuevaRutinaError || !nuevaRutina) {
+      alert(nuevaRutinaError?.message || "No se pudo duplicar la rutina.");
+      return;
+    }
+
+    const { data: ejercicios, error: ejerciciosError } = await supabase
       .from("rutina_ejercicios")
-      .insert(ejerciciosDuplicados);
-  }
+      .select("*")
+      .eq("rutina_id", rutina.id);
 
-  // Duplicar entrada en calor
-  const { data: entrada } = await supabase
-    .from("rutina_entrada_calor")
-    .select("*")
-    .eq("rutina_id", rutina.id);
+    if (ejerciciosError) {
+      alert(ejerciciosError.message);
+      return;
+    }
 
-  if (entrada?.length) {
-    const entradaDuplicada = entrada.map(
-      ({ id, created_at, rutina_id, ...rest }) => ({
-        ...rest,
+    if (ejercicios?.length) {
+      const ejerciciosDuplicados = ejercicios.map(
+        ({ id, created_at, rutina_id, ...rest }) => ({
+          ...rest,
+          rutina_id: nuevaRutina.id,
+        })
+      );
+
+      const { error: insertarEjerciciosError } = await supabase
+        .from("rutina_ejercicios")
+        .insert(ejerciciosDuplicados);
+
+      if (insertarEjerciciosError) {
+        alert(insertarEjerciciosError.message);
+        return;
+      }
+    }
+
+    const { data: entrada, error: entradaError } = await supabase
+      .from("rutina_entrada_calor")
+      .select("*")
+      .eq("rutina_id", rutina.id);
+
+    if (entradaError) {
+      alert(entradaError.message);
+      return;
+    }
+
+    if (entrada?.length) {
+      const entradaDuplicada = entrada.map(
+        ({ id, created_at, rutina_id, ...rest }) => ({
+          ...rest,
+          rutina_id: nuevaRutina.id,
+        })
+      );
+
+      const { error: insertarEntradaError } = await supabase
+        .from("rutina_entrada_calor")
+        .insert(entradaDuplicada);
+
+      if (insertarEntradaError) {
+        alert(insertarEntradaError.message);
+        return;
+      }
+    }
+
+    const { error: asignacionError } = await supabase
+      .from("rutina_asignaciones")
+      .update({
         rutina_id: nuevaRutina.id,
       })
-    );
+      .eq("id", asignacion.id)
+      .eq("alumno_id", id)
+      .eq("rutina_id", rutina.id);
 
-    await supabase
-      .from("rutina_entrada_calor")
-      .insert(entradaDuplicada);
+    if (asignacionError) {
+      alert(asignacionError.message);
+      return;
+    }
+
+    window.location.href = `/rutinas/${nuevaRutina.id}?alumnoId=${id}`;
   }
-
-  // Actualizar asignación para apuntar a la copia
-  const { error: asignacionError } = await supabase
-    .from("rutina_asignaciones")
-    .update({
-      rutina_id: nuevaRutina.id,
-    })
-    .eq("id", asignacion.id);
-
-  if (asignacionError) {
-    alert(asignacionError.message);
-    return;
-  }
-
-  window.location.href = `/rutinas/${nuevaRutina.id}?alumnoId=${id}`;
-}
 
   if (loading) {
     return (
