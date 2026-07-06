@@ -32,8 +32,8 @@ export default function BienvenidaPage() {
   }
 
   async function crearPassword() {
-    if (password.length < 6) {
-      alert("La contraseña debe tener al menos 6 caracteres.");
+    if (password.length < 8) {
+      alert("La contraseña debe tener al menos 8 caracteres.");
       return;
     }
 

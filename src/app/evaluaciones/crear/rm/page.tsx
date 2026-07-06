@@ -361,9 +361,7 @@ export default function CrearEvaluacionRM() {
             <a href="/evaluaciones/realizar/rm" className="bg-white text-zinc-950 font-semibold px-5 py-2 rounded-lg hover:bg-zinc-200 transition">
               Ir a realizar RM
             </a>
-            <a href="/evaluaciones" className="border border-zinc-700 text-zinc-300 px-5 py-2 rounded-lg hover:bg-zinc-800 transition">
-              Volver
-            </a>
+            <BackButton fallback="/evaluaciones" />
           </div>
         </div>
       </main>
@@ -375,7 +373,7 @@ export default function CrearEvaluacionRM() {
       <div className="max-w-2xl mx-auto">
 
         <div className="mb-6">
-          <BackButton />
+          <BackButton fallback="/evaluaciones" />
         </div>
 
         <header className="mb-8">
@@ -640,12 +638,7 @@ export default function CrearEvaluacionRM() {
             >
               {guardando ? "Guardando..." : "Crear evaluación"}
             </button>
-            <a
-              href="/evaluaciones"
-              className="border border-zinc-700 text-zinc-300 px-6 py-3 rounded-lg hover:bg-zinc-800 transition"
-            >
-              Cancelar
-            </a>
+            <BackButton fallback="/evaluaciones" />
           </div>
             </>
           )}

@@ -2,6 +2,9 @@
 // Limpieza y refactorización conservando toda la funcionalidad
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import BackButton from "@/components/BackButton";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { FormatoFecha } from "@/lib/utils/formatearFecha";
 
 type Profile = {
   id: string;
@@ -53,6 +56,7 @@ export default function ConfiguracionPage() {
   const [guardandoUsuario, setGuardandoUsuario] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [idioma, setIdioma] = useState("es");
+  const { formato, cambiarFormato } = useFormatoFecha();
 
   useEffect(() => {
     cargarTodo();
@@ -321,7 +325,7 @@ export default function ConfiguracionPage() {
 
   async function cerrarSesion() {
     await supabase.auth.signOut();
-    window.location.href = "/login";
+    window.location.replace("/login");
   }
 
   if (loading) {
@@ -335,9 +339,7 @@ export default function ConfiguracionPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-4xl mx-auto">
-        <a href="/" className="text-zinc-400 hover:text-white">
-          ← Volver al panel
-        </a>
+        <BackButton fallback="/" />
 
         <header className="mt-6 mb-6">
           <h1 className="text-3xl font-bold">⚙️ Configuración</h1>
@@ -538,6 +540,27 @@ export default function ConfiguracionPage() {
             </div>
           </section>
         )}
+
+        <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
+          <h2 className="text-xl font-semibold mb-3">📅 Formato de fecha</h2>
+          <p className="text-zinc-400 text-sm mb-3">
+            Elegí cómo querés ver las fechas en toda la aplicación.
+          </p>
+          <select
+            value={formato}
+            onChange={(e) => cambiarFormato(e.target.value as FormatoFecha)}
+            className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700 text-white"
+          >
+            <option value="dd/mm/aa">01/12/26</option>
+            <option value="dd/mm/aaaa">01/12/2026</option>
+            <option value="mm/dd/aa">12/01/26</option>
+            <option value="mm/dd/aaaa">12/01/2026</option>
+            <option value="aaaa-mm-dd">2026-12-01</option>
+          </select>
+          <p className="text-zinc-500 text-sm mt-2">
+            Formato actual: <span className="text-zinc-300">{formato}</span>
+          </p>
+        </section>
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
           <h2 className="text-xl font-semibold mb-3">🌎 Idioma</h2>

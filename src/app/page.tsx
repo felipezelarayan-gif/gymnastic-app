@@ -188,7 +188,7 @@ if (!data) {
   </h2>
 
   <p className="text-zinc-400 mt-2">
-    Gestionar evaluaciones RM. FMS próximamente.
+    Gestionar evaluaciones RM y FMS.
   </p>
 </a>
 

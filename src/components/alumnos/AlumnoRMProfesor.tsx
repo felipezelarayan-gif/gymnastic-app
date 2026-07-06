@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { obtenerRMsActualesAlumno, type RMActualCalculado } from "@/lib/rmActual";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type RMHistorial = {
   id: string;
@@ -26,11 +27,6 @@ type Props = {
   alumnoId: string;
 };
 
-function formatoFecha(fecha?: string | null) {
-  if (!fecha) return "Sin fecha";
-  return new Date(fecha).toLocaleDateString("es-AR");
-}
-
 function numero(valor?: number | string | null) {
   if (valor === null || valor === undefined || valor === "") return "-";
   return Number(valor).toFixed(1).replace(".0", "");
@@ -43,6 +39,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
   const [nombres, setNombres] = useState<EjercicioNombre[]>([]);
   const [abiertos, setAbiertos] = useState<Record<string, boolean>>({});
   const [mostrarCantidad, setMostrarCantidad] = useState(5);
+  const { formatearFechaCorta } = useFormatoFecha();
 
   useEffect(() => {
     cargarRM();
@@ -204,9 +201,9 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
                       {nombreEjercicio(rm.ejercicio_id)}
                     </h3>
 
-                    <p className="text-sm text-zinc-400 mt-1">
-                      Último registro: {formatoFecha(rm.actualizado_en)}
-                    </p>
+                     <p className="text-sm text-zinc-400 mt-1">
+                       Último registro: {formatearFechaCorta(rm.actualizado_en)}
+                     </p>
 
                     <p className="text-sm text-zinc-500">
                       {numero(rm.peso_kg)} kg x {numero(rm.repeticiones)} reps
@@ -252,12 +249,12 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
                               <p className="text-sm font-semibold">
                                 {numero(item.rm_calculado)} kg
                               </p>
-                              <p className="text-xs text-zinc-500">
-                                {formatoFecha(item.fecha || item.created_at)} ·{" "}
-                                {numero(item.peso_kg)} kg x{" "}
-                                {numero(item.repeticiones)} reps ·{" "}
-                                {item.origen || "entrenamiento"}
-                              </p>
+                               <p className="text-xs text-zinc-500">
+                                 {formatearFechaCorta(item.fecha || item.created_at)} ·{" "}
+                                 {numero(item.peso_kg)} kg x{" "}
+                                 {numero(item.repeticiones)} reps ·{" "}
+                                 {item.origen || "entrenamiento"}
+                               </p>
                             </div>
 
                             <button

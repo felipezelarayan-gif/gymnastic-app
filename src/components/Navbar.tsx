@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getRolCached, invalidarRolCache } from "@/lib/rol-cache";
+import { useUnsavedChanges } from "@/lib/unsaved-changes-context";
 
 type Rol = "profe" | "alumno" | null;
 
@@ -13,6 +14,7 @@ export default function Navbar() {
   const [logueado, setLogueado] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [rol, setRol] = useState<Rol>(null);
+  const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
 
   function isActive(href: string): boolean {
     return pathname === href || pathname.startsWith(href + "/");
@@ -82,14 +84,29 @@ export default function Navbar() {
     setRol(rol as Rol);
   }
 
+  function handleNavClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
+    if (hasUnsavedChanges) {
+      const confirmar = confirm("Tenés cambios sin guardar. Si salís ahora, se perderán. ¿Querés continuar?");
+      if (!confirmar) {
+        e.preventDefault();
+        return;
+      }
+
+      setHasUnsavedChanges(false);
+    }
+  }
+
   async function cerrarSesion() {
     invalidarRolCache();
     await supabase.auth.signOut();
-    window.location.href = "/login";
+    window.location.replace("/login");
   }
 
   if (cargando) return null;
   if (!logueado) return null;
+
+  // No mostrar Navbar en la página de login
+  if (pathname === "/login") return null;
 
   const isAlumno = rol === "alumno";
 
@@ -100,45 +117,45 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto p-4 flex gap-2 items-center">
           {isAlumno ? (
             <>
-              <Link href="/alumno" className={getDesktopLinkClass("/alumno", true)} onClick={(e) => { if (isExactActive("/alumno")) e.preventDefault(); }}>
+              <Link href="/alumno" className={getDesktopLinkClass("/alumno", true)} onClick={(e) => { handleNavClick(e, "/alumno"); if (isExactActive("/alumno")) e.preventDefault(); }}>
                 🏠 <span>Inicio</span>
               </Link>
 
-              <Link href="/alumno/rutina" className={getDesktopLinkClass("/alumno/rutina")} onClick={(e) => { if (isActive("/alumno/rutina")) e.preventDefault(); }}>
+              <Link href="/alumno/rutina" className={getDesktopLinkClass("/alumno/rutina")} onClick={(e) => { handleNavClick(e, "/alumno/rutina"); if (isActive("/alumno/rutina")) e.preventDefault(); }}>
                 📋 <span>Mi rutina</span>
               </Link>
 
-              <Link href="/alumno/progreso" className={getDesktopLinkClass("/alumno/progreso")} onClick={(e) => { if (isActive("/alumno/progreso")) e.preventDefault(); }}>
+              <Link href="/alumno/progreso" className={getDesktopLinkClass("/alumno/progreso")} onClick={(e) => { handleNavClick(e, "/alumno/progreso"); if (isActive("/alumno/progreso")) e.preventDefault(); }}>
                 📈 <span>Progreso</span>
               </Link>
 
-              <Link href="/alumno/perfil" className={getDesktopLinkClass("/alumno/perfil")} onClick={(e) => { if (isActive("/alumno/perfil")) e.preventDefault(); }}>
+              <Link href="/alumno/perfil" className={getDesktopLinkClass("/alumno/perfil")} onClick={(e) => { handleNavClick(e, "/alumno/perfil"); if (isActive("/alumno/perfil")) e.preventDefault(); }}>
                 👤 <span>Mi perfil</span>
               </Link>
 
-              <Link href="/alumno/configuracion" className={getDesktopLinkClass("/alumno/configuracion")} onClick={(e) => { if (isActive("/alumno/configuracion")) e.preventDefault(); }}>
+              <Link href="/alumno/configuracion" className={getDesktopLinkClass("/alumno/configuracion")} onClick={(e) => { handleNavClick(e, "/alumno/configuracion"); if (isActive("/alumno/configuracion")) e.preventDefault(); }}>
                 ⚙️ <span>Configuración</span>
               </Link>
             </>
           ) : (
             <>
-              <Link href="/" className={getDesktopLinkClass("/")} onClick={(e) => { if (isActive("/")) e.preventDefault(); }}>
+              <Link href="/" className={getDesktopLinkClass("/")} onClick={(e) => { handleNavClick(e, "/"); if (isActive("/")) e.preventDefault(); }}>
                 🏠 <span>Home</span>
               </Link>
 
-              <Link href="/alumnos" className={getDesktopLinkClass("/alumnos")} onClick={(e) => { if (isActive("/alumnos")) e.preventDefault(); }}>
+              <Link href="/alumnos" className={getDesktopLinkClass("/alumnos")} onClick={(e) => { handleNavClick(e, "/alumnos"); if (isActive("/alumnos")) e.preventDefault(); }}>
                 👥 <span>Alumnos</span>
               </Link>
 
-              <Link href="/rutinas" className={getDesktopLinkClass("/rutinas")} onClick={(e) => { if (isActive("/rutinas")) e.preventDefault(); }}>
+              <Link href="/rutinas" className={getDesktopLinkClass("/rutinas")} onClick={(e) => { handleNavClick(e, "/rutinas"); if (isActive("/rutinas")) e.preventDefault(); }}>
                 📋 <span>Rutinas</span>
               </Link>
 
-              <Link href="/ejercicios" className={getDesktopLinkClass("/ejercicios")} onClick={(e) => { if (isActive("/ejercicios")) e.preventDefault(); }}>
+              <Link href="/ejercicios" className={getDesktopLinkClass("/ejercicios")} onClick={(e) => { handleNavClick(e, "/ejercicios"); if (isActive("/ejercicios")) e.preventDefault(); }}>
                 💪 <span>Ejercicios</span>
               </Link>
 
-              <Link href="/configuracion" className={getDesktopLinkClass("/configuracion")} onClick={(e) => { if (isActive("/configuracion")) e.preventDefault(); }}>
+              <Link href="/configuracion" className={getDesktopLinkClass("/configuracion")} onClick={(e) => { handleNavClick(e, "/configuracion"); if (isActive("/configuracion")) e.preventDefault(); }}>
                 ⚙️ <span>Configuración</span>
               </Link>
             </>
@@ -159,19 +176,19 @@ export default function Navbar() {
         <div className="grid grid-cols-5 h-16 px-2">
           {isAlumno ? (
             <>
-              <Link href="/alumno" className={getMobileLinkClass("/alumno", true)} onClick={(e) => { if (isExactActive("/alumno")) e.preventDefault(); }}>🏠</Link>
-              <Link href="/alumno/rutina" className={getMobileLinkClass("/alumno/rutina")} onClick={(e) => { if (isActive("/alumno/rutina")) e.preventDefault(); }}>📋</Link>
-              <Link href="/alumno/progreso" className={getMobileLinkClass("/alumno/progreso")} onClick={(e) => { if (isActive("/alumno/progreso")) e.preventDefault(); }}>📈</Link>
-              <Link href="/alumno/perfil" className={getMobileLinkClass("/alumno/perfil")} onClick={(e) => { if (isActive("/alumno/perfil")) e.preventDefault(); }}>👤</Link>
-              <Link href="/alumno/configuracion" className={getMobileLinkClass("/alumno/configuracion")} onClick={(e) => { if (isActive("/alumno/configuracion")) e.preventDefault(); }}>⚙️</Link>
+              <Link href="/alumno" className={getMobileLinkClass("/alumno", true)} onClick={(e) => { handleNavClick(e, "/alumno"); if (isExactActive("/alumno")) e.preventDefault(); }}>🏠</Link>
+              <Link href="/alumno/rutina" className={getMobileLinkClass("/alumno/rutina")} onClick={(e) => { handleNavClick(e, "/alumno/rutina"); if (isActive("/alumno/rutina")) e.preventDefault(); }}>📋</Link>
+              <Link href="/alumno/progreso" className={getMobileLinkClass("/alumno/progreso")} onClick={(e) => { handleNavClick(e, "/alumno/progreso"); if (isActive("/alumno/progreso")) e.preventDefault(); }}>📈</Link>
+              <Link href="/alumno/perfil" className={getMobileLinkClass("/alumno/perfil")} onClick={(e) => { handleNavClick(e, "/alumno/perfil"); if (isActive("/alumno/perfil")) e.preventDefault(); }}>👤</Link>
+              <Link href="/alumno/configuracion" className={getMobileLinkClass("/alumno/configuracion")} onClick={(e) => { handleNavClick(e, "/alumno/configuracion"); if (isActive("/alumno/configuracion")) e.preventDefault(); }}>⚙️</Link>
             </>
           ) : (
             <>
-              <Link href="/" className={getMobileLinkClass("/")} onClick={(e) => { if (isActive("/")) e.preventDefault(); }}>🏠</Link>
-              <Link href="/alumnos" className={getMobileLinkClass("/alumnos")} onClick={(e) => { if (isActive("/alumnos")) e.preventDefault(); }}>👥</Link>
-              <Link href="/rutinas" className={getMobileLinkClass("/rutinas")} onClick={(e) => { if (isActive("/rutinas")) e.preventDefault(); }}>📋</Link>
-              <Link href="/ejercicios" className={getMobileLinkClass("/ejercicios")} onClick={(e) => { if (isActive("/ejercicios")) e.preventDefault(); }}>💪</Link>
-              <Link href="/configuracion" className={getMobileLinkClass("/configuracion")} onClick={(e) => { if (isActive("/configuracion")) e.preventDefault(); }}>⚙️</Link>
+              <Link href="/" className={getMobileLinkClass("/")} onClick={(e) => { handleNavClick(e, "/"); if (isActive("/")) e.preventDefault(); }}>🏠</Link>
+              <Link href="/alumnos" className={getMobileLinkClass("/alumnos")} onClick={(e) => { handleNavClick(e, "/alumnos"); if (isActive("/alumnos")) e.preventDefault(); }}>👥</Link>
+              <Link href="/rutinas" className={getMobileLinkClass("/rutinas")} onClick={(e) => { handleNavClick(e, "/rutinas"); if (isActive("/rutinas")) e.preventDefault(); }}>📋</Link>
+              <Link href="/ejercicios" className={getMobileLinkClass("/ejercicios")} onClick={(e) => { handleNavClick(e, "/ejercicios"); if (isActive("/ejercicios")) e.preventDefault(); }}>💪</Link>
+              <Link href="/configuracion" className={getMobileLinkClass("/configuracion")} onClick={(e) => { handleNavClick(e, "/configuracion"); if (isActive("/configuracion")) e.preventDefault(); }}>⚙️</Link>
             </>
           )}
         </div>

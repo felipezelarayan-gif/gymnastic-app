@@ -1,5 +1,7 @@
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import SessionGuard from "@/components/SessionGuard";
+import { UnsavedChangesProvider } from "@/lib/unsaved-changes-context";
 
 export default function RootLayout({
   children,
@@ -9,8 +11,12 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className="bg-zinc-950 text-white pb-24 md:pb-0">
-        <Navbar />
-        {children}
+        <SessionGuard>
+          <UnsavedChangesProvider>
+            <Navbar />
+            {children}
+          </UnsavedChangesProvider>
+        </SessionGuard>
       </body>
     </html>
   );

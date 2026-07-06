@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getRolCached } from "@/lib/rol-cache";
+import BackButton from "@/components/BackButton";
 
 type Alumno = {
   id: string;
@@ -127,13 +129,9 @@ export default function AlumnosPage() {
 
     const user = sessionData.session.user;
 
-    const { data: profile, error } = await supabase
-      .from("profiles")
-      .select("rol")
-      .eq("id", user.id)
-      .single();
+    const rol = await getRolCached(user.id);
 
-    if (error || !profile || profile.rol !== "profe") {
+    if (rol !== "profe") {
       window.location.href = "/alumno";
       return;
     }
@@ -212,35 +210,6 @@ export default function AlumnosPage() {
     setMetricasLoading(false);
     setActualizandoAlumnos(false);
     setLoading(false);
-  }
-
-  async function reenviarInvitacion(alumno: Alumno) {
-    const body: Record<string, string> = {};
-    if (alumno.user_id) {
-      body.userId = alumno.user_id;
-    } else if (alumno.email) {
-      body.email = alumno.email;
-    } else {
-      alert("El alumno no tiene userId ni email registrado.");
-      return;
-    }
-
-    const response = await fetch("/api/reenviar-invitacion", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      alert(result.error || "No se pudo reenviar la invitación.");
-      return;
-    }
-
-    alert("Invitación reenviada correctamente.");
   }
 
   function iniciales(nombre?: string | null, apellido?: string | null) {
@@ -401,7 +370,8 @@ export default function AlumnosPage() {
       <div className="max-w-6xl mx-auto">
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold">Alumnos</h1>
+            <BackButton fallback="/" />
+            <h1 className="text-3xl font-bold mt-4">Alumnos</h1>
             <p className="text-zinc-400 mt-1">
               {alumnos.length}{" "}
               {alumnos.length === 1
@@ -414,15 +384,6 @@ export default function AlumnosPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2">
-            <button
-              type="button"
-              onClick={actualizarAlumnosManual}
-              disabled={loading || actualizandoAlumnos}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-5 py-3 font-semibold text-zinc-300 hover:bg-zinc-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actualizandoAlumnos ? "Actualizando..." : "Actualizar"}
-            </button>
-
             <a
               href="/alumnos/nuevo"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition"
@@ -519,14 +480,7 @@ export default function AlumnosPage() {
                   </div>
                 </a>
 
-                {alumno.invitacion_pendiente && (
-                  <button
-                    onClick={() => reenviarInvitacion(alumno)}
-                    className="md:hidden w-full mt-2 rounded-xl border border-amber-700 px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/20 transition"
-                  >
-                    Reenviar invitación
-                  </button>
-                )}
+
 
                 <div className="hidden md:flex items-center justify-between gap-5">
                   <div className="flex items-center gap-4 min-w-0">
@@ -578,14 +532,6 @@ export default function AlumnosPage() {
                   </div>
 
                   <div className="flex gap-2 shrink-0">
-                    {alumno.invitacion_pendiente && (
-                      <button
-                        onClick={() => reenviarInvitacion(alumno)}
-                        className="rounded-xl border border-amber-700 px-4 py-2 text-sm text-amber-300 hover:bg-amber-900/20 transition"
-                      >
-                        Reenviar invitación
-                      </button>
-                    )}
                     <a
                       href={`/alumnos/${alumno.id}`}
                       className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"

@@ -185,7 +185,7 @@ export default function RealizarRM() {
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-6">
-          <BackButton />
+          <BackButton fallback="/evaluaciones" />
         </div>
 
         <header className="mb-8">

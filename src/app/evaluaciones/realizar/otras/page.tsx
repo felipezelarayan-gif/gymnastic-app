@@ -1,5 +1,7 @@
 "use client";
 
+import BackButton from "@/components/BackButton";
+
 export default function RealizarOtrasProximamente() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
@@ -34,12 +36,7 @@ export default function RealizarOtrasProximamente() {
           </ul>
         </div>
 
-        <a
-          href="/evaluaciones"
-          className="inline-block border border-zinc-700 text-zinc-300 px-6 py-3 rounded-lg hover:bg-zinc-800 transition"
-        >
-          ← Volver a evaluaciones
-        </a>
+        <BackButton fallback="/evaluaciones" />
       </div>
     </main>
   );

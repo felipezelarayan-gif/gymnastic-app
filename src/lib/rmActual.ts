@@ -16,16 +16,6 @@ export type RMActualCalculado = {
   evaluacion_rm_id?: string | null;
 };
 
-type RegistroEntrenamientoRM = {
-  id: string;
-  alumno_id: string;
-  ejercicio_id: string | null;
-  peso_kg: number | null;
-  repeticiones: number | null;
-  rm_calculado: number | null;
-  created_at: string | null;
-};
-
 type RMHistorialEvaluacion = {
   id: string;
   alumno_id: string;
@@ -60,14 +50,6 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
   const fechaLimite = fechaLimiteVigencia();
   const fechaLimiteISO = fechaLimite.toISOString();
 
-  let registrosQuery = supabase
-    .from("registros_entrenamiento")
-    .select("id, alumno_id, ejercicio_id, peso_kg, repeticiones, rm_calculado, created_at")
-    .eq("alumno_id", alumnoId)
-    .not("rm_calculado", "is", null)
-    .gte("created_at", fechaLimiteISO)
-    .order("created_at", { ascending: false });
-
   let evaluacionesQuery = supabase
     .from("rms_historial")
     .select("id, alumno_id, ejercicio_id, peso_kg, repeticiones, rm_calculado, fecha, origen, evaluacion_rm_id")
@@ -87,20 +69,17 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
     .order("fecha", { ascending: false });
 
   if (ejercicioId) {
-    registrosQuery = registrosQuery.eq("ejercicio_id", ejercicioId);
     evaluacionesQuery = evaluacionesQuery.eq("ejercicio_id", ejercicioId);
     historialEntrenamientosQuery = historialEntrenamientosQuery.eq("ejercicio_id", ejercicioId);
   }
 
   const [
-    { data: registrosData, error: registrosError },
     { data: evaluacionesData, error: evaluacionesError },
     { data: historialEntrenamientosData, error: historialEntrenamientosError },
-  ] = await Promise.all([registrosQuery, evaluacionesQuery, historialEntrenamientosQuery]);
-
-  if (registrosError) {
-    return { data: [] as RMActualCalculado[], error: registrosError };
-  }
+  ] = await Promise.all([
+    evaluacionesQuery,
+    historialEntrenamientosQuery,
+  ]);
 
   if (evaluacionesError) {
     return { data: [] as RMActualCalculado[], error: evaluacionesError };
@@ -111,35 +90,6 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
   }
 
   const mejoresPorEjercicio = new Map<string, RMActualCalculado>();
-
-  ((registrosData || []) as RegistroEntrenamientoRM[]).forEach((registro) => {
-    if (
-      !registro.ejercicio_id ||
-      registro.rm_calculado === null ||
-      registro.rm_calculado === undefined ||
-      !registro.created_at ||
-      new Date(registro.created_at) < fechaLimite
-    ) {
-      return;
-    }
-
-    const actual = mejoresPorEjercicio.get(registro.ejercicio_id);
-
-    if (Number(registro.rm_calculado) > Number(actual?.rm_calculado || 0)) {
-      mejoresPorEjercicio.set(registro.ejercicio_id, {
-        id: `entrenamiento-${registro.id}`,
-        alumno_id: registro.alumno_id,
-        ejercicio_id: registro.ejercicio_id,
-        peso_kg: registro.peso_kg,
-        repeticiones: registro.repeticiones,
-        rm_calculado: registro.rm_calculado,
-        actualizado_en: registro.created_at,
-        origen: "entrenamiento",
-        registro_entrenamiento_id: registro.id,
-        evaluacion_rm_id: null,
-      });
-    }
-  });
 
   ((historialEntrenamientosData || []) as RMHistorialEntrenamiento[]).forEach((registro) => {
     if (

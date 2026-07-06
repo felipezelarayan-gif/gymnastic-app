@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const { userId, email } = await request.json();
+  const { userId, email, siteUrl: clientSiteUrl } = await request.json();
 
   if (!userId && !email) {
     return NextResponse.json(
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const siteUrl =
+  const siteUrl = clientSiteUrl ||
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
     "https://gymnastic-app-u64l.vercel.app";

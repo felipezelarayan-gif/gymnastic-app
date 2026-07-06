@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import BackButton from "@/components/BackButton";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type Alumno = {
   id: string;
@@ -28,6 +30,7 @@ type Alumno = {
 export default function AlumnoPerfilPage() {
   const [loading, setLoading] = useState(true);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
+  const { formatearFechaCorta } = useFormatoFecha();
   const [form, setForm] = useState<Alumno | null>(null);
 
   const [verDatosPersonales, setVerDatosPersonales] = useState(false);
@@ -372,9 +375,7 @@ async function eliminarFoto() {
             </div>
           </section>
         )}
-        <Link href="/alumno" className="text-zinc-400 hover:text-white">
-          ← Volver al panel
-        </Link>
+        <BackButton fallback="/alumno" />
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-6">
           <div className="flex items-center gap-4">
@@ -467,7 +468,7 @@ async function eliminarFoto() {
 
               <p>
                 <span className="text-zinc-500">Fecha nacimiento:</span>{" "}
-                {alumno.fecha_nacimiento || "-"}
+                {formatearFechaCorta(alumno.fecha_nacimiento) || "-"}
               </p>
 
               <p>

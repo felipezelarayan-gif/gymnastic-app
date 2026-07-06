@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
+import {
+  obtenerEvaluacionesAlumnoProfe,
+  type EvaluacionAlumnoProfe,
+} from "@/lib/evaluaciones/obtenerEvaluacionesAlumnoProfe";
+import { eliminarEvaluacionAlumnoProfesor } from "@/lib/evaluaciones/eliminarEvaluacionAlumnoProfesor";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type Profile = {
   nombre: string;
@@ -16,18 +22,6 @@ type Alumno = {
   profesor_id?: string | null;
 };
 
-type EvaluacionAlumno = {
-  id: string;
-  alumno_id: string;
-  profesor_id?: string | null;
-  estado: string | null;
-  fecha_realizacion: string | null;
-  fecha_asignacion: string | null;
-  created_at: string | null;
-  nombre: string | null;
-  observaciones: string | null;
-  cantidad_ejercicios: number;
-};
 
 const EVALUACIONES_POR_PAGINA = 5;
 
@@ -38,12 +32,13 @@ export default function EvaluacionesPorAlumnoPage() {
   const [buscandoAlumnos, setBuscandoAlumnos] = useState(false);
   const [busquedaAlumno, setBusquedaAlumno] = useState("");
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<Alumno | null>(null);
-  const [evaluacionesAlumno, setEvaluacionesAlumno] = useState<EvaluacionAlumno[]>([]);
+  const [evaluacionesAlumno, setEvaluacionesAlumno] = useState<EvaluacionAlumnoProfe[]>([]);
   const [totalEvaluaciones, setTotalEvaluaciones] = useState(0);
   const [cargandoEvaluaciones, setCargandoEvaluaciones] = useState(false);
   const [paginaEvaluaciones, setPaginaEvaluaciones] = useState(1);
   const [borrandoEvaluacionId, setBorrandoEvaluacionId] = useState<string | null>(null);
   const [profesorId, setProfesorId] = useState<string | null>(null);
+  const { formatearFechaCorta } = useFormatoFecha();
 
   useEffect(() => {
     async function cargarInicial() {
@@ -80,16 +75,6 @@ export default function EvaluacionesPorAlumnoPage() {
     1,
     Math.ceil(totalEvaluaciones / EVALUACIONES_POR_PAGINA)
   );
-
-  function formatearFechaEvaluacion(fecha: string | null) {
-    if (!fecha) return "Sin fecha";
-
-    return new Intl.DateTimeFormat("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(new Date(fecha));
-  }
 
   async function buscarAlumnos(valor: string) {
     setBusquedaAlumno(valor);
@@ -146,67 +131,26 @@ export default function EvaluacionesPorAlumnoPage() {
       return;
     }
 
-    const desde = (pagina - 1) * EVALUACIONES_POR_PAGINA;
-    const hasta = desde + EVALUACIONES_POR_PAGINA - 1;
-
-    const {
-      data: evaluacionesData,
-      error: evaluacionesError,
-      count,
-    } = await supabase
-      .from("evaluaciones_rm")
-      .select("id, alumno_id, profesor_id, estado, fecha_realizacion, fecha_asignacion, created_at, nombre, observaciones", {
-        count: "exact",
-      })
-      .eq("alumno_id", alumno.id)
-      .eq("profesor_id", profesorId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .range(desde, hasta);
-
-    if (evaluacionesError) {
-      alert(evaluacionesError.message);
-      setCargandoEvaluaciones(false);
-      return;
-    }
-
-    const evaluacionesBase = evaluacionesData || [];
-    const evaluacionIds = evaluacionesBase.map((evaluacion) => evaluacion.id);
-    const cantidadPorEvaluacion = new Map<string, number>();
-
-    if (evaluacionIds.length > 0) {
-      const { data: resultadosData, error: resultadosError } = await supabase
-        .from("evaluaciones_rm_resultados")
-        .select("evaluacion_rm_id")
-        .in("evaluacion_rm_id", evaluacionIds);
-
-      if (resultadosError) {
-        alert(resultadosError.message);
-        setCargandoEvaluaciones(false);
-        return;
-      }
-
-      (resultadosData || []).forEach((resultado) => {
-        cantidadPorEvaluacion.set(
-          resultado.evaluacion_rm_id,
-          (cantidadPorEvaluacion.get(resultado.evaluacion_rm_id) || 0) + 1
-        );
-      });
-    }
-
-    setEvaluacionesAlumno(
-      evaluacionesBase.map((evaluacion) => ({
-        ...evaluacion,
-        cantidad_ejercicios: cantidadPorEvaluacion.get(evaluacion.id) || 0,
-      }))
+    const evaluaciones = await obtenerEvaluacionesAlumnoProfe(
+      supabase,
+      alumno.id
     );
-    setTotalEvaluaciones(count || 0);
+
+    const evaluacionesPropias = evaluaciones.filter(
+      (evaluacion) => evaluacion.profesor_id === profesorId
+    );
+
+    const desde = (pagina - 1) * EVALUACIONES_POR_PAGINA;
+    const hasta = desde + EVALUACIONES_POR_PAGINA;
+
+    setEvaluacionesAlumno(evaluacionesPropias.slice(desde, hasta));
+    setTotalEvaluaciones(evaluacionesPropias.length);
     setCargandoEvaluaciones(false);
   }
 
-  async function eliminarEvaluacion(evaluacion: EvaluacionAlumno) {
+  async function eliminarEvaluacion(evaluacion: EvaluacionAlumnoProfe) {
     const confirmar = window.confirm(
-      "⚠️ Esta acción eliminará permanentemente la evaluación RM y todos los RM generados por ella.\n\nSe eliminarán resultados, historial RM y RM actual asociados a esta evaluación.\n\nEsta acción no se puede deshacer.\n\n¿Deseás continuar?"
+      `⚠️ Esta acción eliminará permanentemente la evaluación ${evaluacion.tipo.toUpperCase()} y todos sus registros asociados.\n\nEsta acción no se puede deshacer.\n\n¿Deseás continuar?`
     );
 
     if (!confirmar) return;
@@ -219,68 +163,20 @@ export default function EvaluacionesPorAlumnoPage() {
       return;
     }
 
-    const { data: evaluacionPropia, error: evaluacionPropiaError } = await supabase
-      .from("evaluaciones_rm")
-      .select("id, alumno_id, profesor_id")
-      .eq("id", evaluacion.id)
-      .eq("alumno_id", evaluacion.alumno_id)
-      .eq("profesor_id", profesorId)
-      .maybeSingle();
-
-    if (evaluacionPropiaError) {
-      alert(evaluacionPropiaError.message);
-      setBorrandoEvaluacionId(null);
-      return;
-    }
-
-    if (!evaluacionPropia) {
+    if (evaluacion.profesor_id !== profesorId) {
       alert("No tenés permiso para borrar esta evaluación.");
       setBorrandoEvaluacionId(null);
       return;
     }
 
-    const { error: historialError } = await supabase
-      .from("rms_historial")
-      .delete()
-      .eq("evaluacion_rm_id", evaluacion.id);
-
-    if (historialError) {
-      alert(historialError.message);
-      setBorrandoEvaluacionId(null);
-      return;
-    }
-
-    const { error: actualesError } = await supabase
-      .from("rms_actuales")
-      .delete()
-      .eq("evaluacion_rm_id", evaluacion.id);
-
-    if (actualesError) {
-      alert(actualesError.message);
-      setBorrandoEvaluacionId(null);
-      return;
-    }
-
-    const { error: resultadosError } = await supabase
-      .from("evaluaciones_rm_resultados")
-      .delete()
-      .eq("evaluacion_rm_id", evaluacion.id);
-
-    if (resultadosError) {
-      alert(resultadosError.message);
-      setBorrandoEvaluacionId(null);
-      return;
-    }
-
-    const { error: evaluacionError } = await supabase
-      .from("evaluaciones_rm")
-      .delete()
-      .eq("id", evaluacion.id)
-      .eq("alumno_id", evaluacion.alumno_id)
-      .eq("profesor_id", profesorId);
-
-    if (evaluacionError) {
-      alert(evaluacionError.message);
+    try {
+      await eliminarEvaluacionAlumnoProfesor({
+        supabase,
+        evaluacionId: evaluacion.id,
+        tipo: evaluacion.tipo,
+      });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo eliminar la evaluación.");
       setBorrandoEvaluacionId(null);
       return;
     }
@@ -310,7 +206,7 @@ export default function EvaluacionesPorAlumnoPage() {
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
-          <BackButton />
+          <BackButton fallback="/evaluaciones" />
         </div>
 
         <header className="mb-8">
@@ -319,7 +215,7 @@ export default function EvaluacionesPorAlumnoPage() {
           </p>
           <h1 className="text-3xl font-bold">📋 Evaluaciones por alumno</h1>
           <p className="text-zinc-400 mt-2">
-            Buscá un alumno, revisá sus evaluaciones RM y eliminá evaluaciones junto con los RM generados por ellas.
+            Buscá un alumno, revisá todas sus evaluaciones y eliminá registros asociados cuando sea necesario.
           </p>
         </header>
 
@@ -328,7 +224,7 @@ export default function EvaluacionesPorAlumnoPage() {
             <section>
               <h2 className="text-xl font-semibold">🔎 Buscar alumno</h2>
               <p className="text-zinc-400 text-sm mt-1">
-                Seleccioná un alumno para ver sus evaluaciones RM.
+                Seleccioná un alumno para ver sus evaluaciones.
               </p>
 
               <input
@@ -395,7 +291,7 @@ export default function EvaluacionesPorAlumnoPage() {
                 </div>
               ) : evaluacionesAlumno.length === 0 ? (
                 <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-6 text-zinc-400 text-sm">
-                  Este alumno no tiene evaluaciones RM.
+                  Este alumno no tiene evaluaciones registradas.
                 </div>
               ) : (
                 <>
@@ -408,18 +304,20 @@ export default function EvaluacionesPorAlumnoPage() {
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-semibold">
-                              {evaluacion.nombre || "Evaluación de RM"}
+                              {evaluacion.nombre || "Evaluación"}
                             </h3>
-                            <span className="text-xs rounded-full border border-zinc-700 text-zinc-400 px-2 py-0.5">
-                              {evaluacion.estado || "sin estado"}
+                            <span className="text-xs rounded-full border border-zinc-700 text-zinc-300 px-2 py-0.5 uppercase">
+                              {evaluacion.tipo}
                             </span>
                           </div>
                           <div className="flex flex-wrap gap-2 mt-2 text-sm text-zinc-400">
                             <span>
-                              Fecha: {formatearFechaEvaluacion(evaluacion.fecha_realizacion || evaluacion.created_at)}
+                              Fecha: {formatearFechaCorta(evaluacion.fecha_realizacion || evaluacion.created_at)}
                             </span>
                             <span>•</span>
-                            <span>{evaluacion.cantidad_ejercicios} ejercicios</span>
+                            <span>
+                              {evaluacion.cantidad_items} {evaluacion.tipo === "rm" ? "ejercicios" : "tests"}
+                            </span>
                           </div>
                           {evaluacion.observaciones && (
                             <p className="text-sm text-zinc-500 mt-2 line-clamp-2">

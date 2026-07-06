@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { obtenerRMsActualesAlumno } from "@/lib/rmActual";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import BackButton from "@/components/BackButton";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type ModoCarga = "protocolo" | "rapida" | null;
 
@@ -71,16 +72,6 @@ const SERIES_APROXIMACION: SerieAproximacion[] = [
   { numero: 4, porcentaje: 85, repeticiones: 1, descanso: "3 min" },
   { numero: 5, porcentaje: 90, porcentajeLabel: "90-95", repeticiones: 1, descanso: "3 min" },
 ];
-
-function formatearFecha(fecha: string | null) {
-  if (!fecha) return "Sin fecha";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(fecha));
-}
 
 function calcularRMEpley(peso: number | null, repeticiones: number | null) {
   if (!peso || !repeticiones) return null;
@@ -156,6 +147,7 @@ export default function RealizarEvaluacionRMDetalle() {
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito] = useState(false);
   const [alumnoActualId, setAlumnoActualId] = useState<string | null>(null);
+  const { formatearFechaCorta } = useFormatoFecha();
 
   function puedeGuardarEvaluacion() {
     if (!evaluacion) return false;
@@ -636,13 +628,13 @@ export default function RealizarEvaluacionRMDetalle() {
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-6">
-          <BackButton />
+          <BackButton fallback="/alumno/rutina" />
         </div>
 
         <header className="mb-8">
           <p className="text-sm text-emerald-400 mb-2">Vista alumno · Evaluación RM</p>
           <h1 className="text-3xl font-bold">{alumno?.nombre || "Alumno"}</h1>
-          <p className="text-zinc-400 mt-2">Fecha asignada: {formatearFecha(evaluacion.fecha_realizacion)}</p>
+          <p className="text-zinc-400 mt-2">Fecha asignada: {formatearFechaCorta(evaluacion.fecha_realizacion)}</p>
           {evaluacion.observaciones && <p className="text-zinc-500 mt-2">{evaluacion.observaciones}</p>}
           {puedeCompletar ? (
             <div className="mt-4 rounded-lg border border-emerald-900/60 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-300">

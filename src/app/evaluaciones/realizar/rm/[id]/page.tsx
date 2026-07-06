@@ -617,12 +617,7 @@ export default function RealizarEvaluacionRMDetalle() {
           <p className="text-zinc-400 mt-2">
             Los resultados se guardaron y se recalcularon los RM actuales del alumno.
           </p>
-          <a
-            href="/evaluaciones/realizar/rm"
-            className="inline-block mt-6 bg-white text-zinc-950 font-semibold px-5 py-2 rounded-lg hover:bg-zinc-200 transition"
-          >
-            Volver a pendientes
-          </a>
+          <BackButton fallback="/evaluaciones/realizar/rm" />
         </div>
       </main>
     );
@@ -632,7 +627,7 @@ export default function RealizarEvaluacionRMDetalle() {
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-6">
-          <BackButton />
+          <BackButton fallback="/evaluaciones/realizar/rm" />
         </div>
 
         <header className="mb-8">

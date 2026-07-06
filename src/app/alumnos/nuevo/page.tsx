@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import BackButton from "@/components/BackButton";
 
 export default function NuevoAlumnoPage() {
   const [nombre, setNombre] = useState("");
@@ -40,6 +41,7 @@ export default function NuevoAlumnoPage() {
     telefono: telefono.trim(),
     rol: "alumno",
     profesorId: profesorId || null,
+    siteUrl: window.location.origin,
   }),
 });
 
@@ -60,9 +62,7 @@ if (!response.ok) {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-3xl mx-auto">
-        <a href="/alumnos" className="text-zinc-400 hover:text-white">
-          ← Volver a alumnos
-        </a>
+        <BackButton fallback="/alumnos" />
 
         <header className="mt-6 mb-6">
           <h1 className="text-3xl font-bold">Agregar alumno</h1>

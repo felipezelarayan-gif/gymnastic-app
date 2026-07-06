@@ -2,7 +2,10 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getRolCached } from "@/lib/rol-cache";
+import BackButton from "@/components/BackButton";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type Alumno = {
   id: string;
@@ -71,10 +74,6 @@ function normalizarRutina(rutinas?: Rutina | Rutina[] | null) {
   return rutinas || null;
 }
 
-function fecha(valor?: string | null) {
-  return valor ? new Date(valor).toLocaleDateString("es-AR") : "Sin fecha";
-}
-
 function textoPrescripcion(item: {
   tipo_prescripcion?: string | null;
   repeticiones?: string | null;
@@ -99,6 +98,7 @@ export default function AlumnoRutinasProfesor({
   const [asignadas, setAsignadas] = useState<RutinaAsignada[]>([]);
   const [disponibles, setDisponibles] = useState<Rutina[]>([]);
   const [profesorId, setProfesorId] = useState<string | null>(null);
+  const { formatearFechaCorta } = useFormatoFecha();
 
   const [rutinaSeleccionada, setRutinaSeleccionada] = useState("");
   const [mostrar, setMostrar] = useState(5);
@@ -147,13 +147,9 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("rol")
-      .eq("id", sessionData.session.user.id)
-      .single();
+    const rol = await getRolCached(sessionData.session.user.id);
 
-    if (!profile || profile.rol !== "profe") {
+    if (rol !== "profe") {
       window.location.href = "/alumno";
       return;
     }
@@ -683,7 +679,7 @@ export default function AlumnoRutinasProfesor({
 
     const { data: ejercicios, error: ejerciciosError } = await supabase
       .from("rutina_ejercicios")
-      .select("*")
+      .select("id,created_at,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
       .eq("rutina_id", rutina.id);
 
     if (ejerciciosError) {
@@ -711,7 +707,7 @@ export default function AlumnoRutinasProfesor({
 
     const { data: entrada, error: entradaError } = await supabase
       .from("rutina_entrada_calor")
-      .select("*")
+      .select("id,created_at,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,observaciones,orden,ejercicio_id")
       .eq("rutina_id", rutina.id);
 
     if (entradaError) {
@@ -765,9 +761,7 @@ export default function AlumnoRutinasProfesor({
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-5xl mx-auto">
-        <a href={`/alumnos/${id}`} className="text-zinc-400 hover:text-white">
-          ← Volver al perfil
-        </a>
+        <BackButton fallback={`/alumnos/${id}`} />
 
         <header className="mt-6 mb-5">
           <h1 className="text-3xl font-bold">
@@ -946,9 +940,9 @@ export default function AlumnoRutinasProfesor({
                           Estado: {estado}
                         </p>
 
-                        <p className="text-xs text-zinc-500 mt-1">
-                          Asignada: {fecha(asignacion.fecha_asignacion)}
-                        </p>
+                         <p className="text-xs text-zinc-500 mt-1">
+                           Asignada: {formatearFechaCorta(asignacion.fecha_asignacion)}
+                         </p>
 
                         {rutina?.objetivo && (
                           <p className="text-xs text-zinc-500 mt-1">
@@ -1023,16 +1017,16 @@ export default function AlumnoRutinasProfesor({
                 </button>
               </div>
 
-              <div className="space-y-5">
+                  <div className="space-y-5">
                 <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
                   <h3 className="text-lg font-semibold">Información general</h3>
 
                   <div className="mt-3 space-y-2 text-sm text-zinc-400">
                     <p>Estado: {detalleAsignacion.completada ? "Finalizada" : "Activa"}</p>
-                    <p>Asignada: {fecha(detalleAsignacion.fecha_asignacion)}</p>
+                    <p>Asignada: {formatearFechaCorta(detalleAsignacion.fecha_asignacion)}</p>
                     {detalleAsignacion.fecha_completada && (
                       <p>
-                        Completada: {fecha(detalleAsignacion.fecha_completada)}
+                        Completada: {formatearFechaCorta(detalleAsignacion.fecha_completada)}
                       </p>
                     )}
                     {detalleRutina.objetivo && (

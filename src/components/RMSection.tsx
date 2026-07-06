@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { recalcularRMActual } from "@/lib/recalcularRMActual";
 
 type Props = {
   alumnoId: string;
@@ -95,39 +96,10 @@ export default function RMSection({ alumnoId }: Props) {
         origen: "manual",
       });
 
-    const { data: existente } = await supabase
-      .from("rms_actuales")
-      .select("*")
-      .eq("alumno_id", alumnoId)
-      .eq("ejercicio_id", ejercicioId)
-      .maybeSingle();
-
-    if (!existente) {
-      await supabase
-        .from("rms_actuales")
-        .insert({
-          alumno_id: alumnoId,
-          ejercicio_id: ejercicioId,
-          peso_kg: pesoNumero,
-          repeticiones: repsNumero,
-          rm_calculado: rmCalculado,
-        });
-    } else {
-      if (
-        rmCalculado >
-        Number(existente.rm_calculado || 0)
-      ) {
-        await supabase
-          .from("rms_actuales")
-          .update({
-            peso_kg: pesoNumero,
-            repeticiones: repsNumero,
-            rm_calculado: rmCalculado,
-            actualizado_en: new Date(),
-          })
-          .eq("id", existente.id);
-      }
-    }
+    await recalcularRMActual({
+      alumnoId,
+      ejercicioId,
+    });
 
     setMostrarModal(false);
     setPeso("");

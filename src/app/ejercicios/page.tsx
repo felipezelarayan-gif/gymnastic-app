@@ -2,41 +2,37 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import CrearEjercicioModal from "@/components/ejercicios/CrearEjercicioModal";
+import EditarEjercicioModal from "@/components/ejercicios/EditarEjercicioModal";
+import BackButton from "@/components/BackButton";
 
 type Ejercicio = {
   id: string;
   nombre: string;
+  grupo_muscular?: string | null;
   patron_movimiento?: string;
-  youtube_url?: string;
+  youtube_url?: string | null;
+  peso_corporal?: boolean | null;
 };
 
-const patrones = [
-  "Empuje",
-  "Tracción",
-  "Dominante de cadera",
-  "Dominante de rodilla",
-  "Full body",
-  "Mixto",
-];
+type Profile = {
+  id: string;
+  rol: string;
+  es_admin?: boolean;
+};
 
 export default function EjerciciosPage() {
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
   const [loading, setLoading] = useState(true);
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [editandoId, setEditandoId] = useState<string | null>(null);
-
-  const [nombre, setNombre] = useState("");
-  const [patronMovimiento, setPatronMovimiento] = useState("");
-  const [youtubeUrl, setYoutubeUrl] = useState("");
-
-  useEffect(() => {
-    cargarEjercicios();
-  }, []);
+  const [mostrarEditarModal, setMostrarEditarModal] = useState(false);
+  const [ejercicioEditando, setEjercicioEditando] = useState<Ejercicio | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   async function cargarEjercicios() {
     const { data, error } = await supabase
       .from("ejercicios")
-      .select("id,nombre,patron_movimiento,youtube_url")
+      .select("id,nombre,grupo_muscular,patron_movimiento,youtube_url,peso_corporal")
       .order("nombre");
 
     if (error) {
@@ -49,72 +45,91 @@ export default function EjerciciosPage() {
     setLoading(false);
   }
 
-  function abrirNuevo() {
-    setEditandoId(null);
-    setNombre("");
-    setPatronMovimiento("");
-    setYoutubeUrl("");
-    setMostrarModal(true);
+  function handleEjercicioCreado(ejercicio: { id: string; nombre: string; grupo_muscular?: string | null; youtube_url?: string | null; peso_corporal?: boolean | null }) {
+    setEjercicios((prev) => [
+      ...prev,
+      {
+        id: ejercicio.id,
+        nombre: ejercicio.nombre,
+        grupo_muscular: ejercicio.grupo_muscular || null,
+        patron_movimiento: ejercicio.grupo_muscular || undefined,
+        youtube_url: ejercicio.youtube_url || undefined,
+        peso_corporal: ejercicio.peso_corporal || false,
+      },
+    ]);
+  }
+
+  function handleEjercicioActualizado(ejercicio: Ejercicio) {
+    setEjercicios((prev) =>
+      prev.map((e) => (e.id === ejercicio.id ? ejercicio : e))
+    );
   }
 
   function abrirEditar(ejercicio: Ejercicio) {
-    setEditandoId(ejercicio.id);
-    setNombre(ejercicio.nombre || "");
-    setPatronMovimiento(ejercicio.patron_movimiento || "");
-    setYoutubeUrl(ejercicio.youtube_url || "");
-    setMostrarModal(true);
+    setEjercicioEditando(ejercicio);
+    setMostrarEditarModal(true);
   }
 
-  async function guardarEjercicio() {
-    if (!nombre.trim()) {
-      alert("Ingresá el nombre del ejercicio.");
-      return;
+  async function verificarDependencias(ejercicioId: string): Promise<{ tieneDependencias: boolean; mensaje: string }> {
+    // Verificar si está en rutinas
+    const { count: rutinasCount } = await supabase
+      .from("rutina_ejercicios")
+      .select("*", { count: "exact", head: true })
+      .eq("ejercicio_id", ejercicioId);
+
+    // Verificar si está en evaluaciones RM
+    const { count: evaluacionesRMCount } = await supabase
+      .from("evaluaciones_rm_resultados")
+      .select("*", { count: "exact", head: true })
+      .eq("ejercicio_id", ejercicioId);
+
+    // Verificar si está en evaluaciones FMS (no aplica directamente, pero por si acaso)
+    const { count: evaluacionesFMSCount } = await supabase
+      .from("evaluaciones_fms_tests")
+      .select("*", { count: "exact", head: true })
+      .eq("test_nombre", (ejercicios.find(e => e.id === ejercicioId)?.nombre || ""));
+
+    const totalDependencias = (rutinasCount || 0) + (evaluacionesRMCount || 0) + (evaluacionesFMSCount || 0);
+
+    if (totalDependencias === 0) {
+      return { tieneDependencias: false, mensaje: "" };
     }
 
-    if (!patronMovimiento) {
-      alert("Seleccioná el patrón de movimiento.");
-      return;
-    }
+    const mensaje = `Este ejercicio está siendo usado en:\n`;
+    const partes: string[] = [];
+    if (rutinasCount && rutinasCount > 0) partes.push(`• ${rutinasCount} rutina(s)`);
+    if (evaluacionesRMCount && evaluacionesRMCount > 0) partes.push(`• ${evaluacionesRMCount} evaluación(es) RM`);
+    if (evaluacionesFMSCount && evaluacionesFMSCount > 0) partes.push(`• ${evaluacionesFMSCount} evaluación(es) FMS`);
 
-    if (editandoId) {
-      const { error } = await supabase
-        .from("ejercicios")
-        .update({
-          nombre,
-          patron_movimiento: patronMovimiento,
-          youtube_url: youtubeUrl,
-        })
-        .eq("id", editandoId);
-
-      if (error) {
-        alert(error.message);
-        return;
-      }
-    } else {
-      const { error } = await supabase.from("ejercicios").insert({
-        nombre,
-        patron_movimiento: patronMovimiento,
-        youtube_url: youtubeUrl,
-        activo: true,
-      });
-
-      if (error) {
-        alert(error.message);
-        return;
-      }
-    }
-
-    setMostrarModal(false);
-    setEditandoId(null);
-    setNombre("");
-    setPatronMovimiento("");
-    setYoutubeUrl("");
-    cargarEjercicios();
+    return {
+      tieneDependencias: true,
+      mensaje: mensaje + "\n" + partes.join("\n") + "\n\nSi lo borrás, se perderá esta información."
+    };
   }
 
   async function borrarEjercicio(id: string) {
-    const confirmar = confirm("¿Seguro que querés borrar este ejercicio?");
-    if (!confirmar) return;
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("es_admin")
+      .eq("id", (await supabase.auth.getSession()).data.session?.user.id)
+      .single();
+
+    const esAdmin = profileData?.es_admin || false;
+
+    if (userRole !== "profesor" && userRole !== "profe" && userRole !== "admin" && !esAdmin) {
+      alert("No tenés permisos para borrar ejercicios.");
+      return;
+    }
+
+    const { tieneDependencias, mensaje } = await verificarDependencias(id);
+
+    if (tieneDependencias) {
+      const confirmar = confirm(mensaje + "\n\n¿Estás seguro que querés borrarlo de todas formas?");
+      if (!confirmar) return;
+    } else {
+      const confirmar = confirm("¿Seguro que querés borrar este ejercicio?");
+      if (!confirmar) return;
+    }
 
     const { error } = await supabase.from("ejercicios").delete().eq("id", id);
 
@@ -123,7 +138,28 @@ export default function EjerciciosPage() {
       return;
     }
 
-    cargarEjercicios();
+    setEjercicios((prev) => prev.filter((e) => e.id !== id));
+  }
+
+  useEffect(() => {
+    cargarDatos();
+  }, []);
+
+  async function cargarDatos() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session?.user.id) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("rol, es_admin")
+      .eq("id", sessionData.session.user.id)
+      .single();
+
+    if (profile) {
+      setUserRole(profile.rol);
+    }
+
+    await cargarEjercicios();
   }
 
   if (loading) {
@@ -138,7 +174,8 @@ export default function EjerciciosPage() {
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-5xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold">Ejercicios</h1>
+          <BackButton fallback="/" />
+          <h1 className="text-3xl font-bold mt-4">Ejercicios</h1>
           <p className="text-zinc-400 mt-1">
             Banco de ejercicios y videos explicativos.
           </p>
@@ -152,14 +189,23 @@ export default function EjerciciosPage() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold">
-                    {ejercicio.nombre}
-                  </h2>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-lg font-semibold">
+                      {ejercicio.nombre}
+                    </h2>
 
-                  <p className="text-zinc-400 text-sm mt-1">
-                    Patrón de movimiento:{" "}
-                    {ejercicio.patron_movimiento || "Sin definir"}
-                  </p>
+                    {ejercicio.peso_corporal && (
+                      <span className="inline-block px-3 py-1 rounded-full bg-emerald-900/40 border border-emerald-700 text-emerald-300 text-xs font-medium">
+                        Peso corporal
+                      </span>
+                    )}
+                  </div>
+
+                  {ejercicio.grupo_muscular && (
+                    <p className="text-zinc-400 text-sm mt-1">
+                      {ejercicio.grupo_muscular}
+                    </p>
+                  )}
 
                   {ejercicio.youtube_url && (
                     <a
@@ -182,14 +228,16 @@ export default function EjerciciosPage() {
                     ✏️
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => borrarEjercicio(ejercicio.id)}
-                    className="rounded-lg border border-red-800 px-3 py-2 hover:bg-red-950"
-                    title="Borrar"
-                  >
-                    🗑️
-                  </button>
+                  {(userRole === "profesor" || userRole === "profe" || userRole === "admin") && (
+                    <button
+                      type="button"
+                      onClick={() => borrarEjercicio(ejercicio.id)}
+                      className="rounded-lg border border-red-800 px-3 py-2 hover:bg-red-950"
+                      title="Borrar"
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -198,69 +246,24 @@ export default function EjerciciosPage() {
 
         <button
           type="button"
-          onClick={abrirNuevo}
+          onClick={() => setMostrarModal(true)}
           className="fixed right-6 bottom-24 md:bottom-6 w-14 h-14 rounded-full bg-emerald-500 text-white text-3xl font-bold shadow-lg hover:bg-emerald-600"
         >
           +
         </button>
 
-        {mostrarModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h2 className="text-2xl font-bold mb-4">
-                {editandoId ? "Editar ejercicio" : "Nuevo ejercicio"}
-              </h2>
+        <CrearEjercicioModal
+          abierto={mostrarModal}
+          onCerrar={() => setMostrarModal(false)}
+          onCreado={handleEjercicioCreado}
+        />
 
-              <div className="space-y-3">
-                <input
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Nombre"
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                />
-
-                <select
-                  value={patronMovimiento}
-                  onChange={(e) => setPatronMovimiento(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                >
-                  <option value="">Seleccionar patrón de movimiento</option>
-
-                  {patrones.map((patron) => (
-                    <option key={patron} value={patron}>
-                      {patron}
-                    </option>
-                  ))}
-                </select>
-
-                <input
-                  value={youtubeUrl}
-                  onChange={(e) => setYoutubeUrl(e.target.value)}
-                  placeholder="Link de YouTube"
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                />
-              </div>
-
-              <div className="flex gap-3 mt-5">
-                <button
-                  type="button"
-                  onClick={() => setMostrarModal(false)}
-                  className="flex-1 border border-zinc-700 rounded-xl py-3"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={guardarEjercicio}
-                  className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold"
-                >
-                  Guardar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <EditarEjercicioModal
+          abierto={mostrarEditarModal}
+          onCerrar={() => setMostrarEditarModal(false)}
+          onActualizado={handleEjercicioActualizado}
+          ejercicio={ejercicioEditando}
+        />
       </div>
     </main>
   );

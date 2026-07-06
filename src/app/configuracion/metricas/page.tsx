@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import BackButton from "@/components/BackButton";
 
 type MetricaProfesor = {
   profesorId: string;
@@ -119,12 +120,7 @@ export default function MetricasConfiguracionPage() {
             </p>
           </div>
 
-          <Link
-            href="/configuracion"
-            className="inline-flex items-center justify-center rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold hover:bg-zinc-900"
-          >
-            Volver a configuración
-          </Link>
+          <BackButton fallback="/configuracion" />
         </header>
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">

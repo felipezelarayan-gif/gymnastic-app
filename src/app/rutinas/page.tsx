@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getRolCached } from "@/lib/rol-cache";
+import { borrarRutina as borrarRutinaLib } from "@/lib/rutinas/borrarRutina";
+import BackButton from "@/components/BackButton";
 
 type Rutina = {
   id: string;
@@ -107,13 +110,9 @@ export default function RutinasPage() {
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("rol")
-      .eq("id", sessionData.session.user.id)
-      .single();
+    const rol = await getRolCached(sessionData.session.user.id);
 
-    if (!profile || profile.rol !== "profe") {
+    if (rol !== "profe") {
       window.location.href = "/alumno";
       return;
     }
@@ -184,14 +183,18 @@ export default function RutinasPage() {
       return;
     }
 
-    const { error } = await supabase.from("rutinas").insert({
-      nombre: nombre.trim(),
-      descripcion: descripcion.trim() || null,
-      objetivo: objetivoFinal || null,
-      estructura: estructuraFinal || null,
-      creada_por: profesorId,
-      profesor_id: profesorId,
-    });
+    const { data: rutinaCreada, error } = await supabase
+      .from("rutinas")
+      .insert({
+        nombre: nombre.trim(),
+        descripcion: descripcion.trim() || null,
+        objetivo: objetivoFinal || null,
+        estructura: estructuraFinal || null,
+        creada_por: profesorId,
+        profesor_id: profesorId,
+      })
+      .select("id")
+      .single();
 
     if (error) {
       alert(error.message);
@@ -199,53 +202,60 @@ export default function RutinasPage() {
       return;
     }
 
-    setNombre("");
-    setDescripcion("");
-    setObjetivo("");
-    setObjetivoPersonalizado("");
-    setEstructura("");
-    setEstructuraPersonalizada("");
-    setMostrarModal(false);
-    setCreando(false);
+    if (!rutinaCreada?.id) {
+      alert("La rutina se creó, pero no se pudo abrir el editor.");
+      setCreando(false);
+      await cargarRutinas(profesorId);
+      return;
+    }
 
-    await cargarRutinas(profesorId);
+    try {
+      localStorage.removeItem(getRutinasCacheKey(profesorId));
+    } catch {
+      // Si localStorage falla, continuamos igual hacia el editor.
+    }
+
+    window.location.href = `/rutinas/${rutinaCreada.id}`;
   }
 
   async function borrarRutina(rutinaId: string) {
     if (borrandoId) return;
-    const confirmar = confirm(
-      "¿Querés borrar esta rutina? También se quitará de todos los alumnos que la tengan asignada."
-    );
-
-    if (!confirmar) return;
-
-    setBorrandoId(rutinaId);
-
-    const { error: asignacionesError } = await supabase
-      .from("rutina_asignaciones")
-      .delete()
-      .eq("rutina_id", rutinaId);
-
-    if (asignacionesError) {
-      alert(asignacionesError.message);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const profesorId = sessionData.session?.user.id;
+      if (!profesorId) {
+        window.location.href = "/login";
+        return;
+      }
+      setBorrandoId(rutinaId);
+      const result = await borrarRutinaLib({
+        supabase,
+        rutinaId,
+        profesorId,
+        onConfirm: (pendientes, completadas) =>
+          confirm(
+            `Esta rutina tiene:\n\n` +
+            `• ${pendientes} asignación(es) pendiente(s)\n` +
+            `• ${completadas} asignación(es) completada(s)\n\n` +
+            `Las asignaciones pendientes serán eliminadas.\n` +
+            `Las asignaciones completadas permanecerán disponibles en el historial del alumno.\n\n` +
+            `¿Deseás continuar?`
+          ),
+      });
+      if (!result.ok) {
+        if (result.error !== "Operación cancelada por el usuario.") {
+          alert(result.error);
+        }
+        return;
+      }
+      await cargarRutinas(sessionData.session?.user.id);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(err);
+      alert("Error al borrar la rutina.");
+    } finally {
       setBorrandoId(null);
-      return;
     }
-
-    const { error: rutinaError } = await supabase
-      .from("rutinas")
-      .delete()
-      .eq("id", rutinaId);
-
-    if (rutinaError) {
-      alert(rutinaError.message);
-      setBorrandoId(null);
-      return;
-    }
-
-    setBorrandoId(null);
-    const { data: sessionData } = await supabase.auth.getSession();
-    await cargarRutinas(sessionData.session?.user.id);
   }
 
   if (loading) {
@@ -261,7 +271,8 @@ export default function RutinasPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold">Rutinas</h1>
+            <BackButton fallback="/" />
+            <h1 className="text-3xl font-bold mt-4">Rutinas</h1>
             <p className="text-zinc-400">
               Creá rutinas y asignalas a tus alumnos.
               {actualizandoRutinas && (
@@ -359,7 +370,10 @@ export default function RutinasPage() {
         {mostrarModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
             <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h2 className="text-2xl font-bold mb-4">Nueva rutina</h2>
+              <h2 className="text-2xl font-bold mb-1">Nueva rutina</h2>
+              <p className="mb-4 text-sm text-zinc-400">
+                Primero creás la base. Después se abre el editor para agregar entrada en calor, ejercicios y asignarla.
+              </p>
 
               <div className="space-y-3">
                 <input
@@ -448,7 +462,7 @@ export default function RutinasPage() {
                   disabled={creando}
                   className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {creando ? "Creando..." : "Crear"}
+                  {creando ? "Creando..." : "Crear y editar"}
                 </button>
               </div>
             </div>

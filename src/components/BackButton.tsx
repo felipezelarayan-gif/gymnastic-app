@@ -1,12 +1,29 @@
 "use client";
 
-export default function BackButton() {
+import { useRouter } from "next/navigation";
+
+interface BackButtonProps {
+  fallback?: string;
+  children?: React.ReactNode;
+}
+
+export default function BackButton({ fallback = "/", children }: BackButtonProps) {
+  const router = useRouter();
+
+  const handleClick = () => {
+    if (typeof window !== "undefined" && window.history.length > 2) {
+      router.back();
+    } else {
+      router.push(fallback);
+    }
+  };
+
   return (
     <button
-      onClick={() => window.history.back()}
+      onClick={handleClick}
       className="px-4 py-2 rounded-xl border border-zinc-700 hover:bg-zinc-800 transition"
     >
-      ← Atrás
+      {children || "← Atrás"}
     </button>
   );
 }

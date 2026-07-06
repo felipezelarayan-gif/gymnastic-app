@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type RegistroHistorial = {
   id: string;
@@ -23,11 +24,6 @@ type Props = {
   onCerrar: () => void;
 };
 
-function fecha(valor?: string | null) {
-  if (!valor) return "Sin fecha";
-  return new Date(valor).toLocaleDateString("es-AR");
-}
-
 function numero(valor?: number | string | null) {
   if (valor === null || valor === undefined || valor === "") return "-";
   return Number(valor).toFixed(1).replace(".0", "");
@@ -42,6 +38,7 @@ export default function EjercicioHistorialModal({
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [registros, setRegistros] = useState<RegistroHistorial[]>([]);
+  const { formatearFechaCorta } = useFormatoFecha();
 
   useEffect(() => {
     if (!abierto || !alumnoId || !ejercicioId) return;
@@ -109,7 +106,7 @@ export default function EjercicioHistorialModal({
                   className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
                 >
                   <p className="text-sm font-semibold text-zinc-200">
-                    {fecha(registro.created_at)}
+                    {formatearFechaCorta(registro.created_at)}
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-2 text-sm">

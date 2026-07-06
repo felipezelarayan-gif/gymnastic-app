@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { getRolCached } from "@/lib/rol-cache";
 
 const ADMIN_EMAIL = "entrenamiento-app@hotmail.com";
 const APP_VERSION = "1.0.0";
@@ -36,6 +37,7 @@ export default function AlumnoConfiguracionPage() {
   const [passwordActual, setPasswordActual] = useState("");
   const [passwordNueva, setPasswordNueva] = useState("");
   const [passwordConfirmar, setPasswordConfirmar] = useState("");
+  const [guardandoPassword, setGuardandoPassword] = useState(false);
 
   const [mostrarEmail, setMostrarEmail] = useState(false);
   const [nuevoEmail, setNuevoEmail] = useState("");
@@ -53,13 +55,9 @@ export default function AlumnoConfiguracionPage() {
 
     const user = sessionData.session.user;
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("rol")
-      .eq("id", user.id)
-      .maybeSingle();
+    const rol = await getRolCached(user.id);
 
-    if (!profile || profile.rol !== "alumno") {
+    if (rol !== "alumno") {
       window.location.href = "/";
       return;
     }
@@ -96,10 +94,7 @@ export default function AlumnoConfiguracionPage() {
   }
 
   async function cambiarPassword() {
-    if (!alumno?.email) {
-      alert("No se encontró el email del usuario.");
-      return;
-    }
+    if (guardandoPassword) return;
 
     if (!passwordActual || !passwordNueva || !passwordConfirmar) {
       alert("Completá todos los campos.");
@@ -111,30 +106,57 @@ export default function AlumnoConfiguracionPage() {
       return;
     }
 
-    const { error: loginError } = await supabase.auth.signInWithPassword({
-      email: alumno.email,
-      password: passwordActual,
-    });
-
-    if (loginError) {
-      alert("La contraseña actual no es correcta.");
+    if (passwordNueva.length < 8) {
+      alert("La nueva contraseña debe tener al menos 8 caracteres.");
       return;
     }
 
-    const { error } = await supabase.auth.updateUser({
-      password: passwordNueva,
-    });
-
-    if (error) {
-      alert(error.message);
+    if (passwordActual === passwordNueva) {
+      alert("La nueva contraseña debe ser diferente a la actual.");
       return;
     }
 
-    alert("Contraseña actualizada correctamente.");
-    setPasswordActual("");
-    setPasswordNueva("");
-    setPasswordConfirmar("");
-    setMostrarPassword(false);
+    setGuardandoPassword(true);
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user?.email) {
+        alert("No se pudo validar la sesión. Volvé a iniciar sesión.");
+        window.location.href = "/login";
+        return;
+      }
+
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: passwordActual,
+      });
+
+      if (loginError) {
+        alert("La contraseña actual no es correcta.");
+        return;
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        password: passwordNueva,
+      });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      alert("Contraseña actualizada correctamente.");
+      setPasswordActual("");
+      setPasswordNueva("");
+      setPasswordConfirmar("");
+      setMostrarPassword(false);
+    } finally {
+      setGuardandoPassword(false);
+    }
   }
 
   async function cambiarEmail() {
@@ -201,7 +223,7 @@ ${mensaje}
 
   async function cerrarSesion() {
     await supabase.auth.signOut();
-    window.location.href = "/login";
+    window.location.replace("/login");
   }
 
   if (loading || !alumno) {
@@ -299,9 +321,10 @@ ${mensaje}
                 <button
                   type="button"
                   onClick={cambiarPassword}
-                  className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold"
+                  disabled={guardandoPassword}
+                  className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Guardar contraseña
+                  {guardandoPassword ? "Guardando..." : "Guardar contraseña"}
                 </button>
               </div>
             )}

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
+import BackButton from "@/components/BackButton";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type Periodo = "dia" | "semana" | "mes" | "anio";
 
@@ -126,22 +128,6 @@ function estaDentroPeriodo(fechaTexto: string | null | undefined, periodo: Perio
 
 }
 
-function formatearFecha(fechaTexto: string | null | undefined) {
-
-  if (!fechaTexto) return "Sin actividad";
-
-  return new Date(fechaTexto).toLocaleDateString("es-AR", {
-
-    day: "2-digit",
-
-    month: "2-digit",
-
-    year: "numeric",
-
-  });
-
-}
-
 export default function HistorialPage() {
 
   const [loading, setLoading] = useState(true);
@@ -155,6 +141,8 @@ export default function HistorialPage() {
   const [asignaciones, setAsignaciones] = useState<RutinaAsignacion[]>([]);
 
   const [mostrarTodos, setMostrarTodos] = useState(false);
+  
+  const { formatearFechaCorta } = useFormatoFecha();
 
   useEffect(() => {
 
@@ -404,11 +392,8 @@ export default function HistorialPage() {
 
       <div className="max-w-6xl mx-auto">
 
-        <a href="/" className="text-zinc-400 hover:text-white">
+        <BackButton fallback="/" />
 
-          ← Volver al panel
-
-        </a>
 
         <header className="mt-6 mb-6">
 
@@ -488,11 +473,11 @@ export default function HistorialPage() {
 
             <p className="text-zinc-400 text-sm">Última actividad</p>
 
-            <p className="text-2xl font-bold mt-2">
+             <p className="text-2xl font-bold mt-2">
 
-              {formatearFecha(ultimaActividad)}
+               {formatearFechaCorta(ultimaActividad)}
 
-            </p>
+             </p>
 
           </div>
 
@@ -662,11 +647,11 @@ export default function HistorialPage() {
 
                       </p>
 
-                      <p className="text-lg font-bold">
+                       <p className="text-lg font-bold">
 
-                        {formatearFecha(item.ultimoEntrenamiento)}
+                         {formatearFechaCorta(item.ultimoEntrenamiento)}
 
-                      </p>
+                       </p>
 
                     </div>
 

@@ -10,8 +10,16 @@ type Profile = {
   foto_url?: string | null;
 };
 
+type EvaluacionCard = {
+  href: string;
+  emoji: string;
+  titulo: string;
+  desc: string;
+  disabled?: boolean;
+  badge?: string;
+};
 
-const CREAR = [
+const CREAR: EvaluacionCard[] = [
   {
     href: "/evaluaciones/crear/rm",
     emoji: "🏋️",
@@ -19,37 +27,35 @@ const CREAR = [
     desc: "Programar una evaluación de repetición máxima para un alumno.",
   },
   {
-    href: "#",
+    href: "/evaluaciones/crear/fms",
     emoji: "🧩",
     titulo: "Test FMS",
-    desc: "Próximamente. Evaluación de movimiento funcional (Functional Movement Screen).",
-    disabled: true,
+    desc: "Programar una evaluación de movimiento funcional (Functional Movement Screen).",
   },
 ];
 
-const REALIZAR = [
+const REALIZAR: EvaluacionCard[] = [
   {
     href: "/evaluaciones/realizar/rm",
     emoji: "⚡",
     titulo: "Test RM",
     desc: "Protocolo de aproximación progresiva. Método directo o indirecto al final.",
-    badge: "Actualiza rm_actual",
+    badge: "Actualiza RM",
   },
   {
-    href: "#",
+    href: "/evaluaciones/realizar/fms",
     emoji: "🎯",
     titulo: "Test FMS",
-    desc: "Próximamente. Puntuar los 7 patrones de movimiento y registrar el resultado.",
-    disabled: true,
+    desc: "Puntuar los 7 patrones de movimiento y registrar el resultado.",
   },
 ];
 
-const GESTIONAR = [
+const GESTIONAR: EvaluacionCard[] = [
   {
     href: "/evaluaciones/alumnos",
     emoji: "📋",
     titulo: "Evaluaciones por alumno",
-    desc: "Buscar un alumno, ver sus evaluaciones y eliminar evaluaciones RM desde una pantalla específica.",
+    desc: "Buscar un alumno, ver todas sus evaluaciones (RM, FMS y futuras) y administrar sus registros desde una sola pantalla.",
   },
 ];
 
@@ -100,8 +106,7 @@ export default function EvaluacionesPage() {
         <header className="mb-10">
           <h1 className="text-3xl font-bold">📏 Evaluaciones</h1>
           <p className="text-zinc-400 mt-2">
-            Creá y realizá evaluaciones físicas para tus alumnos. Los resultados
-            de RM actualizan automáticamente el historial y el RM actual.
+            Creá, asigná y realizá evaluaciones físicas para tus alumnos. Las evaluaciones de RM actualizan automáticamente el historial y el RM actual, mientras que FMS registra los patrones de movimiento funcional.
           </p>
         </header>
 

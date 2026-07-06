@@ -1,0 +1,171 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import { FMS_INFO } from "@/lib/fms/fms-info";
+
+type Props = {
+  abierto: boolean;
+  onClose: () => void;
+  testNombre: string;
+  tipo: "profesor" | "alumno";
+};
+
+type TabActiva = "descripcion" | "instrucciones" | "criterios";
+
+const TABS: { id: TabActiva; label: string }[] = [
+  { id: "descripcion", label: "Descripción" },
+  { id: "instrucciones", label: "Instrucciones" },
+  { id: "criterios", label: "Criterios" },
+];
+
+export default function FMSInfoModal({
+  abierto,
+  onClose,
+  testNombre,
+  tipo,
+}: Props) {
+  const [tabActiva, setTabActiva] = useState<TabActiva>("descripcion");
+
+  useEffect(() => {
+    if (abierto) setTabActiva("descripcion");
+  }, [abierto, testNombre]);
+
+  if (!abierto) return null;
+
+  const info = FMS_INFO[testNombre];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
+          <div>
+            <h2 className="text-xl font-bold text-white">
+              {info?.titulo ?? testNombre}
+            </h2>
+            <p className="text-sm text-zinc-400">Información del test</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 hover:bg-zinc-800 transition"
+          >
+            <span className="text-xl leading-none text-zinc-400">×</span>
+          </button>
+        </div>
+
+        <div className="p-4 sm:p-6">
+          {!info ? (
+            <p className="text-zinc-400 text-sm">
+              No hay información disponible para este test.
+            </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2 mb-5">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setTabActiva(tab.id)}
+                    className={`rounded-lg border px-2 py-2 text-xs font-medium transition ${
+                      tabActiva === tab.id
+                        ? "border-white bg-white text-zinc-950"
+                        : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-white"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="min-h-[240px]">
+                {tabActiva === "descripcion" && (
+                  <section>
+                    <h3 className="font-semibold text-white mb-2">Descripción</h3>
+                    <p className="text-zinc-300 text-sm leading-6">
+                      {info.descripcion || "Descripción pendiente."}
+                    </p>
+                  </section>
+                )}
+
+                {tabActiva === "instrucciones" && (
+                  <section>
+                    <h3 className="font-semibold text-white mb-2">
+                      {tipo === "profesor"
+                        ? "Instrucciones para el profesor"
+                        : "Instrucciones"}
+                    </h3>
+
+                    {(tipo === "profesor"
+                      ? info.instruccionesProfesor
+                      : info.instruccionesAlumno
+                    ).length === 0 ? (
+                      <p className="text-zinc-500 text-sm">Instrucciones pendientes.</p>
+                    ) : (
+                      <ul className="space-y-2 text-sm text-zinc-300">
+                        {(tipo === "profesor"
+                          ? info.instruccionesProfesor
+                          : info.instruccionesAlumno
+                        ).map((item, index) => (
+                          <li
+                            key={index}
+                            className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2"
+                          >
+                            {index + 1}. {item}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                )}
+
+                {tabActiva === "criterios" && (
+                  <section>
+                    <h3 className="font-semibold text-white mb-3">Criterios de evaluación</h3>
+                    <div className="space-y-2 text-sm">
+                      {([3, 2, 1, 0] as const).map((puntaje) => {
+                        const estilos = {
+                          3: {
+                            card: "border-green-700 bg-green-900/20",
+                            titulo: "text-green-300",
+                          },
+                          2: {
+                            card: "border-yellow-700 bg-yellow-900/20",
+                            titulo: "text-yellow-300",
+                          },
+                          1: {
+                            card: "border-orange-700 bg-orange-900/20",
+                            titulo: "text-orange-300",
+                          },
+                          0: {
+                            card: "border-red-700 bg-red-900/20",
+                            titulo: "text-red-300",
+                          },
+                        }[puntaje];
+
+                        return (
+                          <div
+                            key={puntaje}
+                            className={`rounded-lg border px-3 py-2 ${estilos.card}`}
+                          >
+                            <p className={`font-semibold ${estilos.titulo}`}>
+                              {puntaje} puntos
+                            </p>
+                            <p className="text-zinc-300 mt-1">
+                              {info.criterios[puntaje] || "Criterio pendiente."}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

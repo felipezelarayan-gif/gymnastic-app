@@ -3,6 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import EstadoAlumnoCard from "@/components/alumno/EstadoAlumnoCard";
+import { obtenerEstadoAlumno } from "@/lib/alumno/obtenerEstadoAlumno";
+import {
+  obtenerPendientesAlumno,
+  type ResumenPendientesAlumno,
+} from "@/lib/alumno/obtenerPendientesAlumnos";
+import { parseFechaLocal } from "@/lib/utils/formatearFecha";
 
 type Profile = {
   id: string;
@@ -82,6 +89,13 @@ type Ejercicio = {
 
 type SeccionActiva = "inicio" | "perfil";
 
+const resumenPendientesInicial: ResumenPendientesAlumno = {
+  tienePendientes: false,
+  pendientes: [],
+  rutinasPendientes: [],
+  evaluacionesPendientes: [],
+};
+
 function iniciales(nombre?: string | null, apellido?: string | null) {
   const primera = nombre?.trim()?.[0] || "";
   const segunda = apellido?.trim()?.[0] || "";
@@ -118,6 +132,8 @@ export default function AlumnoHomePage() {
   const [evaluacionesPendientes, setEvaluacionesPendientes] = useState<
     EvaluacionPendiente[]
   >([]);
+  const [resumenPendientes, setResumenPendientes] =
+    useState<ResumenPendientesAlumno>(resumenPendientesInicial);
   const [ejerciciosRutina, setEjerciciosRutina] = useState<RutinaEjercicio[]>(
     []
   );
@@ -161,6 +177,13 @@ export default function AlumnoHomePage() {
 
     setAlumno(alumnoData);
 
+    const pendientesAlumno = await obtenerPendientesAlumno(
+      supabase,
+      alumnoData.id
+    );
+
+    setResumenPendientes(pendientesAlumno);
+
     const { data: asignacionesData } = await supabase
       .from("rutina_asignaciones")
       .select(`
@@ -191,7 +214,7 @@ export default function AlumnoHomePage() {
 
     const { data: evaluacionesRMData } = await supabase
       .from("evaluaciones_rm")
-      .select("id,nombre,fecha_realizacion,puede_cargar_alumno,permitir_carga_alumno")
+      .select("id,nombre,fecha_realizacion,puede_cargar_alumno,permitir_carga_alumno,asignada_al_alumno")
       .eq("alumno_id", alumnoData.id)
       .eq("estado", "pendiente")
       .is("deleted_at", null)
@@ -204,7 +227,7 @@ export default function AlumnoHomePage() {
         nombre: evaluacion.nombre || "Evaluación de RM",
         fecha_realizacion: evaluacion.fecha_realizacion,
         puede_cargar_alumno:
-          evaluacion.puede_cargar_alumno || evaluacion.permitir_carga_alumno,
+          evaluacion.puede_cargar_alumno || evaluacion.permitir_carga_alumno || evaluacion.asignada_al_alumno,
       }))
     );
 
@@ -305,10 +328,10 @@ export default function AlumnoHomePage() {
     if (!rutinaPendiente && evaluacionPendiente) return { tipo: "evaluacion" as const, item: evaluacionPendiente };
 
     const fechaRutina = rutinaPendiente?.fecha_asignacion
-      ? new Date(rutinaPendiente.fecha_asignacion).getTime()
+      ? parseFechaLocal(rutinaPendiente.fecha_asignacion)?.getTime() ?? Number.MAX_SAFE_INTEGER
       : Number.MAX_SAFE_INTEGER;
     const fechaEvaluacion = evaluacionPendiente?.fecha_realizacion
-      ? new Date(evaluacionPendiente.fecha_realizacion).getTime()
+      ? parseFechaLocal(evaluacionPendiente.fecha_realizacion)?.getTime() ?? Number.MAX_SAFE_INTEGER
       : Number.MAX_SAFE_INTEGER;
 
     return fechaEvaluacion < fechaRutina
@@ -383,10 +406,12 @@ export default function AlumnoHomePage() {
     : 0;
 
   const tuvoRutinas = rutinasAsignadas.length > 0;
-  const tuvoEvaluaciones = evaluacionesPendientes.length > 0;
-  const tieneRutinaPendiente = Boolean(rutinaPendiente);
-  const tieneEvaluacionPendiente = Boolean(evaluacionPendiente);
-  const tienePendiente = Boolean(pendientePrincipal);
+  const tieneHistorial =
+    tuvoRutinas || registros.length > 0 || rmsActuales.length > 0;
+  const estadoAlumno = obtenerEstadoAlumno({
+    pendientes: resumenPendientes,
+    tieneHistorial,
+  });
 
   if (loading) {
     return (
@@ -429,80 +454,13 @@ export default function AlumnoHomePage() {
 
         {seccionActiva === "inicio" && (
           <>
-            {tienePendiente && pendientePrincipal?.tipo === "rutina" && rutinaPendiente ? (
-              <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 mb-4">
-                <span className="text-emerald-400 text-xl mt-0.5">🎯</span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-emerald-300">
-                    Próximo entrenamiento
-                  </p>
-                  <p className="text-lg font-bold mt-1">
-                    {rutinaPendiente.rutinas?.nombre || "Rutina asignada"}
-                  </p>
-                  <div className="flex flex-wrap gap-2 mt-2 text-sm">
-                    {rutinaPendiente.rutinas?.estructura && (
-                      <span className="rounded-full bg-zinc-800 px-3 py-1">
-                        {rutinaPendiente.rutinas.estructura}
-                      </span>
-                    )}
-
-                    {ejerciciosPendientesRutina > 0 && (
-                      <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
-                        {ejerciciosPendientesRutina} ejercicios pendientes
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : tienePendiente && pendientePrincipal?.tipo === "evaluacion" && evaluacionPendiente ? (
-              <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 mb-4">
-                <span className="text-emerald-400 text-xl mt-0.5">📋</span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-emerald-300">
-                    Evaluación pendiente
-                  </p>
-                  <p className="text-lg font-bold mt-1">
-                    {evaluacionPendiente.nombre}
-                  </p>
-                  <div className="flex flex-wrap gap-2 mt-2 text-sm">
-                    {evaluacionPendiente.fecha_realizacion && (
-                      <span className="rounded-full bg-zinc-800 px-3 py-1">
-                        Fecha asignada: {new Intl.DateTimeFormat("es-AR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                        }).format(new Date(evaluacionPendiente.fecha_realizacion))}
-                      </span>
-                    )}
-                    <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
-                      {evaluacionPendiente.puede_cargar_alumno
-                        ? "Disponible para completar"
-                        : "Asignada por tu profesor"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ) : tuvoRutinas || tuvoEvaluaciones ? (
-              <div className="flex items-start gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 mb-4">
-                <span className="text-emerald-400 text-xl mt-0.5">✅</span>
-                <div>
-                  <p className="text-sm font-medium text-emerald-300">
-                    Planificación completada
-                  </p>
-                  <p className="text-zinc-400 text-sm mt-1">
-                    Esperá a que tu profesor te asigne nuevas rutinas o evaluaciones.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <section className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5 mb-4">
-                <h2 className="text-xl font-semibold">👋 Bienvenido</h2>
-
-                <p className="text-zinc-400 mt-2">
-                  Todavía no tenés rutinas ni evaluaciones asignadas.
-                </p>
-              </section>
-            )}
+            <EstadoAlumnoCard
+              icono={estadoAlumno.icono}
+              titulo={estadoAlumno.titulo}
+              descripcion={estadoAlumno.descripcion}
+              detalles={estadoAlumno.detalles}
+              variante={estadoAlumno.variante}
+            />
 
             <section className="grid gap-4">
               <Link

@@ -3,6 +3,9 @@
 import AlumnoRMProfesor from "@/components/alumnos/AlumnoRMProfesor";
 import { use, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getRolCached } from "@/lib/rol-cache";
+import BackButton from "@/components/BackButton";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type Alumno = {
   id: string;
@@ -37,6 +40,7 @@ function calcularEdad(fecha?: string | null) {
 
 export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { formatearFechaCorta } = useFormatoFecha();
   const [loading, setLoading] = useState(true);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const [form, setForm] = useState<Alumno | null>(null);
@@ -55,13 +59,9 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("rol")
-      .eq("id", sessionData.session.user.id)
-      .single();
+    const rol = await getRolCached(sessionData.session.user.id);
 
-    if (!profile || profile.rol !== "profe") {
+    if (rol !== "profe") {
       window.location.href = "/alumno";
       return;
     }
@@ -130,29 +130,34 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
   }
 
   const [borrando, setBorrando] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [errorBorrar, setErrorBorrar] = useState<string | null>(null);
 
   async function borrarAlumno() {
     if (borrando) return;
-    const confirmar = confirm(`¿Seguro que querés borrar a ${nombreCompleto()}?`);
-    if (!confirmar) return;
-
     setBorrando(true);
+    setErrorBorrar(null);
 
-    const res = await fetch("/api/borrar-alumno", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ alumnoId: id }),
-    });
+    try {
+      const res = await fetch("/api/borrar-alumno", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alumnoId: id }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      alert(data.error || "Error al borrar el alumno.");
+      if (!res.ok) {
+        throw new Error(data.error || "Error al borrar el alumno.");
+      }
+
+      window.location.href = "/alumnos";
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error al borrar el alumno.";
+      setErrorBorrar(msg);
       setBorrando(false);
-      return;
+      setShowConfirm(false);
     }
-
-    window.location.href = "/alumnos";
   }
 
   if (loading) return <main className="min-h-screen bg-zinc-950 text-white p-6">Cargando perfil...</main>;
@@ -161,7 +166,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-5xl mx-auto">
-        <a href="/alumnos" className="text-zinc-400 hover:text-white">← Atrás</a>
+        <BackButton fallback="/alumnos" />
 
         <section className={`${card} mt-5`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
@@ -179,7 +184,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
               <a href={`/alumnos/${id}/rutinas`} className="rounded-xl bg-emerald-500 px-4 py-3 text-center text-sm font-semibold hover:bg-emerald-600">Rutina</a>
               <a href={`/alumnos/${id}/historial`} className="rounded-xl border border-zinc-700 px-4 py-3 text-center text-sm hover:bg-zinc-800">Historial</a>
               <button type="button" onClick={() => setEditando(true)} className="rounded-xl border border-zinc-700 px-4 py-3 text-sm hover:bg-zinc-800">Editar</button>
-              <button type="button" onClick={borrarAlumno} disabled={borrando} className="rounded-xl border border-red-800 px-4 py-3 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed">{borrando ? "Borrando..." : "Borrar"}</button>
+              <button type="button" onClick={() => setShowConfirm(true)} disabled={borrando} className="rounded-xl border border-red-800 px-4 py-3 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed">{borrando ? "Borrando..." : "Borrar"}</button>
             </div>
           </div>
         </section>
@@ -194,7 +199,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
             <div className="grid md:grid-cols-2 gap-3 text-zinc-300">
               {alumno.email && <p>Email: {alumno.email}</p>}
               {alumno.telefono && <p>Teléfono: {alumno.telefono}</p>}
-              {alumno.fecha_nacimiento && <p>Fecha de nacimiento: {alumno.fecha_nacimiento}</p>}
+              {alumno.fecha_nacimiento && <p>Fecha de nacimiento: {formatearFechaCorta(alumno.fecha_nacimiento)}</p>}
               {alumno.fecha_nacimiento && <p>Edad: {calcularEdad(alumno.fecha_nacimiento)} años</p>}
               {alumno.sexo && <p>Sexo: {alumno.sexo}</p>}
               {alumno.altura_cm && <p>Altura: {alumno.altura_cm} cm</p>}
@@ -232,6 +237,53 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
         </section>
 
         <AlumnoRMProfesor alumnoId={id} />
+
+        {/* Modal de confirmación para borrar */}
+        {showConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+              <h3 className="text-xl font-bold text-red-400 mb-3">Borrar alumno</h3>
+              <p className="text-zinc-300 text-sm leading-relaxed mb-2">
+                Esta acción eliminará <strong>permanentemente</strong> a <strong>{nombreCompleto()}</strong> y todos sus datos relacionados:
+              </p>
+              <ul className="text-zinc-400 text-sm list-disc list-inside mb-4 space-y-1">
+                <li>Rutinas asignadas</li>
+                <li>Entrenamientos registrados</li>
+                <li>Evaluaciones RM y resultados</li>
+                <li>Evaluaciones FMS y tests</li>
+                <li>RM actuales e historial</li>
+              </ul>
+              <p className="text-red-400 text-sm font-semibold mb-5">
+                Esta acción no se puede deshacer.
+              </p>
+
+              {errorBorrar && (
+                <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">
+                  {errorBorrar}
+                </p>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowConfirm(false); setErrorBorrar(null); }}
+                  disabled={borrando}
+                  className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={borrarAlumno}
+                  disabled={borrando}
+                  className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {borrando ? "Borrando..." : "Sí, borrar alumno"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

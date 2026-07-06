@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { getRolCached } from "@/lib/rol-cache";
+import BackButton from "@/components/BackButton";
 import { obtenerRMsActualesAlumno, type RMActualCalculado } from "@/lib/rmActual";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type Alumno = {
   id: string;
@@ -33,16 +36,6 @@ type Ejercicio = {
   nombre: string;
 };
 
-function formatearFecha(fechaTexto?: string | null) {
-  if (!fechaTexto) return "Sin registros";
-
-  return new Date(fechaTexto).toLocaleDateString("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
 export default function MisProgresosPage() {
   const [loading, setLoading] = useState(true);
 
@@ -53,6 +46,7 @@ export default function MisProgresosPage() {
 
   const [verTodosRM, setVerTodosRM] = useState(false);
   const [verTodosEntrenamientos, setVerTodosEntrenamientos] = useState(false);
+  const { formatearFechaCorta } = useFormatoFecha();
 
   async function cargarDatos() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -64,13 +58,9 @@ export default function MisProgresosPage() {
 
     const user = sessionData.session.user;
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("rol")
-      .eq("id", user.id)
-      .single();
+    const rol = await getRolCached(user.id);
 
-    if (!profile || profile.rol !== "alumno") {
+    if (rol !== "alumno") {
       window.location.href = "/";
       return;
     }
@@ -180,9 +170,7 @@ export default function MisProgresosPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
       <div className="max-w-5xl mx-auto">
-        <Link href="/alumno" className="text-zinc-400 hover:text-white">
-          ← Volver al panel
-        </Link>
+        <BackButton fallback="/alumno" />
 
         <header className="mt-6 mb-6">
           <h1 className="text-3xl font-bold">📈 Mis progresos</h1>
@@ -206,7 +194,7 @@ export default function MisProgresosPage() {
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
             <p className="text-zinc-400 text-sm">Último entrenamiento</p>
             <p className="text-2xl font-bold mt-2">
-              {formatearFecha(ultimoEntrenamiento)}
+              {formatearFechaCorta(ultimoEntrenamiento)}
             </p>
           </div>
         </section>
@@ -247,7 +235,7 @@ export default function MisProgresosPage() {
                       </h3>
 
                       <p className="text-zinc-500 text-sm">
-                        Actualizado: {formatearFecha(rm.actualizado_en)}
+                        Actualizado: {formatearFechaCorta(rm.actualizado_en)}
                       </p>
                     </div>
 
@@ -309,7 +297,7 @@ export default function MisProgresosPage() {
                       </h3>
 
                       <p className="text-zinc-500 text-sm">
-                        {formatearFecha(registro.created_at)}
+                        {formatearFechaCorta(registro.created_at)}
                       </p>
                     </div>
 
