@@ -158,7 +158,6 @@ export default function NuevaRutinaHistorialPage() {
           fecha_asignacion,
           fecha_completada,
           created_at,
-          nombre_rutina,
           rutinas (
             nombre
           )
@@ -179,10 +178,7 @@ export default function NuevaRutinaHistorialPage() {
         id: rutina.id,
         rutina_id: rutina.rutina_id ?? null,
         tipo: "rutina" as const,
-        nombre:
-          rutina.nombre_rutina ||
-          rutinaRelacionada?.nombre ||
-          "Rutina completada",
+        nombre: rutinaRelacionada?.nombre || "Rutina completada",
         fecha: rutina.fecha_completada || rutina.created_at || rutina.fecha_asignacion || null,
         estado: "completada",
       };

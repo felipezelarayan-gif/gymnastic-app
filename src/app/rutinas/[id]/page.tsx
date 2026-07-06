@@ -96,7 +96,6 @@ type Asignacion = {
   id?: string;
   alumno_id: string;
   rutina_id: string;
-  nombre_rutina?: string;
   fecha_asignacion?: string | null;
   alumnos?: {
     nombre: string;
