@@ -20,7 +20,7 @@ type Profe = {
   nombre?: string | null;
   email?: string | null;
   rol?: string | null;
-  // creado_por se agrega después de ejecutar la migración SQL 006
+  creado_por?: string | null;
 };
 
 type MetricasProfesor = {
@@ -169,10 +169,9 @@ export default function ConfiguracionPage() {
     guardarMetricasEnCache(user.id, metricasActualizadas);
 
     // Profesores (solo para admin)
-    // Nota: creado_por se agrega después de ejecutar la migración 006
     const { data: profesData, error: profesError } = await supabase
       .from("profiles")
-      .select("id,nombre,email,rol")
+      .select("id,nombre,email,rol,creado_por")
       .eq("rol", "profe")
       .order("nombre", { ascending: true });
     if (profesError) {
@@ -518,7 +517,11 @@ export default function ConfiguracionPage() {
                       <p className="text-zinc-600 text-xs mt-1">
                         ID: {profesor.id}
                       </p>
-                      {/* creado_por se muestra después de ejecutar la migración SQL 006 */}
+                      {profesor.creado_por && (
+                        <p className="text-zinc-600 text-xs mt-1">
+                          Creado por: {profesor.creado_por === profile?.id ? "vos" : "otro administrador"}
+                        </p>
+                      )}
                     </div>
                     <button
                       type="button"
