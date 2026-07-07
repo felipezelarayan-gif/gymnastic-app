@@ -94,9 +94,10 @@ function obtenerDescansoSegundos(ejercicio: any | null) {
     return null;
   }
 
-  const soloSegundosConComillas = textoNormalizado.match(/^(\d+)\s*("|'')$/);
+  const soloSegundosConComillas = textoNormalizado.match(/^(\d+)\s*("|''|')$/);
   if (soloSegundosConComillas) {
-    return Number(soloSegundosConComillas[1]);
+    // Formato con comillas (2' o 2") se interpreta como minutos
+    return Number(soloSegundosConComillas[1]) * 60;
   }
 
   const minutosSegundosMatch = textoNormalizado.match(/^(\d+)\s*:\s*(\d+)$/);
