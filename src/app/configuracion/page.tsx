@@ -20,6 +20,7 @@ type Profe = {
   nombre?: string | null;
   email?: string | null;
   rol?: string | null;
+  // creado_por se agrega después de ejecutar la migración SQL 006
 };
 
 type MetricasProfesor = {
@@ -51,7 +52,6 @@ export default function ConfiguracionPage() {
   const [nombreAdmin, setNombreAdmin] = useState("");
   const [nuevoUsuarioNombre, setNuevoUsuarioNombre] = useState("");
   const [nuevoUsuarioEmail, setNuevoUsuarioEmail] = useState("");
-  const [nuevoUsuarioRol, setNuevoUsuarioRol] = useState("alumno");
   const [mostrarCrearUsuario, setMostrarCrearUsuario] = useState(false);
   const [guardandoUsuario, setGuardandoUsuario] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
@@ -169,6 +169,7 @@ export default function ConfiguracionPage() {
     guardarMetricasEnCache(user.id, metricasActualizadas);
 
     // Profesores (solo para admin)
+    // Nota: creado_por se agrega después de ejecutar la migración 006
     const { data: profesData, error: profesError } = await supabase
       .from("profiles")
       .select("id,nombre,email,rol")
@@ -250,11 +251,11 @@ export default function ConfiguracionPage() {
   async function crearUsuario() {
     if (guardandoUsuario) return;
     if (!nuevoUsuarioNombre.trim()) {
-      alert("Ingresá el nombre del usuario.");
+      alert("Ingresá el nombre del profesor.");
       return;
     }
     if (!nuevoUsuarioEmail.trim()) {
-      alert("Ingresá el email del usuario.");
+      alert("Ingresá el email del profesor.");
       return;
     }
     setGuardandoUsuario(true);
@@ -269,20 +270,19 @@ export default function ConfiguracionPage() {
       body: JSON.stringify({
         nombre: nuevoUsuarioNombre.trim(),
         email: nuevoUsuarioEmail.trim().toLowerCase(),
-        rol: nuevoUsuarioRol,
+        rol: "profe",
         profesorId: profile?.id || null,
       }),
     });
     const data = await response.json();
     if (!response.ok) {
-      alert(data.error || "No se pudo crear el usuario.");
+      alert(data.error || "No se pudo crear el profesor.");
       setGuardandoUsuario(false);
       return;
     }
-    alert("Usuario creado correctamente. Se envió un email de invitación.");
+    alert("Profesor creado correctamente. Se envió un email de invitación.");
     setNuevoUsuarioNombre("");
     setNuevoUsuarioEmail("");
-    setNuevoUsuarioRol("alumno");
     setGuardandoUsuario(false);
     await cargarTodo();
   }
@@ -463,7 +463,7 @@ export default function ConfiguracionPage() {
               onClick={() => setMostrarCrearUsuario(!mostrarCrearUsuario)}
               className="w-full flex items-center justify-between gap-4"
             >
-              <h2 className="text-xl font-semibold">➕ Crear usuario</h2>
+              <h2 className="text-xl font-semibold">➕ Crear nuevo profesor</h2>
               <span className="text-2xl">{mostrarCrearUsuario ? "▲" : "▼"}</span>
             </button>
             {mostrarCrearUsuario && (
@@ -481,21 +481,13 @@ export default function ConfiguracionPage() {
                   className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700"
                   placeholder="email@ejemplo.com"
                 />
-                <select
-                  value={nuevoUsuarioRol}
-                  onChange={(e) => setNuevoUsuarioRol(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700"
-                >
-                  <option value="alumno">Alumno</option>
-                  <option value="profe">Profesor</option>
-                </select>
                 <button
                   type="button"
                   onClick={crearUsuario}
                   disabled={guardandoUsuario}
                   className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold hover:bg-emerald-600 disabled:opacity-50"
                 >
-                  {guardandoUsuario ? "Creando..." : "Crear usuario"}
+                  {guardandoUsuario ? "Creando..." : "Crear profesor"}
                 </button>
               </div>
             )}
@@ -526,6 +518,7 @@ export default function ConfiguracionPage() {
                       <p className="text-zinc-600 text-xs mt-1">
                         ID: {profesor.id}
                       </p>
+                      {/* creado_por se muestra después de ejecutar la migración SQL 006 */}
                     </div>
                     <button
                       type="button"

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getRolCached } from "@/lib/rol-cache";
 import BackButton from "@/components/BackButton";
 
 export default function NuevoAlumnoPage() {
@@ -10,6 +11,30 @@ export default function NuevoAlumnoPage() {
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [verificandoPermisos, setVerificandoPermisos] = useState(true);
+
+  useEffect(() => {
+    verificarPermiso();
+  }, []);
+
+  async function verificarPermiso() {
+    const { data: sessionData } = await supabase.auth.getSession();
+
+    if (!sessionData.session) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const user = sessionData.session.user;
+    const rol = await getRolCached(user.id);
+
+    if (rol !== "profe") {
+      window.location.href = "/";
+      return;
+    }
+
+    setVerificandoPermisos(false);
+  }
 
   async function crearAlumno() {
     if (!nombre.trim()) {
@@ -57,6 +82,14 @@ if (!response.ok) {
 
     alert("Alumno creado correctamente. Se envió una invitación por email.");
     window.location.href = "/alumnos";
+  }
+
+  if (verificandoPermisos) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white p-6">
+        Cargando...
+      </main>
+    );
   }
 
   return (

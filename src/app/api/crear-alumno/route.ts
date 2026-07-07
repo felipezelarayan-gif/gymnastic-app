@@ -35,6 +35,29 @@ export async function POST(request: Request) {
     }
   }
 
+  // Validar permisos: solo admins pueden crear profesores
+  if (rolFinal === "profe") {
+    if (!profesorCreadorId) {
+      return NextResponse.json(
+        { error: "No autorizado. Necesitás iniciar sesión." },
+        { status: 401 }
+      );
+    }
+
+    const { data: perfilCreador, error: perfilError } = await supabaseAdmin
+      .from("profiles")
+      .select("es_admin")
+      .eq("id", profesorCreadorId)
+      .single();
+
+    if (perfilError || !perfilCreador || !perfilCreador.es_admin) {
+      return NextResponse.json(
+        { error: "No autorizado. Solo los administradores pueden crear profesores." },
+        { status: 403 }
+      );
+    }
+  }
+
   console.log("Invite redirect URL:", `${siteUrl}/bienvenida`);
 
   const { data: userData, error: userError } =
@@ -82,15 +105,22 @@ export async function POST(request: Request) {
     userId = usuarioExistente.id;
   }
 
+  const profileData: any = {
+    id: userId,
+    email,
+    nombre,
+    rol: rolFinal,
+    es_admin: false,
+    invitacion_pendiente: true,
+  };
+
+  // Si es un profesor, guardar quién lo creó
+  if (rolFinal === "profe" && profesorCreadorId) {
+    profileData.creado_por = profesorCreadorId;
+  }
+
   const { error: profileError } = await supabaseAdmin.from("profiles").upsert(
-    {
-      id: userId,
-      email,
-      nombre,
-      rol: rolFinal,
-      es_admin: false,
-      invitacion_pendiente: true,
-    },
+    profileData,
     { onConflict: "id" }
   );
 
