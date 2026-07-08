@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import BackButton from "@/components/BackButton";
+import { AlumnoCard } from "@/components/alumnos/AlumnoCard";
 
 type Alumno = {
   id: string;
@@ -51,11 +52,13 @@ export default function AlumnosPage() {
   );
 
   const [busqueda, setBusqueda] = useState("");
-  const [ordenarPor, setOrdenarPor] = useState<OrdenarPor>("nombre");
+  const [ordenarPor, setOrdenarPor] = useState<OrdenarPor>("entrenamientos_pendientes");
   const [orden, setOrden] = useState<Orden>("asc");
   const [loading, setLoading] = useState(true);
   const [metricasLoading, setMetricasLoading] = useState(false);
   const [actualizandoAlumnos, setActualizandoAlumnos] = useState(false);
+  const [paginaActual, setPaginaActual] = useState(0);
+  const [alumnosPorPagina, setAlumnosPorPagina] = useState(2);
 
   function cargarAlumnosDesdeCache(userId: string) {
     try {
@@ -357,6 +360,12 @@ export default function AlumnosPage() {
     return resultado;
   }, [alumnos, busqueda, ordenarPor, orden, pendientesPorAlumno, finalizadosPorAlumno]);
 
+  const totalPaginas = Math.max(1, Math.ceil(alumnosFiltrados.length / alumnosPorPagina));
+  const paginaSegura = Math.min(paginaActual, totalPaginas - 1);
+  const inicio = paginaSegura * alumnosPorPagina;
+  const fin = inicio + alumnosPorPagina;
+  const alumnosPaginados = alumnosFiltrados.slice(inicio, fin);
+
   if (loading) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white p-6">
@@ -394,13 +403,30 @@ export default function AlumnosPage() {
         </header>
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-5">
-          <input
-            type="text"
-            placeholder="Buscar por nombre, apellido, email o teléfono..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-4 outline-none focus:border-emerald-500"
-          />
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+            <input
+              type="text"
+              placeholder="Buscar por nombre, apellido, email o teléfono..."
+              value={busqueda}
+              onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(0); }}
+              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl p-4 outline-none focus:border-emerald-500"
+            />
+
+            <div className="flex items-center gap-2 shrink-0">
+              <label className="text-sm text-zinc-400 whitespace-nowrap">Mostrar:</label>
+              <select
+                value={alumnosPorPagina}
+                onChange={(e) => { setAlumnosPorPagina(Number(e.target.value)); setPaginaActual(0); }}
+                className="bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-4 text-sm"
+              >
+                <option value="2">2</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
             <div>
@@ -410,7 +436,7 @@ export default function AlumnosPage() {
 
               <select
                 value={ordenarPor}
-                onChange={(e) => setOrdenarPor(e.target.value as OrdenarPor)}
+                onChange={(e) => { setOrdenarPor(e.target.value as OrdenarPor); setPaginaActual(0); }}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
               >
                 <option value="nombre">Nombre</option>
@@ -429,7 +455,7 @@ export default function AlumnosPage() {
 
               <select
                 value={orden}
-                onChange={(e) => setOrden(e.target.value as Orden)}
+                onChange={(e) => { setOrden(e.target.value as Orden); setPaginaActual(0); }}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
               >
                 <option value="asc">Ascendente</option>
@@ -447,116 +473,46 @@ export default function AlumnosPage() {
             </p>
           </section>
         ) : (
-          <div className="grid gap-3">
-            {alumnosFiltrados.map((alumno) => (
-              <div
-                key={alumno.id}
-                className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
-              >
-                <a
-                  href={`/alumnos/${alumno.id}`}
-                  className="md:hidden flex items-center gap-3"
+          <>
+            <div className="grid gap-3">
+              {alumnosPaginados.map((alumno) => (
+                <AlumnoCard
+                  key={alumno.id}
+                  alumno={alumno}
+                  pendientes={pendientesPorAlumno.get(alumno.id) || 0}
+                  finalizados={finalizadosPorAlumno.get(alumno.id) || 0}
+                  ultimoEntrenamiento={ultimoEntrenamientoPorAlumno.get(alumno.id) || "Sin entrenamientos completados"}
+                  metricasLoading={metricasLoading}
+                />
+              ))}
+            </div>
+
+            {totalPaginas > 1 && (
+              <div className="flex items-center justify-center gap-4 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setPaginaActual((p) => Math.max(0, p - 1))}
+                  disabled={paginaSegura === 0}
+                  className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <div className="h-12 w-12 rounded-full bg-emerald-500/10 border border-emerald-700 flex items-center justify-center font-bold text-emerald-400 shrink-0 overflow-hidden">
-                    {alumno.foto_url ? (
-                      <img
-                        src={alumno.foto_url}
-                        alt="Foto de perfil"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      iniciales(alumno.nombre, alumno.apellido)
-                    )}
-                  </div>
+                  ← Anterior
+                </button>
 
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold truncate">
-                      {nombreCompleto(alumno)}
-                    </h3>
+                <span className="text-sm text-zinc-400">
+                  Página {paginaSegura + 1} de {totalPaginas}
+                </span>
 
-                    <p className="text-xs text-emerald-400 mt-1">
-                      {metricasLoading ? "..." : pendientesPorAlumno.get(alumno.id) || 0} pendientes
-                    </p>
-                  </div>
-                </a>
-
-
-
-                <div className="hidden md:flex items-center justify-between gap-5">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className="h-16 w-16 rounded-full bg-emerald-500/10 border border-emerald-700 flex items-center justify-center text-xl font-bold text-emerald-400 shrink-0 overflow-hidden">
-                      {alumno.foto_url ? (
-                        <img
-                          src={alumno.foto_url}
-                          alt="Foto de perfil"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        iniciales(alumno.nombre, alumno.apellido)
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="text-lg font-semibold truncate">
-                        {nombreCompleto(alumno)}
-                      </h3>
-
-                      <p className="text-zinc-400 text-sm mt-1">
-                        Último entrenamiento:{" "}
-                        {metricasLoading
-                          ? "..."
-                          : ultimoEntrenamientoPorAlumno.get(alumno.id) ||
-                            "Sin entrenamientos completados"}
-                      </p>
-
-                      <div className="flex flex-wrap gap-2 mt-2 text-xs text-zinc-500">
-                        {alumno.email && <span>{alumno.email}</span>}
-                        {alumno.telefono && <span>· {alumno.telefono}</span>}
-                        <span>
-                          · {metricasLoading ? "..." : finalizadosPorAlumno.get(alumno.id) || 0}{" "}
-                          finalizados
-                        </span>
-                        <span>
-                          · {metricasLoading ? "..." : pendientesPorAlumno.get(alumno.id) || 0}{" "}
-                          pendientes
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-2 text-center">
-                    <p className="text-xl font-bold text-emerald-400">
-                      {metricasLoading ? "..." : pendientesPorAlumno.get(alumno.id) || 0}
-                    </p>
-                    <p className="text-xs text-zinc-500">pendientes</p>
-                  </div>
-
-                  <div className="flex gap-2 shrink-0">
-                    <a
-                      href={`/alumnos/${alumno.id}`}
-                      className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                    >
-                      Ver perfil
-                    </a>
-
-                    <a
-                      href={`/alumnos/${alumno.id}/rutinas`}
-                      className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                    >
-                      Rutina
-                    </a>
-
-                    <a
-                      href={`/alumnos/${alumno.id}/historial`}
-                      className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                    >
-                      Historial
-                    </a>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setPaginaActual((p) => Math.min(totalPaginas - 1, p + 1))}
+                  disabled={paginaSegura >= totalPaginas - 1}
+                  className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Siguiente →
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </main>

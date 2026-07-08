@@ -3,6 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
+import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
 import BackButton from "@/components/BackButton";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
@@ -70,11 +71,6 @@ const card = "bg-zinc-900 border border-zinc-800 rounded-2xl p-5";
 const input =
   "w-full rounded-xl border border-zinc-700 bg-zinc-800 p-3 text-white";
 
-function normalizarRutina(rutinas?: Rutina | Rutina[] | null) {
-  if (Array.isArray(rutinas)) return rutinas[0] || null;
-  return rutinas || null;
-}
-
 function textoPrescripcion(item: {
   tipo_prescripcion?: string | null;
   repeticiones?: string | null;
@@ -123,6 +119,7 @@ export default function AlumnoRutinasProfesor({
   const [entradaPorRutina, setEntradaPorRutina] = useState<
     Record<string, EntradaCalor[]>
   >({});
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
 
   const detalleAsignacion = useMemo(() => {
     if (!rutinaDetalleId) return null;
@@ -133,7 +130,7 @@ export default function AlumnoRutinasProfesor({
   }, [rutinaDetalleId, asignadas]);
 
   const detalleRutina = detalleAsignacion
-    ? normalizarRutina(detalleAsignacion.rutinas)
+    ? normalizarRelacion<Rutina>(detalleAsignacion.rutinas)
     : null;
 
   useEffect(() => {
@@ -159,12 +156,52 @@ export default function AlumnoRutinasProfesor({
     const profesorActualId = sessionData.session.user.id;
     setProfesorId(profesorActualId);
 
-    const { data: alumnoData, error: alumnoError } = await supabase
-      .from("alumnos")
-      .select("id,nombre,apellido,foto_url,profesor_id")
-      .eq("id", id)
-      .eq("profesor_id", profesorActualId)
-      .single();
+    // Paso 1: Ejecutar consultas independientes en paralelo
+    const [
+      { data: alumnoData, error: alumnoError },
+      { data: asignadasData, error: asignadasError },
+      { data: disponiblesData, error: disponiblesError },
+    ] = await Promise.all([
+      supabase
+        .from("alumnos")
+        .select("id,nombre,apellido,foto_url,profesor_id")
+        .eq("id", id)
+        .eq("profesor_id", profesorActualId)
+        .single(),
+      supabase
+        .from("rutina_asignaciones")
+        .select(
+          `
+          id,
+          alumno_id,
+          rutina_id,
+          activa,
+          completada,
+          fecha_asignacion,
+          fecha_completada,
+          rutinas (
+            id,
+            nombre,
+            descripcion,
+            objetivo,
+            created_at,
+            creada_para_alumno_id,
+            creada_desde_perfil_alumno,
+            es_duplicado_limpio,
+            profesor_id
+          )
+        `
+        )
+        .eq("alumno_id", id)
+        .order("fecha_asignacion", { ascending: false }),
+      supabase
+        .from("rutinas")
+        .select(
+          "id,nombre,descripcion,objetivo,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio,profesor_id"
+        )
+        .eq("profesor_id", profesorActualId)
+        .order("nombre", { ascending: true }),
+    ]);
 
     if (alumnoError || !alumnoData) {
       alert(alumnoError?.message || "No se encontró el alumno.");
@@ -172,53 +209,11 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
-    const { data: asignadasData, error: asignadasError } = await supabase
-      .from("rutina_asignaciones")
-      .select(
-        `
-        id,
-        alumno_id,
-        rutina_id,
-        activa,
-        completada,
-        fecha_asignacion,
-        fecha_completada,
-        rutinas (
-          id,
-          nombre,
-          descripcion,
-          objetivo,
-          created_at,
-          creada_para_alumno_id,
-          creada_desde_perfil_alumno,
-          es_duplicado_limpio,
-          profesor_id
-        )
-      `
-      )
-      .eq("alumno_id", id)
-      .order("fecha_asignacion", { ascending: false });
-
     if (asignadasError) {
       alert(asignadasError.message);
       setLoading(false);
       return;
     }
-
-    const asignadasPropias = ((asignadasData || []) as RutinaAsignada[]).filter(
-      (asignacion) => {
-        const rutina = normalizarRutina(asignacion.rutinas);
-        return rutina?.profesor_id === profesorActualId;
-      }
-    );
-
-    const { data: disponiblesData, error: disponiblesError } = await supabase
-      .from("rutinas")
-      .select(
-        "id,nombre,descripcion,objetivo,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio,profesor_id"
-      )
-      .eq("profesor_id", profesorActualId)
-      .order("nombre", { ascending: true });
 
     if (disponiblesError) {
       alert(disponiblesError.message);
@@ -226,65 +221,58 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
-    const rutinaIds = asignadasPropias
-      .map((item) => item.rutina_id)
-      .filter(Boolean);
-
-    if (rutinaIds.length > 0) {
-      const { data: ejerciciosData, error: ejerciciosError } = await supabase
-        .from("rutina_ejercicios")
-        .select("id,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
-        .in("rutina_id", rutinaIds)
-        .order("orden", { ascending: true });
-
-      if (ejerciciosError) {
-        alert(ejerciciosError.message);
-        setLoading(false);
-        return;
+    const asignadasPropias = ((asignadasData || []) as RutinaAsignada[]).filter(
+      (asignacion) => {
+        const rutina = normalizarRelacion<Rutina>(asignacion.rutinas);
+        return rutina?.profesor_id === profesorActualId;
       }
-
-      const { data: entradaData, error: entradaError } = await supabase
-        .from("rutina_entrada_calor")
-        .select("id,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,observaciones,orden")
-        .in("rutina_id", rutinaIds)
-        .order("orden", { ascending: true });
-
-      if (entradaError) {
-        alert(entradaError.message);
-        setLoading(false);
-        return;
-      }
-
-      const ejerciciosAgrupados: Record<string, RutinaEjercicio[]> = {};
-      const entradaAgrupada: Record<string, EntradaCalor[]> = {};
-
-      (ejerciciosData || []).forEach((item) => {
-        if (!ejerciciosAgrupados[item.rutina_id]) {
-          ejerciciosAgrupados[item.rutina_id] = [];
-        }
-
-        ejerciciosAgrupados[item.rutina_id].push(item);
-      });
-
-      (entradaData || []).forEach((item) => {
-        if (!entradaAgrupada[item.rutina_id]) {
-          entradaAgrupada[item.rutina_id] = [];
-        }
-
-        entradaAgrupada[item.rutina_id].push(item);
-      });
-
-      setEjerciciosPorRutina(ejerciciosAgrupados);
-      setEntradaPorRutina(entradaAgrupada);
-    } else {
-      setEjerciciosPorRutina({});
-      setEntradaPorRutina({});
-    }
+    );
 
     setAlumno(alumnoData as Alumno);
     setAsignadas(asignadasPropias);
     setDisponibles((disponiblesData || []) as Rutina[]);
     setLoading(false);
+  }
+
+  async function cargarEjerciciosRutina(rutinaId: string) {
+    // Si ya están cargados, no volver a consultar
+    if (ejerciciosPorRutina[rutinaId] || entradaPorRutina[rutinaId]) {
+      return;
+    }
+
+    const [{ data: ejerciciosData, error: ejerciciosError }, { data: entradaData, error: entradaError }] =
+      await Promise.all([
+        supabase
+          .from("rutina_ejercicios")
+          .select("id,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
+          .eq("rutina_id", rutinaId)
+          .order("orden", { ascending: true }),
+        supabase
+          .from("rutina_entrada_calor")
+          .select("id,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,observaciones,orden")
+          .eq("rutina_id", rutinaId)
+          .order("orden", { ascending: true }),
+      ]);
+
+    if (ejerciciosError) {
+      alert(ejerciciosError.message);
+      return;
+    }
+
+    if (entradaError) {
+      alert(entradaError.message);
+      return;
+    }
+
+    setEjerciciosPorRutina((prev) => ({
+      ...prev,
+      [rutinaId]: ejerciciosData || [],
+    }));
+
+    setEntradaPorRutina((prev) => ({
+      ...prev,
+      [rutinaId]: entradaData || [],
+    }));
   }
 
   async function asignarRutina(rutinasSeleccionadas: { id: string; nombre: string; fechaAsignacion?: string }[]) {
@@ -574,7 +562,7 @@ export default function AlumnoRutinasProfesor({
   }
 
   async function editarRutinaParaAlumno(asignacion: RutinaAsignada) {
-    const rutina = normalizarRutina(asignacion.rutinas);
+    const rutina = normalizarRelacion<Rutina>(asignacion.rutinas);
 
     if (!rutina) {
       alert("No se encontró la rutina.");
@@ -841,45 +829,45 @@ export default function AlumnoRutinasProfesor({
         </section>
 
         <section className={card}>
-  <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-    <h2 className="text-xl font-semibold">Rutinas asignadas</h2>
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <h2 className="text-xl font-semibold">Rutinas asignadas</h2>
 
-    <div className="flex gap-2">
-      <select
-        value={ordenarPor}
-        onChange={(e) =>
-          setOrdenarPor(
-            e.target.value as "fecha" | "nombre" | "estado"
-          )
-        }
-        className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm"
-      >
-        <option value="fecha">Antigüedad</option>
-        <option value="nombre">Nombre</option>
-        <option value="estado">Estado</option>
-      </select>
+            <div className="flex gap-2">
+              <select
+                value={ordenarPor}
+                onChange={(e) =>
+                  setOrdenarPor(
+                    e.target.value as "fecha" | "nombre" | "estado"
+                  )
+                }
+                className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm"
+              >
+                <option value="fecha">Antigüedad</option>
+                <option value="nombre">Nombre</option>
+                <option value="estado">Estado</option>
+              </select>
 
-      <select
-        value={orden}
-        onChange={(e) =>
-          setOrden(e.target.value as "asc" | "desc")
-        }
-        className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm"
-      >
-        <option value="desc">Descendente</option>
-        <option value="asc">Ascendente</option>
-      </select>
-    </div>
-  </div>
+              <select
+                value={orden}
+                onChange={(e) =>
+                  setOrden(e.target.value as "asc" | "desc")
+                }
+                className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm"
+              >
+                <option value="desc">Descendente</option>
+                <option value="asc">Ascendente</option>
+              </select>
+            </div>
+          </div>
 
-  {asignadas.length === 0 ? (
+          {asignadas.length === 0 ? (
             <p className="text-zinc-400">
               Este alumno no tiene rutinas asignadas.
             </p>
           ) : (
             <div className="space-y-3">
               {asignadas.slice(0, mostrar).map((asignacion) => {
-                const rutina = normalizarRutina(asignacion.rutinas);
+                const rutina = normalizarRelacion<Rutina>(asignacion.rutinas);
 
                 const estado = asignacion.completada
                   ? "Finalizada"
@@ -922,31 +910,36 @@ export default function AlumnoRutinasProfesor({
                       </div>
 
                       <div className="flex gap-2">
-  <button
-    type="button"
-    onClick={() => setRutinaDetalleId(asignacion.id)}
-    className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
-  >
-    Ver
-  </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setCargandoDetalle(true);
+                            setRutinaDetalleId(asignacion.id);
+                            await cargarEjerciciosRutina(asignacion.rutina_id);
+                            setCargandoDetalle(false);
+                          }}
+                          className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
+                        >
+                          Ver
+                        </button>
 
-  <button
-    type="button"
-    onClick={() => editarRutinaParaAlumno(asignacion)}
-    className="rounded-lg border border-amber-700 px-3 py-2 text-sm text-amber-400 hover:bg-amber-950"
-  >
-    Editar
-  </button>
+                        <button
+                          type="button"
+                          onClick={() => editarRutinaParaAlumno(asignacion)}
+                          className="rounded-lg border border-amber-700 px-3 py-2 text-sm text-amber-400 hover:bg-amber-950"
+                        >
+                          Editar
+                        </button>
 
-  <button
-    type="button"
-    onClick={() => quitarAsignacion(asignacion.id)}
-    disabled={quitandoId === asignacion.id}
-    className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
-  >
-    {quitandoId === asignacion.id ? "Quitando..." : "Quitar"}
-  </button>
-</div>
+                        <button
+                          type="button"
+                          onClick={() => quitarAsignacion(asignacion.id)}
+                          disabled={quitandoId === asignacion.id}
+                          className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {quitandoId === asignacion.id ? "Quitando..." : "Quitar"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -996,41 +989,85 @@ export default function AlumnoRutinasProfesor({
                 </button>
               </div>
 
-                  <div className="space-y-5">
-                <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
-                  <h3 className="text-lg font-semibold">Información general</h3>
+              {cargandoDetalle && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="ml-3 text-sm text-zinc-400">Cargando ejercicios...</p>
+                </div>
+              )}
 
-                  <div className="mt-3 space-y-2 text-sm text-zinc-400">
-                    <p>Estado: {detalleAsignacion.completada ? "Finalizada" : "Activa"}</p>
-                    <p>Asignada: {formatearFechaCorta(detalleAsignacion.fecha_asignacion)}</p>
-                    {detalleAsignacion.fecha_completada && (
-                      <p>
-                        Completada: {formatearFechaCorta(detalleAsignacion.fecha_completada)}
+              {!cargandoDetalle && (
+                <div className="space-y-5">
+                  <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+                    <h3 className="text-lg font-semibold">Información general</h3>
+
+                    <div className="mt-3 space-y-2 text-sm text-zinc-400">
+                      <p>Estado: {detalleAsignacion.completada ? "Finalizada" : "Activa"}</p>
+                      <p>Asignada: {formatearFechaCorta(detalleAsignacion.fecha_asignacion)}</p>
+                      {detalleAsignacion.fecha_completada && (
+                        <p>
+                          Completada: {formatearFechaCorta(detalleAsignacion.fecha_completada)}
+                        </p>
+                      )}
+                      {detalleRutina.objetivo && (
+                        <p>Objetivo: {detalleRutina.objetivo}</p>
+                      )}
+                      {detalleRutina.descripcion && (
+                        <p className="whitespace-pre-wrap">
+                          Descripción: {detalleRutina.descripcion}
+                        </p>
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+                    <h3 className="text-lg font-semibold">Entrada en calor</h3>
+
+                    {(entradaPorRutina[detalleAsignacion.rutina_id] || [])
+                      .length === 0 ? (
+                      <p className="mt-3 text-sm text-zinc-500">
+                        Sin entrada en calor cargada.
                       </p>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        {(entradaPorRutina[detalleAsignacion.rutina_id] || []).map(
+                          (item) => (
+                            <div
+                              key={item.id}
+                              className="rounded-lg border border-zinc-800 p-3"
+                            >
+                              <p className="font-semibold">
+                                {item.nombre_ejercicio}
+                              </p>
+                              <p className="text-sm text-zinc-400">
+                                {item.series || "-"} series ·{" "}
+                                {textoPrescripcion(item)}
+                              </p>
+                              {item.observaciones && (
+                                <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-500">
+                                  {item.observaciones}
+                                </p>
+                              )}
+                            </div>
+                          )
+                        )}
+                      </div>
                     )}
-                    {detalleRutina.objetivo && (
-                      <p>Objetivo: {detalleRutina.objetivo}</p>
-                    )}
-                    {detalleRutina.descripcion && (
-                      <p className="whitespace-pre-wrap">
-                        Descripción: {detalleRutina.descripcion}
+                  </section>
+
+                  <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+                    <h3 className="text-lg font-semibold">Ejercicios</h3>
+
+                    {(ejerciciosPorRutina[detalleAsignacion.rutina_id] || [])
+                      .length === 0 ? (
+                      <p className="mt-3 text-sm text-zinc-500">
+                        Sin ejercicios cargados.
                       </p>
-                    )}
-                  </div>
-                </section>
-
-                <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
-                  <h3 className="text-lg font-semibold">Entrada en calor</h3>
-
-                  {(entradaPorRutina[detalleAsignacion.rutina_id] || [])
-                    .length === 0 ? (
-                    <p className="mt-3 text-sm text-zinc-500">
-                      Sin entrada en calor cargada.
-                    </p>
-                  ) : (
-                    <div className="mt-3 space-y-2">
-                      {(entradaPorRutina[detalleAsignacion.rutina_id] || []).map(
-                        (item) => (
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        {(
+                          ejerciciosPorRutina[detalleAsignacion.rutina_id] || []
+                        ).map((item) => (
                           <div
                             key={item.id}
                             className="rounded-lg border border-zinc-800 p-3"
@@ -1038,70 +1075,35 @@ export default function AlumnoRutinasProfesor({
                             <p className="font-semibold">
                               {item.nombre_ejercicio}
                             </p>
+
                             <p className="text-sm text-zinc-400">
                               {item.series || "-"} series ·{" "}
                               {textoPrescripcion(item)}
                             </p>
+
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-500">
+                              {item.peso && <span>Peso: {item.peso}</span>}
+                              {item.porcentaje_rm && (
+                                <span>%RM: {item.porcentaje_rm}</span>
+                              )}
+                              {item.rir && <span>RIR: {item.rir}</span>}
+                              {item.descanso && (
+                                <span>Descanso: {item.descanso}</span>
+                              )}
+                            </div>
+
                             {item.observaciones && (
                               <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-500">
                                 {item.observaciones}
                               </p>
                             )}
                           </div>
-                        )
-                      )}
-                    </div>
-                  )}
-                </section>
-
-                <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
-                  <h3 className="text-lg font-semibold">Ejercicios</h3>
-
-                  {(ejerciciosPorRutina[detalleAsignacion.rutina_id] || [])
-                    .length === 0 ? (
-                    <p className="mt-3 text-sm text-zinc-500">
-                      Sin ejercicios cargados.
-                    </p>
-                  ) : (
-                    <div className="mt-3 space-y-2">
-                      {(
-                        ejerciciosPorRutina[detalleAsignacion.rutina_id] || []
-                      ).map((item) => (
-                        <div
-                          key={item.id}
-                          className="rounded-lg border border-zinc-800 p-3"
-                        >
-                          <p className="font-semibold">
-                            {item.nombre_ejercicio}
-                          </p>
-
-                          <p className="text-sm text-zinc-400">
-                            {item.series || "-"} series ·{" "}
-                            {textoPrescripcion(item)}
-                          </p>
-
-                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-500">
-                            {item.peso && <span>Peso: {item.peso}</span>}
-                            {item.porcentaje_rm && (
-                              <span>%RM: {item.porcentaje_rm}</span>
-                            )}
-                            {item.rir && <span>RIR: {item.rir}</span>}
-                            {item.descanso && (
-                              <span>Descanso: {item.descanso}</span>
-                            )}
-                          </div>
-
-                          {item.observaciones && (
-                            <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-500">
-                              {item.observaciones}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
+              )}
             </div>
           </div>
         )}

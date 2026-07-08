@@ -3,6 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
+import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
 import BackButton from "@/components/BackButton";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
@@ -83,15 +84,6 @@ type HistorialEvaluacionItem = {
 
 type HistorialItem = HistorialEntrenamientoItem | HistorialEvaluacionItem;
 
-function normalizarRutina(rutinas?: Rutina | Rutina[] | null) {
-  if (Array.isArray(rutinas)) return rutinas[0] || null;
-  return rutinas || null;
-}
-
-function normalizarPlantilla(plantilla?: EvaluacionPlantilla | EvaluacionPlantilla[] | null) {
-  if (Array.isArray(plantilla)) return plantilla[0] || null;
-  return plantilla || null;
-}
 
 function numero(valor?: number | string | null) {
   if (valor === null || valor === undefined || valor === "") return "-";
@@ -187,11 +179,38 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
       return;
     }
 
-    const { data: alumnoData, error: alumnoError } = await supabase
-      .from("alumnos")
-      .select("id,nombre,apellido")
-      .eq("id", id)
-      .single();
+    // Paso 1: Ejecutar consultas independientes en paralelo
+    const [
+      { data: alumnoData, error: alumnoError },
+      { data: registrosData, error: registrosError },
+      { data: asignacionesData, error: asignacionesError },
+      { data: evaluacionesRMData, error: evaluacionesRMError },
+      { data: evaluacionesFMSData, error: evaluacionesFMSError },
+    ] = await Promise.all([
+      supabase.from("alumnos").select("id,nombre,apellido").eq("id", id).single(),
+      supabase
+        .from("registros_entrenamiento")
+        .select("id,alumno_id,rutina_id,rutina_asignacion_id,rutina_ejercicio_id,entrada_calor_id,ejercicio_id,nombre_ejercicio,numero_serie,peso_kg,repeticiones,rpe,rir,rm_calculado,completado,created_at")
+        .eq("alumno_id", id)
+        .eq("completado", true)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("rutina_asignaciones")
+        .select("id,alumno_id,rutina_id,fecha_completada,fecha_asignacion,completada,rutinas(id,nombre)")
+        .eq("alumno_id", id)
+        .order("fecha_completada", { ascending: false }),
+      supabase
+        .from("evaluaciones_rm")
+        .select("id,alumno_id,plantilla_id,estado,created_at,evaluacion_plantillas(id,nombre,formato,modalidad)")
+        .eq("alumno_id", id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("evaluaciones_fms")
+        .select("id,alumno_id,profesor_id,estado,fecha_asignacion,fecha_realizacion,puntaje_total,created_at,deleted_at")
+        .eq("alumno_id", id)
+        .is("deleted_at", null)
+        .order("fecha_realizacion", { ascending: false }),
+    ]);
 
     if (alumnoError) {
       setError(alumnoError.message);
@@ -199,24 +218,11 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
       return;
     }
 
-    const { data: registrosData, error: registrosError } = await supabase
-      .from("registros_entrenamiento")
-      .select("id,alumno_id,rutina_id,rutina_asignacion_id,rutina_ejercicio_id,entrada_calor_id,ejercicio_id,nombre_ejercicio,numero_serie,peso_kg,repeticiones,rpe,rir,rm_calculado,completado,created_at")
-      .eq("alumno_id", id)
-      .eq("completado", true)
-      .order("created_at", { ascending: true });
-
     if (registrosError) {
       setError(registrosError.message);
       setLoading(false);
       return;
     }
-
-    const { data: asignacionesData, error: asignacionesError } = await supabase
-      .from("rutina_asignaciones")
-      .select("id,alumno_id,rutina_id,fecha_completada,fecha_asignacion,completada,rutinas(id,nombre)")
-      .eq("alumno_id", id)
-      .order("fecha_completada", { ascending: false });
 
     if (asignacionesError) {
       setError(asignacionesError.message);
@@ -224,46 +230,45 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
       return;
     }
 
-    const { data: evaluacionesRMData, error: evaluacionesRMError } = await supabase
-      .from("evaluaciones_rm")
-      .select("id,alumno_id,plantilla_id,estado,created_at,evaluacion_plantillas(id,nombre,formato,modalidad)")
-      .eq("alumno_id", id)
-      .order("created_at", { ascending: false });
+    if (evaluacionesRMError) {
+      setError(evaluacionesRMError.message);
+      setLoading(false);
+      return;
+    }
 
-    console.log("Historial profesor - RM data:", evaluacionesRMData);
-    console.log("Historial profesor - RM error:", evaluacionesRMError);
+    if (evaluacionesFMSError) {
+      setError(evaluacionesFMSError.message);
+      setLoading(false);
+      return;
+    }
 
+    // Paso 2: Consultas dependientes en paralelo (resultados RM y tests FMS)
     const evaluacionesRMIds = (evaluacionesRMData || []).map((evaluacion) => evaluacion.id);
-    const { data: evaluacionesRMResultadosData, error: evaluacionesRMResultadosError } = evaluacionesRMIds.length
-      ? await supabase
-          .from("evaluaciones_rm_resultados")
-          .select("id,evaluacion_rm_id")
-          .in("evaluacion_rm_id", evaluacionesRMIds)
-      : { data: [], error: null };
-
-    console.log("Historial profesor - RM resultados data:", evaluacionesRMResultadosData);
-    console.log("Historial profesor - RM resultados error:", evaluacionesRMResultadosError);
-
-    const { data: evaluacionesFMSData, error: evaluacionesFMSError } = await supabase
-      .from("evaluaciones_fms")
-      .select("id,alumno_id,profesor_id,estado,fecha_asignacion,fecha_realizacion,puntaje_total,created_at,deleted_at")
-      .eq("alumno_id", id)
-      .is("deleted_at", null)
-      .order("fecha_realizacion", { ascending: false });
-
-    console.log("Historial profesor - FMS data:", evaluacionesFMSData);
-    console.log("Historial profesor - FMS error:", evaluacionesFMSError);
-
     const evaluacionesFMSIds = (evaluacionesFMSData || []).map((evaluacion) => evaluacion.id);
-    const { data: evaluacionesFMSTestsData, error: evaluacionesFMSTestsError } = evaluacionesFMSIds.length
-      ? await supabase
-          .from("evaluaciones_fms_tests")
-          .select("id,evaluacion_fms_id")
-          .in("evaluacion_fms_id", evaluacionesFMSIds)
-      : { data: [], error: null };
 
-    console.log("Historial profesor - FMS tests data:", evaluacionesFMSTestsData);
-    console.log("Historial profesor - FMS tests error:", evaluacionesFMSTestsError);
+    const [
+      { data: evaluacionesRMResultadosData, error: evaluacionesRMResultadosError },
+      { data: evaluacionesFMSTestsData, error: evaluacionesFMSTestsError },
+    ] = await Promise.all([
+      evaluacionesRMIds.length
+        ? supabase.from("evaluaciones_rm_resultados").select("id,evaluacion_rm_id").in("evaluacion_rm_id", evaluacionesRMIds)
+        : { data: [], error: null },
+      evaluacionesFMSIds.length
+        ? supabase.from("evaluaciones_fms_tests").select("id,evaluacion_fms_id").in("evaluacion_fms_id", evaluacionesFMSIds)
+        : { data: [], error: null },
+    ]);
+
+    if (evaluacionesRMResultadosError) {
+      setError(evaluacionesRMResultadosError.message);
+      setLoading(false);
+      return;
+    }
+
+    if (evaluacionesFMSTestsError) {
+      setError(evaluacionesFMSTestsError.message);
+      setLoading(false);
+      return;
+    }
 
     setAlumno(alumnoData as Alumno);
     setRegistros((registrosData || []) as Registro[]);
@@ -283,7 +288,7 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
           (registro) => registro.rutina_asignacion_id === asignacion.id
         );
 
-        const rutina = normalizarRutina(asignacion.rutinas);
+        const rutina = normalizarRelacion<Rutina>(asignacion.rutinas);
         const rpes = registrosAsignacion
           .map((registro) => Number(registro.rpe))
           .filter((valor) => !Number.isNaN(valor) && valor > 0);
@@ -307,7 +312,7 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
       });
 
     const rm: HistorialEvaluacionItem[] = evaluacionesRM.map((evaluacion) => {
-      const plantilla = normalizarPlantilla(evaluacion.evaluacion_plantillas);
+      const plantilla = normalizarRelacion<EvaluacionPlantilla>(evaluacion.evaluacion_plantillas);
       const resultados = evaluacionesRMResultados.filter(
         (resultado) => resultado.evaluacion_rm_id === evaluacion.id
       ).length;

@@ -91,21 +91,52 @@ export default function AlumnoPlanificacionPage({ params }: PageProps) {
       return;
     }
 
-    // Obtener rutinas (pendientes y completadas)
-    const { data: rutinasData, error: rutinasError } = await supabase
-      .from("rutina_asignaciones")
-      .select(`
-        id,
-        rutina_id,
-        activa,
-        completada,
-        fecha_asignacion,
-        rutinas (
-          nombre
-        )
-      `)
-      .eq("alumno_id", alumnoId)
-      .order("fecha_asignacion", { ascending: false });
+    // Obtener rutinas, evaluaciones RM y evaluaciones FMS en paralelo
+    const [
+      { data: rutinasData, error: rutinasError },
+      { data: evaluacionesRmData, error: evaluacionesRmError },
+      { data: evaluacionesFmsData, error: evaluacionesFmsError },
+    ] = await Promise.all([
+      supabase
+        .from("rutina_asignaciones")
+        .select(`
+          id,
+          rutina_id,
+          activa,
+          completada,
+          fecha_asignacion,
+          rutinas (
+            nombre
+          )
+        `)
+        .eq("alumno_id", alumnoId)
+        .order("fecha_asignacion", { ascending: false }),
+      supabase
+        .from("evaluaciones_rm")
+        .select(`
+          id,
+          nombre,
+          estado,
+          fecha_realizacion,
+          puede_cargar_alumno,
+          created_at
+        `)
+        .eq("alumno_id", alumnoId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("evaluaciones_fms")
+        .select(`
+          id,
+          estado,
+          fecha_realizacion,
+          puede_cargar_alumno,
+          created_at
+        `)
+        .eq("alumno_id", alumnoId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false }),
+    ]);
 
     if (rutinasError) {
       setError(rutinasError.message);
@@ -113,40 +144,11 @@ export default function AlumnoPlanificacionPage({ params }: PageProps) {
       return;
     }
 
-    // Obtener evaluaciones RM
-    const { data: evaluacionesRmData, error: evaluacionesRmError } = await supabase
-      .from("evaluaciones_rm")
-      .select(`
-        id,
-        nombre,
-        estado,
-        fecha_realizacion,
-        puede_cargar_alumno,
-        created_at
-      `)
-      .eq("alumno_id", alumnoId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-
     if (evaluacionesRmError) {
       setError(evaluacionesRmError.message);
       setCargando(false);
       return;
     }
-
-    // Obtener evaluaciones FMS
-    const { data: evaluacionesFmsData, error: evaluacionesFmsError } = await supabase
-      .from("evaluaciones_fms")
-      .select(`
-        id,
-        estado,
-        fecha_realizacion,
-        puede_cargar_alumno,
-        created_at
-      `)
-      .eq("alumno_id", alumnoId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
 
     if (evaluacionesFmsError) {
       setError(evaluacionesFmsError.message);

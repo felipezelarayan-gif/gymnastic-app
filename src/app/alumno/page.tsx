@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
 import EstadoAlumnoCard from "@/components/alumno/EstadoAlumnoCard";
 import { obtenerEstadoAlumno } from "@/lib/alumno/obtenerEstadoAlumno";
 import {
@@ -110,14 +111,6 @@ function inicioSemana() {
   return fecha;
 }
 
-function normalizarRutina(rutinas?: RutinaRelacion) {
-  if (Array.isArray(rutinas)) {
-    return rutinas[0] || null;
-  }
-
-  return rutinas || null;
-}
-
 export default function AlumnoHomePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
@@ -206,7 +199,7 @@ export default function AlumnoHomePage() {
     const asignaciones = ((asignacionesData || []) as RutinaAsignadaResponse[]).map(
       (asignacion) => ({
         ...asignacion,
-        rutinas: normalizarRutina(asignacion.rutinas),
+        rutinas: normalizarRelacion(asignacion.rutinas as RutinaRelacion),
       })
     );
 

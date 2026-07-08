@@ -40,8 +40,8 @@ function getMetricasProfesorCacheKey(profesorId: string) {
   return `${METRICAS_PROFESOR_CACHE_PREFIX}_${profesorId}`;
 }
 
-const APP_VERSION = "2.0.4";
-const LAST_UPDATE = "07/07/2026";
+const APP_VERSION = "2.0.5";
+const LAST_UPDATE = "08/07/2026";
 
 export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true);
@@ -520,11 +520,6 @@ export default function ConfiguracionPage() {
                       <p className="text-zinc-600 text-xs mt-1">
                         ID: {profesor.id}
                       </p>
-                      {profesor.creado_por && (
-                        <p className="text-zinc-600 text-xs mt-1">
-                          Creado por: {profesor.creado_por === profile?.id ? "vos" : "otro administrador"}
-                        </p>
-                      )}
                     </div>
                     <button
                       type="button"

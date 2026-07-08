@@ -4,6 +4,7 @@
   import { useSearchParams, useRouter } from "next/navigation";
  import { supabase } from "@/lib/supabase";
  import { getRolCached } from "@/lib/rol-cache";
+ import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
  import { getEjerciciosVideosPorIdsCached } from "@/lib/ejercicios-cache";
  import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import CompletarEjercicioModal from "@/components/alumno/rutinas/CompletarEjercicioModal";
@@ -206,10 +207,6 @@ function textoPrescripcionAvanzada(
     .join(" · ");
 }
  
- function normalizarRutina(rutinas?: RutinaRelacion) {
-   if (Array.isArray(rutinas)) return rutinas[0] || null;
-   return rutinas || null;
- }
  
  function obtenerUrlVideo(video?: VideoEjercicio | null) {
    return video?.youtube_url || video?.video_url || null;
@@ -656,7 +653,7 @@ export default function RutinaEntrenamientoView({
      const asignacionesTipadas = (
        (asignacionesData || []) as RutinaAsignacionResponse[]
      ).map((item) => {
-       const rutinaRelacion = normalizarRutina(item.rutinas);
+       const rutinaRelacion = normalizarRelacion<Rutina>(item.rutinas as Rutina | Rutina[] | null);
        const rutinaManual = rutinasBase.find((rutina) => rutina.id === item.rutina_id) || null;
  
        return {

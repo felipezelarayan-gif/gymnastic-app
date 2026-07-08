@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
 import BackButton from "@/components/BackButton";
 import RutinaEntrenamientoView from "@/components/rutinas/RutinaEntrenamientoView";
 
@@ -79,15 +80,7 @@ function nombreAlumno(alumno: Alumno): string {
   return `${alumno.nombre ?? ""} ${alumno.apellido ?? ""}`.trim() || "Alumno sin nombre";
 }
 
-function normalizarRutina(rutinas?: RutinaRelacion): Rutina | null {
-  if (Array.isArray(rutinas)) return rutinas[0] || null;
-  return rutinas || null;
-}
 
-function normalizarAlumnoRelacion(alumnos?: AlumnoRelacion): Alumno | null {
-  if (Array.isArray(alumnos)) return alumnos[0] || null;
-  return alumnos || null;
-}
 
 
 // ─── PanelAlumno ─────────────────────────────────────────────────────────────
@@ -180,7 +173,7 @@ function PanelAlumno({
 
     const asignacionesPropias = ((asignacionesData || []) as RutinaAsignacionResponse[]).filter(
       (item) => {
-        const rutina = normalizarRutina(item.rutinas);
+        const rutina = normalizarRelacion<Rutina>(item.rutinas as RutinaRelacion);
         return rutina?.profesor_id === profesorId;
       }
     );
@@ -193,7 +186,7 @@ function PanelAlumno({
       orden: item.orden,
       completada: item.completada,
       fecha_completada: item.fecha_completada,
-      rutinas: normalizarRutina(item.rutinas),
+      rutinas: normalizarRelacion<Rutina>(item.rutinas as RutinaRelacion),
     })) as RutinaAsignada[];
 
     setRutinasAsignadas(asignacionesTipadas);
@@ -419,7 +412,7 @@ export default function RegistrarEntrenamientosPage() {
     const ids = new Set(
       (data ?? [])
         .filter((item) => {
-          const rutina = normalizarRutina(item.rutinas as RutinaRelacion);
+          const rutina = normalizarRelacion<Rutina>(item.rutinas as RutinaRelacion);
           return rutina?.profesor_id === profesorIdActual;
         })
         .map((item) => item.alumno_id)
@@ -472,7 +465,7 @@ export default function RegistrarEntrenamientosPage() {
     }
 
     const tomarAlumno = (item: AlumnoSugerenciaResponse) => {
-      const alumno = normalizarAlumnoRelacion(item.alumnos);
+      const alumno = normalizarRelacion<Alumno>(item.alumnos as AlumnoRelacion);
       if (!alumno || !idsActivos.has(alumno.id)) return null;
       return alumno;
     };
