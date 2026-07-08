@@ -8,6 +8,13 @@ type ItemConFecha = {
   fechaAsignacion?: string;
 };
 
+type ItemSeleccionado = {
+  _uid: string;
+  id: string;
+  nombre: string;
+  fechaAsignacion: string;
+};
+
 type AsignarModalProps = {
   tipo: "rutinas" | "alumnos";
   items: ItemConFecha[];
@@ -17,7 +24,7 @@ type AsignarModalProps = {
 
 export default function AsignarModal({ tipo, items, onClose, onConfirm }: AsignarModalProps) {
   const [itemSeleccionado, setItemSeleccionado] = useState<string>("");
-  const [seleccionados, setSeleccionados] = useState<ItemConFecha[]>([]);
+  const [seleccionados, setSeleccionados] = useState<ItemSeleccionado[]>([]);
   const [cargando, setCargando] = useState(false);
 
   const titulo = tipo === "rutinas" ? "Asignar rutinas" : "Asignar alumnos";
@@ -34,21 +41,24 @@ export default function AsignarModal({ tipo, items, onClose, onConfirm }: Asigna
     if (!item) return;
 
     const hoy = new Date().toISOString().slice(0, 10);
-    setSeleccionados((prev) => [
-      ...prev,
-      { ...item, fechaAsignacion: hoy },
-    ]);
+    const nuevoItem: ItemSeleccionado = {
+      _uid: crypto.randomUUID(),
+      id: item.id,
+      nombre: item.nombre,
+      fechaAsignacion: hoy,
+    };
+    setSeleccionados((prev) => [...prev, nuevoItem]);
     // No reseteamos itemSeleccionado para permitir agregar el mismo item varias veces
   };
 
-  const handleQuitar = (id: string) => {
-    setSeleccionados((prev) => prev.filter((item) => item.id !== id));
+  const handleQuitar = (uid: string) => {
+    setSeleccionados((prev) => prev.filter((item) => item._uid !== uid));
   };
 
-  const handleCambiarFecha = (id: string, fecha: string) => {
+  const handleCambiarFecha = (uid: string, fecha: string) => {
     setSeleccionados((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, fechaAsignacion: fecha } : item
+        item._uid === uid ? { ...item, fechaAsignacion: fecha } : item
       )
     );
   };
@@ -144,7 +154,7 @@ export default function AsignarModal({ tipo, items, onClose, onConfirm }: Asigna
               <div className="space-y-3">
                 {seleccionados.map((item) => (
                   <div
-                    key={item.id}
+                    key={item._uid}
                     className="rounded-xl border border-emerald-500 bg-emerald-500/5 p-4"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -159,7 +169,7 @@ export default function AsignarModal({ tipo, items, onClose, onConfirm }: Asigna
                         <input
                           type="date"
                           value={item.fechaAsignacion || ""}
-                          onChange={(e) => handleCambiarFecha(item.id, e.target.value)}
+                          onChange={(e) => handleCambiarFecha(item._uid, e.target.value)}
                           disabled={cargando}
                           className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:ring-emerald-500 disabled:opacity-50"
                         />
@@ -167,7 +177,7 @@ export default function AsignarModal({ tipo, items, onClose, onConfirm }: Asigna
 
                       <button
                         type="button"
-                        onClick={() => handleQuitar(item.id)}
+                        onClick={() => handleQuitar(item._uid)}
                         disabled={cargando}
                         className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
