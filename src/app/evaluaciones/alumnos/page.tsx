@@ -38,6 +38,11 @@ export default function EvaluacionesPorAlumnoPage() {
   const [paginaEvaluaciones, setPaginaEvaluaciones] = useState(1);
   const [borrandoEvaluacionId, setBorrandoEvaluacionId] = useState<string | null>(null);
   const [profesorId, setProfesorId] = useState<string | null>(null);
+  const [editandoEvaluacion, setEditandoEvaluacion] = useState<{
+    id: string;
+    tipo: "rm" | "fms";
+    fechaActual: string;
+  } | null>(null);
   const { formatearFechaCorta } = useFormatoFecha();
 
   useEffect(() => {
@@ -146,6 +151,24 @@ export default function EvaluacionesPorAlumnoPage() {
     setEvaluacionesAlumno(evaluacionesPropias.slice(desde, hasta));
     setTotalEvaluaciones(evaluacionesPropias.length);
     setCargandoEvaluaciones(false);
+  }
+
+  async function actualizarFechaEvaluacion(evaluacionId: string, tipo: "rm" | "fms", nuevaFecha: string) {
+    const tabla = tipo === "rm" ? "evaluaciones_rm" : "evaluaciones_fms";
+
+    const { error } = await supabase
+      .from(tabla)
+      .update({ fecha_realizacion: nuevaFecha })
+      .eq("id", evaluacionId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (alumnoSeleccionado) {
+      await cargarEvaluacionesAlumno(alumnoSeleccionado, paginaEvaluaciones);
+    }
   }
 
   async function eliminarEvaluacion(evaluacion: EvaluacionAlumnoProfe) {
@@ -309,6 +332,13 @@ export default function EvaluacionesPorAlumnoPage() {
                             <span className="text-xs rounded-full border border-zinc-700 text-zinc-300 px-2 py-0.5 uppercase">
                               {evaluacion.tipo}
                             </span>
+                            <span className={`text-xs rounded-full px-2 py-1 font-semibold ${
+                              evaluacion.estado === "completada"
+                                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                                : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                            }`}>
+                              {evaluacion.estado === "completada" ? "Completada" : "Pendiente"}
+                            </span>
                           </div>
                           <div className="flex flex-wrap gap-2 mt-2 text-sm text-zinc-400">
                             <span>
@@ -326,15 +356,30 @@ export default function EvaluacionesPorAlumnoPage() {
                           )}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => eliminarEvaluacion(evaluacion)}
-                          disabled={borrandoEvaluacionId === evaluacion.id}
-                          title="Eliminar evaluación"
-                          className="border border-red-900/60 text-red-400 font-semibold px-4 py-3 rounded-lg hover:bg-red-950/40 transition text-center disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {borrandoEvaluacionId === evaluacion.id ? "⏳" : "🗑️"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditandoEvaluacion({
+                              id: evaluacion.id,
+                              tipo: evaluacion.tipo as "rm" | "fms",
+                              fechaActual: (evaluacion.fecha_realizacion || evaluacion.created_at || "").split('T')[0]
+                            })}
+                            title="Editar fecha"
+                            className="border border-zinc-700 text-zinc-300 font-semibold px-3 py-2 rounded-lg hover:bg-zinc-800 transition"
+                          >
+                            ✏️
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => eliminarEvaluacion(evaluacion)}
+                            disabled={borrandoEvaluacionId === evaluacion.id}
+                            title="Eliminar evaluación"
+                            className="border border-red-900/60 text-red-400 font-semibold px-4 py-3 rounded-lg hover:bg-red-950/40 transition text-center disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {borrandoEvaluacionId === evaluacion.id ? "⏳" : "🗑️"}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -378,6 +423,49 @@ export default function EvaluacionesPorAlumnoPage() {
             </section>
           </div>
         </div>
+
+        {editandoEvaluacion && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full">
+              <h3 className="text-xl font-bold mb-4">Editar fecha de evaluación</h3>
+
+              <input
+                type="date"
+                value={editandoEvaluacion.fechaActual}
+                onChange={(e) => setEditandoEvaluacion({
+                  ...editandoEvaluacion,
+                  fechaActual: e.target.value
+                })}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-white mb-4"
+              />
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditandoEvaluacion(null)}
+                  className="flex-1 rounded-xl border border-zinc-700 py-3 text-zinc-300 hover:bg-zinc-800"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await actualizarFechaEvaluacion(
+                      editandoEvaluacion.id,
+                      editandoEvaluacion.tipo,
+                      editandoEvaluacion.fechaActual
+                    );
+                    setEditandoEvaluacion(null);
+                  }}
+                  className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
