@@ -40,7 +40,7 @@ function getMetricasProfesorCacheKey(profesorId: string) {
   return `${METRICAS_PROFESOR_CACHE_PREFIX}_${profesorId}`;
 }
 
-const APP_VERSION = "2.0.6";
+const APP_VERSION = "2.0.8";
 const LAST_UPDATE = "08/07/2026";
 
 export default function ConfiguracionPage() {

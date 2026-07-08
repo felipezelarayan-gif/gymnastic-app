@@ -10,7 +10,7 @@ import {
   obtenerPendientesAlumno,
   type ResumenPendientesAlumno,
 } from "@/lib/alumno/obtenerPendientesAlumnos";
-import { parseFechaLocal } from "@/lib/utils/formatearFecha";
+import { obtenerRMsActualesAlumno } from "@/lib/rmActual";
 
 type Profile = {
   id: string;
@@ -50,11 +50,6 @@ type RutinaAsignadaResponse = Omit<RutinaAsignada, "rutinas"> & {
   rutinas?: RutinaRelacion;
 };
 
-type RutinaEjercicio = {
-  id: string;
-  rutina_id: string;
-};
-
 type EvaluacionPendiente = {
   id: string;
   tipo: "rm";
@@ -62,33 +57,6 @@ type EvaluacionPendiente = {
   fecha_realizacion?: string | null;
   puede_cargar_alumno?: boolean | null;
 };
-
-type RegistroEntrenamiento = {
-  id: string;
-  alumno_id: string;
-  rutina_id?: string | null;
-  rutina_ejercicio_id?: string | null;
-  created_at?: string | null;
-  ejercicio_id?: string | null;
-  nombre_ejercicio?: string | null;
-  peso_kg?: number | null;
-  repeticiones?: number | null;
-  rm_calculado?: number | null;
-};
-
-type RMActual = {
-  id: string;
-  ejercicio_id: string;
-  rm_calculado?: number | null;
-  actualizado_en?: string | null;
-};
-
-type Ejercicio = {
-  id: string;
-  nombre: string;
-};
-
-type SeccionActiva = "inicio" | "perfil";
 
 const resumenPendientesInicial: ResumenPendientesAlumno = {
   tienePendientes: false,
@@ -104,20 +72,10 @@ function iniciales(nombre?: string | null, apellido?: string | null) {
   return `${primera}${segunda}`.toUpperCase() || "A";
 }
 
-function inicioSemana() {
-  const fecha = new Date();
-  fecha.setDate(fecha.getDate() - 7);
-  fecha.setHours(0, 0, 0, 0);
-  return fecha;
-}
-
 export default function AlumnoHomePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [seccionActiva, setSeccionActiva] =
-    useState<SeccionActiva>("inicio");
 
   const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>(
     []
@@ -127,12 +85,13 @@ export default function AlumnoHomePage() {
   >([]);
   const [resumenPendientes, setResumenPendientes] =
     useState<ResumenPendientesAlumno>(resumenPendientesInicial);
-  const [ejerciciosRutina, setEjerciciosRutina] = useState<RutinaEjercicio[]>(
-    []
-  );
-  const [registros, setRegistros] = useState<RegistroEntrenamiento[]>([]);
-  const [rmsActuales, setRmsActuales] = useState<RMActual[]>([]);
-  const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
+
+  // Estados livianos para el resumen rápido (solo números + mejor RM)
+  const [ejerciciosCompletados, setEjerciciosCompletados] = useState(0);
+  const [entrenamientosSemana, setEntrenamientosSemana] = useState(0);
+  const [mejorRM, setMejorRM] = useState<{ nombre: string; rm: number } | null>(null);
+
+  const [rutinasCompletadas, setRutinasCompletadas] = useState(0);
 
   async function cargarDatos() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -144,57 +103,102 @@ export default function AlumnoHomePage() {
 
     const user = sessionData.session.user;
 
-    const { data: perfil, error: perfilError } = await supabase
-      .from("profiles")
-      .select("id,nombre,email,rol")
-      .eq("id", user.id)
-      .single();
+    // ── ETAPA 1: Profile + Alumno en paralelo ──
+    const [perfilResult, alumnoResult] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id,nombre,email,rol")
+        .eq("id", user.id)
+        .single(),
+      supabase
+        .from("alumnos")
+        .select("id,nombre,apellido,email,user_id,foto_url")
+        .eq("user_id", user.id)
+        .single(),
+    ]);
+
+    const perfil = perfilResult.data;
+    const perfilError = perfilResult.error;
+    const alumnoData = alumnoResult.data;
+    const alumnoError = alumnoResult.error;
 
     if (perfilError || !perfil || perfil.rol !== "alumno") {
       window.location.href = "/";
       return;
     }
 
-    setProfile(perfil);
-
-    const { data: alumnoData, error: alumnoError } = await supabase
-      .from("alumnos")
-      .select("id,nombre,apellido,email,user_id,foto_url")
-      .eq("user_id", user.id)
-      .single();
-
     if (alumnoError || !alumnoData) {
       setLoading(false);
       return;
     }
 
-    setAlumno(alumnoData);
+    // ── ETAPA 2: Pendientes + Asignaciones + Evaluaciones + Conteos + RMS en paralelo ──
+    const hace7Dias = new Date();
+    hace7Dias.setDate(hace7Dias.getDate() - 7);
+    hace7Dias.setHours(0, 0, 0, 0);
 
-    const pendientesAlumno = await obtenerPendientesAlumno(
-      supabase,
-      alumnoData.id
-    );
-
-    setResumenPendientes(pendientesAlumno);
-
-    const { data: asignacionesData } = await supabase
-      .from("rutina_asignaciones")
-      .select(`
-        id,
-        rutina_id,
-        completada,
-        activa,
-        fecha_asignacion,
-        rutinas (
+    const [
+      pendientesAlumno,
+      asignacionesResult,
+      evaluacionesResult,
+      ejerciciosCountResult,
+      rutinasCountResult,
+      entrenamientosCountResult,
+      rmsResult,
+    ] = await Promise.all([
+      obtenerPendientesAlumno(supabase, alumnoData.id),
+      supabase
+        .from("rutina_asignaciones")
+        .select(`
           id,
-          nombre,
-          objetivo,
-          estructura
-        )
-      `)
-      .eq("alumno_id", alumnoData.id)
-      .order("fecha_asignacion", { ascending: true })
-      .order("created_at", { ascending: true });
+          rutina_id,
+          completada,
+          activa,
+          fecha_asignacion,
+          rutinas (
+            id,
+            nombre,
+            objetivo,
+            estructura
+          )
+        `)
+        .eq("alumno_id", alumnoData.id)
+        .order("fecha_asignacion", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("evaluaciones_rm")
+        .select("id,nombre,fecha_realizacion,puede_cargar_alumno,permitir_carga_alumno,asignada_al_alumno")
+        .eq("alumno_id", alumnoData.id)
+        .eq("estado", "pendiente")
+        .is("deleted_at", null)
+        .order("fecha_asignacion", { ascending: true }),
+      // Total ejercicios completados (sin límite, count exacto)
+      supabase
+        .from("registros_entrenamiento")
+        .select("id", { count: "exact", head: true })
+        .eq("alumno_id", alumnoData.id)
+        .eq("completado", true),
+      // Total rutinas completadas (rutinas distintas con al menos 1 registro)
+      supabase
+        .from("registros_entrenamiento")
+        .select("rutina_id", { count: "exact", head: true })
+        .eq("alumno_id", alumnoData.id)
+        .eq("completado", true)
+        .not("rutina_id", "is", null),
+      // Entrenamientos en la última semana
+      supabase
+        .from("registros_entrenamiento")
+        .select("rutina_id", { count: "exact", head: true })
+        .eq("alumno_id", alumnoData.id)
+        .eq("completado", true)
+        .not("rutina_id", "is", null)
+        .gte("created_at", hace7Dias.toISOString()),
+      // Mejor RM usando la lib existente (busca en rms_historial)
+      obtenerRMsActualesAlumno(alumnoData.id),
+    ]);
+
+    const asignacionesData = asignacionesResult.data;
+    const evaluacionesRMData = evaluacionesResult.data;
 
     const asignaciones = ((asignacionesData || []) as RutinaAsignadaResponse[]).map(
       (asignacion) => ({
@@ -203,79 +207,51 @@ export default function AlumnoHomePage() {
       })
     );
 
-    setRutinasAsignadas(asignaciones);
+    const evaluacionesPendientesMapeadas: EvaluacionPendiente[] = (
+      evaluacionesRMData || []
+    ).map((evaluacion) => ({
+      id: evaluacion.id,
+      tipo: "rm" as const,
+      nombre: evaluacion.nombre || "Evaluación de RM",
+      fecha_realizacion: evaluacion.fecha_realizacion,
+      puede_cargar_alumno:
+        evaluacion.puede_cargar_alumno ||
+        evaluacion.permitir_carga_alumno ||
+        evaluacion.asignada_al_alumno,
+    }));
 
-    const { data: evaluacionesRMData } = await supabase
-      .from("evaluaciones_rm")
-      .select("id,nombre,fecha_realizacion,puede_cargar_alumno,permitir_carga_alumno,asignada_al_alumno")
-      .eq("alumno_id", alumnoData.id)
-      .eq("estado", "pendiente")
-      .is("deleted_at", null)
-      .order("fecha_asignacion", { ascending: true });
-
-    setEvaluacionesPendientes(
-      (evaluacionesRMData || []).map((evaluacion) => ({
-        id: evaluacion.id,
-        tipo: "rm" as const,
-        nombre: evaluacion.nombre || "Evaluación de RM",
-        fecha_realizacion: evaluacion.fecha_realizacion,
-        puede_cargar_alumno:
-          evaluacion.puede_cargar_alumno || evaluacion.permitir_carga_alumno || evaluacion.asignada_al_alumno,
-      }))
-    );
-
-    const rutinaIds = asignaciones.map((item) => item.rutina_id);
-
-    if (rutinaIds.length > 0) {
-      const { data: ejerciciosRutinaData } = await supabase
-        .from("rutina_ejercicios")
-        .select("id,rutina_id")
-        .in("rutina_id", rutinaIds);
-
-      setEjerciciosRutina(ejerciciosRutinaData || []);
-    } else {
-      setEjerciciosRutina([]);
-    }
-
-    const { data: registrosData } = await supabase
-      .from("registros_entrenamiento")
-      .select(
-        "id,alumno_id,rutina_id,rutina_ejercicio_id,created_at,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rm_calculado"
-      )
-      .eq("alumno_id", alumnoData.id)
-      .eq("completado", true)
-      .order("created_at", { ascending: false });
-
-    setRegistros(registrosData || []);
-
-    const { data: rmsData } = await supabase
-      .from("rms_actuales")
-      .select("id,ejercicio_id,rm_calculado")
-      .eq("alumno_id", alumnoData.id);
-
-    setRmsActuales(rmsData || []);
-
-    const idsEjercicios = Array.from(
-      new Set(
-        [
-          ...(rmsData?.map((rm) => rm.ejercicio_id) || []),
-          ...((registrosData || [])
-            .map((registro) => registro.ejercicio_id)
-            .filter(Boolean) as string[]),
-        ].filter(Boolean)
-      )
-    );
-
-    if (idsEjercicios.length > 0) {
-      const { data: ejerciciosData } = await supabase
+    // Calcular mejor RM con nombre del ejercicio
+    const rmsCalculados = rmsResult.data || [];
+    const mejorRMCalculado = rmsCalculados[0] || null;
+    let mejorRMNombre = null;
+    if (mejorRMCalculado) {
+      const { data: ejercicioData } = await supabase
         .from("ejercicios")
-        .select("id,nombre")
-        .in("id", idsEjercicios);
-
-      setEjercicios(ejerciciosData || []);
-    } else {
-      setEjercicios([]);
+        .select("nombre")
+        .eq("id", mejorRMCalculado.ejercicio_id)
+        .single();
+      mejorRMNombre = ejercicioData?.nombre || "Ejercicio";
     }
+
+    // Contar rutinas completadas desde las asignaciones
+    const rutinasCompletadasCount = asignaciones.filter(
+      (item) => item.completada
+    ).length;
+
+    // Agrupar todos los setState para reducir re-renders
+    setProfile(perfil);
+    setAlumno(alumnoData);
+    setResumenPendientes(pendientesAlumno);
+    setRutinasAsignadas(asignaciones);
+    setEvaluacionesPendientes(evaluacionesPendientesMapeadas);
+    setEjerciciosCompletados(ejerciciosCountResult.count ?? 0);
+    setRutinasCompletadas(rutinasCompletadasCount);
+    setEntrenamientosSemana(entrenamientosCountResult.count ?? 0);
+    setMejorRM(
+      mejorRMCalculado
+        ? { nombre: mejorRMNombre || "Ejercicio", rm: mejorRMCalculado.rm_calculado || 0 }
+        : null
+    );
 
     setLoading(false);
   }
@@ -287,18 +263,6 @@ export default function AlumnoHomePage() {
 
     return () => window.clearTimeout(timeoutId);
   }, []);
-
-  function cantidadPendientes(rutinaId: string) {
-    const ejerciciosDeRutina = ejerciciosRutina.filter(
-      (ejercicio) => ejercicio.rutina_id === rutinaId
-    );
-
-    const completados = registros.filter(
-      (registro) => registro.rutina_id === rutinaId
-    );
-
-    return Math.max(ejerciciosDeRutina.length - completados.length, 0);
-  }
 
   const rutinaPendiente = useMemo(() => {
     return (
@@ -315,92 +279,8 @@ export default function AlumnoHomePage() {
     return evaluacionesPendientes[0] || null;
   }, [evaluacionesPendientes]);
 
-  const pendientePrincipal = useMemo(() => {
-    if (!rutinaPendiente && !evaluacionPendiente) return null;
-    if (rutinaPendiente && !evaluacionPendiente) return { tipo: "rutina" as const, item: rutinaPendiente };
-    if (!rutinaPendiente && evaluacionPendiente) return { tipo: "evaluacion" as const, item: evaluacionPendiente };
-
-    const fechaRutina = rutinaPendiente?.fecha_asignacion
-      ? parseFechaLocal(rutinaPendiente.fecha_asignacion)?.getTime() ?? Number.MAX_SAFE_INTEGER
-      : Number.MAX_SAFE_INTEGER;
-    const fechaEvaluacion = evaluacionPendiente?.fecha_realizacion
-      ? parseFechaLocal(evaluacionPendiente.fecha_realizacion)?.getTime() ?? Number.MAX_SAFE_INTEGER
-      : Number.MAX_SAFE_INTEGER;
-
-    return fechaEvaluacion < fechaRutina
-      ? { tipo: "evaluacion" as const, item: evaluacionPendiente! }
-      : { tipo: "rutina" as const, item: rutinaPendiente! };
-  }, [rutinaPendiente, evaluacionPendiente]);
-
-  const rutinasCompletadas = useMemo(() => {
-    return rutinasAsignadas.filter((item) => item.completada).length;
-  }, [rutinasAsignadas]);
-
-  const ejerciciosCompletados = registros.length;
-
-  const entrenamientosSemana = useMemo(() => {
-    const desde = inicioSemana();
-
-    const rutinasUnicas = new Set(
-      registros
-        .filter((registro) => {
-          if (!registro.created_at) return false;
-          return new Date(registro.created_at) >= desde;
-        })
-        .map((registro) => registro.rutina_id)
-        .filter(Boolean)
-    );
-
-    return rutinasUnicas.size;
-  }, [registros]);
-
-  const mejorRM = useMemo(() => {
-    const mapa = new Map<string, RMActual & { nombre_ejercicio?: string | null }>();
-
-    rmsActuales.forEach((rm) => {
-      if (!rm.ejercicio_id) return;
-      mapa.set(rm.ejercicio_id, rm);
-    });
-
-    registros.forEach((registro) => {
-      if (!registro.ejercicio_id || registro.rm_calculado === null || registro.rm_calculado === undefined) {
-        return;
-      }
-
-      const actual = mapa.get(registro.ejercicio_id);
-
-      if (Number(registro.rm_calculado) > Number(actual?.rm_calculado || 0)) {
-        mapa.set(registro.ejercicio_id, {
-          id: `registro-${registro.id}`,
-          ejercicio_id: registro.ejercicio_id,
-          rm_calculado: registro.rm_calculado,
-          actualizado_en: registro.created_at,
-          nombre_ejercicio: registro.nombre_ejercicio,
-        });
-      }
-    });
-
-    const mejor = Array.from(mapa.values()).sort(
-      (a, b) => Number(b.rm_calculado || 0) - Number(a.rm_calculado || 0)
-    )[0];
-
-    if (!mejor) return null;
-
-    const ejercicio = ejercicios.find((item) => item.id === mejor.ejercicio_id);
-
-    return {
-      nombre: mejor.nombre_ejercicio || ejercicio?.nombre || "Ejercicio",
-      rm: mejor.rm_calculado || 0,
-    };
-  }, [rmsActuales, registros, ejercicios]);
-
-  const ejerciciosPendientesRutina = rutinaPendiente
-    ? cantidadPendientes(rutinaPendiente.rutina_id)
-    : 0;
-
-  const tuvoRutinas = rutinasAsignadas.length > 0;
   const tieneHistorial =
-    tuvoRutinas || registros.length > 0 || rmsActuales.length > 0;
+    rutinasAsignadas.length > 0 || ejerciciosCompletados > 0;
   const estadoAlumno = obtenerEstadoAlumno({
     pendientes: resumenPendientes,
     tieneHistorial,
@@ -408,8 +288,37 @@ export default function AlumnoHomePage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white p-6">
-        Cargando...
+      <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
+        <div className="max-w-4xl mx-auto animate-pulse">
+          {/* Header skeleton */}
+          <div className="flex items-center gap-4 mb-6">
+            <div className="h-16 w-16 rounded-full bg-zinc-800 shrink-0" />
+            <div className="space-y-3">
+              <div className="h-8 w-64 rounded bg-zinc-800" />
+              <div className="h-4 w-48 rounded bg-zinc-800" />
+            </div>
+          </div>
+
+          {/* Card de estado skeleton */}
+          <div className="h-32 rounded-3xl bg-zinc-900/40 border border-zinc-800/60 mb-5" />
+
+          {/* Cards de navegación skeleton */}
+          <div className="grid gap-4">
+            <div className="h-24 rounded-2xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-24 rounded-2xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-24 rounded-2xl bg-zinc-900 border border-zinc-800" />
+          </div>
+
+          {/* Resumen rápido skeleton */}
+          <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
+            <div className="h-6 w-48 rounded bg-zinc-800 mb-4" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="h-24 rounded-xl bg-zinc-950/40 border border-zinc-800" />
+              <div className="h-24 rounded-xl bg-zinc-950/40 border border-zinc-800" />
+              <div className="h-24 rounded-xl bg-zinc-950/40 border border-zinc-800" />
+            </div>
+          </div>
+        </div>
       </main>
     );
   }
@@ -419,16 +328,16 @@ export default function AlumnoHomePage() {
       <div className="max-w-4xl mx-auto">
         <header className="flex items-center gap-4 mb-6">
           <div className="h-16 w-16 rounded-full bg-emerald-500/10 border border-emerald-700 flex items-center justify-center text-2xl font-bold text-emerald-400 shrink-0 overflow-hidden">
-  {alumno?.foto_url ? (
-    <img
-      src={alumno.foto_url}
-      alt="Foto de perfil"
-      className="h-full w-full object-cover"
-    />
-  ) : (
-    iniciales(alumno?.nombre || profile?.nombre, alumno?.apellido)
-  )}
-</div>
+            {alumno?.foto_url ? (
+              <img
+                src={alumno.foto_url}
+                alt="Foto de perfil"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              iniciales(alumno?.nombre || profile?.nombre, alumno?.apellido)
+            )}
+          </div>
 
           <div>
             <h1 className="text-3xl font-bold">
@@ -445,122 +354,81 @@ export default function AlumnoHomePage() {
           </div>
         </header>
 
-        {seccionActiva === "inicio" && (
-          <>
-            <EstadoAlumnoCard
-              icono={estadoAlumno.icono}
-              titulo={estadoAlumno.titulo}
-              descripcion={estadoAlumno.descripcion}
-              detalles={estadoAlumno.detalles}
-              variante={estadoAlumno.variante}
-            />
+        <EstadoAlumnoCard
+          icono={estadoAlumno.icono}
+          titulo={estadoAlumno.titulo}
+          descripcion={estadoAlumno.descripcion}
+          detalles={estadoAlumno.detalles}
+          variante={estadoAlumno.variante}
+        />
 
-            <section className="grid gap-4">
-              <Link
-                href="/alumno/rutina"
-                className="text-left bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-emerald-500 hover:bg-zinc-800 transition cursor-pointer"
-              >
-                <h2 className="text-xl font-semibold">🏋️ Mi rutina</h2>
-                <p className="text-zinc-400 mt-2">
-                  Ver rutina actual, evaluaciones y completar pendientes.
-                </p>
-              </Link>
+        <section className="grid gap-4">
+          <Link
+            href="/alumno/rutina"
+            className="text-left bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-emerald-500 hover:bg-zinc-800 transition cursor-pointer"
+          >
+            <h2 className="text-xl font-semibold">🏋️ Mi rutina</h2>
+            <p className="text-zinc-400 mt-2">
+              Ver rutina actual, evaluaciones y completar pendientes.
+            </p>
+          </Link>
 
-              <Link
-                href="/alumno/progreso"
-                className="text-left bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-emerald-500 hover:bg-zinc-800 transition cursor-pointer"
-              >
-                <h2 className="text-xl font-semibold">📈 Mis progresos</h2>
-                <p className="text-zinc-400 mt-2">
-                  RM, historial y estadísticas.
-                </p>
-              </Link>
+          <Link
+            href="/alumno/progreso"
+            className="text-left bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-emerald-500 hover:bg-zinc-800 transition cursor-pointer"
+          >
+            <h2 className="text-xl font-semibold">📈 Mis progresos</h2>
+            <p className="text-zinc-400 mt-2">
+              RM, historial y estadísticas.
+            </p>
+          </Link>
 
-              <Link
-                href="/alumno/perfil"
-                className="text-left bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-emerald-500 hover:bg-zinc-800 transition cursor-pointer"
-              >
-                <h2 className="text-xl font-semibold">👤 Mi perfil</h2>
-                <p className="text-zinc-400 mt-2">
-                  Datos personales y observaciones.
-                </p>
-              </Link>
-            </section>
+          <Link
+            href="/alumno/perfil"
+            className="text-left bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-emerald-500 hover:bg-zinc-800 transition cursor-pointer"
+          >
+            <h2 className="text-xl font-semibold">👤 Mi perfil</h2>
+            <p className="text-zinc-400 mt-2">
+              Datos personales y observaciones.
+            </p>
+          </Link>
+        </section>
 
-            <section className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5 mt-4">
-              <h2 className="text-xl font-semibold mb-4">📊 Resumen rápido</h2>
+        <section className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5 mt-4">
+          <h2 className="text-xl font-semibold mb-4">📊 Resumen rápido</h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="rounded-xl bg-zinc-950/40 border border-zinc-800 p-4">
-                  <p className="text-zinc-400 text-sm">Rutinas completadas</p>
-                  <p className="text-3xl font-bold mt-1">
-                    {rutinasCompletadas}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-zinc-950/40 border border-zinc-800 p-4">
-                  <p className="text-zinc-400 text-sm">
-                    Ejercicios completados
-                  </p>
-                  <p className="text-3xl font-bold mt-1">
-                    {ejerciciosCompletados}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-zinc-950/40 border border-zinc-800 p-4">
-                  <p className="text-zinc-400 text-sm">Mejor RM</p>
-                  {mejorRM ? (
-                    <>
-                      <p className="text-2xl font-bold mt-1 text-emerald-400">
-                        {mejorRM.rm} kg
-                      </p>
-                      <p className="text-zinc-500 text-sm">{mejorRM.nombre}</p>
-                    </>
-                  ) : (
-                    <p className="text-zinc-500 mt-2">Sin registros</p>
-                  )}
-                </div>
-              </div>
-            </section>
-          </>
-        )}
-
-        {seccionActiva === "perfil" && (
-          <section className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5">
-            <button
-              type="button"
-              onClick={() => setSeccionActiva("inicio")}
-              className="mb-4 text-sm text-zinc-400 hover:text-white"
-            >
-              ← Volver al inicio
-            </button>
-
-            <h2 className="text-2xl font-bold mb-4">👤 Mi perfil</h2>
-
-            <div className="space-y-2 text-zinc-300">
-              <p>
-                <span className="text-zinc-500">Nombre:</span>{" "}
-                {alumno?.nombre || profile?.nombre}
-              </p>
-
-              {alumno?.apellido && (
-                <p>
-                  <span className="text-zinc-500">Apellido:</span>{" "}
-                  {alumno.apellido}
-                </p>
-              )}
-
-              <p>
-                <span className="text-zinc-500">Email:</span>{" "}
-                {alumno?.email || profile?.email}
-              </p>
-
-              <p>
-                <span className="text-zinc-500">Rol:</span> {profile?.rol}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-xl bg-zinc-950/40 border border-zinc-800 p-4">
+              <p className="text-zinc-400 text-sm">Rutinas completadas</p>
+              <p className="text-3xl font-bold mt-1">
+                {rutinasCompletadas}
               </p>
             </div>
-          </section>
-        )}
+
+            <div className="rounded-xl bg-zinc-950/40 border border-zinc-800 p-4">
+              <p className="text-zinc-400 text-sm">
+                Ejercicios completados
+              </p>
+              <p className="text-3xl font-bold mt-1">
+                {ejerciciosCompletados}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-zinc-950/40 border border-zinc-800 p-4">
+              <p className="text-zinc-400 text-sm">Mejor RM</p>
+              {mejorRM ? (
+                <>
+                  <p className="text-2xl font-bold mt-1 text-emerald-400">
+                    {mejorRM.rm} kg
+                  </p>
+                  <p className="text-zinc-500 text-sm">{mejorRM.nombre}</p>
+                </>
+              ) : (
+                <p className="text-zinc-500 mt-2">Sin registros</p>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     </main>
   );

@@ -2,6 +2,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import SessionGuard from "@/components/SessionGuard";
 import { UnsavedChangesProvider } from "@/lib/unsaved-changes-context";
+import { ToastProvider } from "@/components/ui/ToastProvider";
 
 export default function RootLayout({
   children,
@@ -13,8 +14,10 @@ export default function RootLayout({
       <body className="bg-zinc-950 text-white pb-24 md:pb-0">
         <SessionGuard>
           <UnsavedChangesProvider>
-            <Navbar />
-            {children}
+            <ToastProvider>
+              <Navbar />
+              {children}
+            </ToastProvider>
           </UnsavedChangesProvider>
         </SessionGuard>
       </body>

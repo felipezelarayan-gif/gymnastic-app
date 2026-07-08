@@ -8,6 +8,7 @@
  import { getEjerciciosVideosPorIdsCached } from "@/lib/ejercicios-cache";
  import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import CompletarEjercicioModal from "@/components/alumno/rutinas/CompletarEjercicioModal";
+import { useToast } from "@/components/ui/ToastProvider";
  
  type Rutina = {
    id: string;
@@ -269,6 +270,7 @@ export default function RutinaEntrenamientoView({
    const [seccionesAbiertas, setSeccionesAbiertas] = useState<Record<string, boolean>>({});
  
   const [cargandoModificacion, setCargandoModificacion] = useState(false);
+  const { mostrarToast } = useToast();
   
   useEffect(() => {
      if (!modoModificar || !asignacionId) return;
@@ -445,10 +447,23 @@ export default function RutinaEntrenamientoView({
    router.back();
  }
  
-   // Auto-guardar progreso en localStorage cuando cambia el cache
+   // Auto-guardar progreso con debounce (2 segundos después del último cambio)
    useEffect(() => {
      if (!alumnoId) return;
-     guardarProgresoLocal();
+     const timer = setTimeout(() => {
+       guardarProgresoLocal();
+     }, 2000);
+     return () => clearTimeout(timer);
+   }, [alumnoId, ejerciciosCompletadosCache, entradaCalorCompletadaCache, borradoresEjerciciosCache]);
+
+   // Guardar inmediatamente si cierran el navegador (localStorage.setItem es síncrono)
+   useEffect(() => {
+     if (!alumnoId) return;
+     const handleBeforeUnload = () => {
+       guardarProgresoLocal();
+     };
+     window.addEventListener('beforeunload', handleBeforeUnload);
+     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
    }, [alumnoId, ejerciciosCompletadosCache, entradaCalorCompletadaCache, borradoresEjerciciosCache]);
  
    // --------- ETAPA 3: Borradores de ejercicios helpers y efecto ----------
@@ -571,7 +586,7 @@ export default function RutinaEntrenamientoView({
           .single();
 
         if (asignacionAlumnoError || !asignacionAlumno?.alumno_id) {
-          alert("No se encontró el alumno de esta rutina asignada.");
+          mostrarToast("No se encontró el alumno de esta rutina asignada.");
           setLoading(false);
           return;
         }
@@ -585,13 +600,14 @@ export default function RutinaEntrenamientoView({
     }
 
     if (!alumnoActualId) {
-      alert("No se pudo identificar el alumno de esta rutina.");
+      mostrarToast("No se pudo identificar el alumno de esta rutina.");
       setLoading(false);
       return;
     }
 
     setAlumnoId(alumnoActualId);
 
+    // ── ETAPA 2: Asignaciones + Registros + RMS en paralelo (solo necesitan alumnoActualId) ──
     let asignacionesQuery = supabase
       .from("rutina_asignaciones")
       .select(`
@@ -618,210 +634,198 @@ export default function RutinaEntrenamientoView({
       asignacionesQuery = asignacionesQuery.eq("id", asignacionId);
     }
 
-    const { data: asignacionesData, error: asignacionesError } = await asignacionesQuery
-      .order("fecha_asignacion", { ascending: true })
-      .order("orden", { ascending: true })
-      .order("created_at", { ascending: true });
- 
-     if (asignacionesError) {
-       alert(asignacionesError.message);
-       setLoading(false);
-       return;
-     }
- 
-     const rutinaIds = Array.from(
-       new Set((asignacionesData || []).map((item) => item.rutina_id).filter(Boolean))
-     );
- 
-     let rutinasBase: Rutina[] = [];
- 
-     if (rutinaIds.length > 0) {
-       const { data: rutinasData, error: rutinasError } = await supabase
-         .from("rutinas")
-         .select("id,nombre,descripcion,objetivo,estructura,entrada_calor")
-         .in("id", rutinaIds);
- 
-       if (rutinasError) {
-         alert(rutinasError.message);
-         setLoading(false);
-         return;
-       }
- 
-       rutinasBase = rutinasData || [];
-     }
- 
-     const asignacionesTipadas = (
-       (asignacionesData || []) as RutinaAsignacionResponse[]
-     ).map((item) => {
-       const rutinaRelacion = normalizarRelacion<Rutina>(item.rutinas as Rutina | Rutina[] | null);
-       const rutinaManual = rutinasBase.find((rutina) => rutina.id === item.rutina_id) || null;
- 
-       return {
-         asignacion_id: item.id,
-         rutina_id: item.rutina_id,
-         activa: item.activa,
-         fecha_asignacion: item.fecha_asignacion,
-         orden: item.orden,
-         completada: item.completada,
-         fecha_completada: item.fecha_completada,
-         rutinas: rutinaManual || rutinaRelacion,
-       };
-     }) as RutinaAsignada[];
- 
-     if (rutinaIds.length === 0) {
-       setRutinasAsignadas(asignacionesTipadas);
-       setEjerciciosPorRutina({});
-       setSeriesPorEjercicio({});
-       setEntradaPorRutina({});
-       setRegistros([]);
-       setRmsActuales([]);
-       setLoading(false);
-       return;
-     }
- 
-     const [rutinaEjerciciosResult, entradaResult] = await Promise.all([
-       supabase
-         .from("rutina_ejercicios")
-         .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
-         .in("rutina_id", rutinaIds)
-         .order("orden", { ascending: true }),
-       supabase
-         .from("rutina_entrada_calor")
-         .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,duracion,repeticiones,observaciones,orden")
-         .in("rutina_id", rutinaIds)
-         .order("orden", { ascending: true }),
-     ]);
-  
-     const ejerciciosError = rutinaEjerciciosResult.error;
-     const entradaError = entradaResult.error;
-  
-     if (ejerciciosError) {
-       alert(ejerciciosError.message);
-       setLoading(false);
-       return;
-     }
-  
-     if (entradaError) {
-       alert(entradaError.message);
-       setLoading(false);
-       return;
-     }
-  
-     const rutinaEjercicios = rutinaEjerciciosResult.data || [];
-     const entrada = entradaResult.data || [];
-  
-     const idsEjercicios =
-       rutinaEjercicios.map((item) => item.ejercicio_id).filter(Boolean) || [];
- 
-     const videosEjercicios = await cargarVideosEjercicios(idsEjercicios as string[]);
- 
-     const ejerciciosConVideo =
-       rutinaEjercicios?.map((item) => {
-         const video = videosEjercicios.find((v) => v.id === item.ejercicio_id);
-         return { ...item, youtube_url: obtenerUrlVideo(video) };
-       }) || [];
- 
-     const ejerciciosAvanzadosIds = ejerciciosConVideo
-       .filter((item) => item.tipo_configuracion === "avanzado")
-       .map((item) => item.id);
- 
-     let seriesAgrupadas: Record<string, RutinaEjercicioSerie[]> = {};
- 
-      if (ejerciciosAvanzadosIds.length > 0) {
-        const { data: seriesData, error: seriesError } = await supabase
-          .from("rutina_ejercicio_series")
-          .select("id,rutina_ejercicio_id,numero_serie,repeticiones,peso,porcentaje_rm")
-          .in("rutina_ejercicio_id", ejerciciosAvanzadosIds)
-          .order("numero_serie", { ascending: true });
- 
-       if (seriesError) {
-         alert(seriesError.message);
-         setLoading(false);
-         return;
-       }
- 
-       seriesAgrupadas = ((seriesData || []) as RutinaEjercicioSerie[]).reduce<Record<string, RutinaEjercicioSerie[]>>(
-         (acc, serie) => {
-           acc[serie.rutina_ejercicio_id] = acc[serie.rutina_ejercicio_id] || [];
-           acc[serie.rutina_ejercicio_id].push(serie);
-           return acc;
-         },
-         {}
-       );
-     }
- 
-     const agrupadosEjercicios: Record<string, RutinaEjercicio[]> = {};
- 
-     ejerciciosConVideo.forEach((item) => {
-       if (!agrupadosEjercicios[item.rutina_id]) {
-         agrupadosEjercicios[item.rutina_id] = [];
-       }
-       agrupadosEjercicios[item.rutina_id].push(item);
-     });
- 
-     const idsEntrada =
-       entrada.map((item) => item.ejercicio_id).filter(Boolean) || [];
-  
-     const videosEntrada = await cargarVideosEjercicios(idsEntrada as string[]);
-  
-     const entradaConVideo =
-       entrada?.map((item) => {
-         const video = videosEntrada.find((v) => v.id === item.ejercicio_id);
-         return { ...item, youtube_url: obtenerUrlVideo(video) };
-       }) || [];
-  
-     const agrupadaEntrada: Record<string, EntradaCalorEjercicio[]> = {};
-  
-     entradaConVideo.forEach((item) => {
-       if (!item.rutina_id) return;
-  
-       if (!agrupadaEntrada[item.rutina_id]) {
-         agrupadaEntrada[item.rutina_id] = [];
-       }
-  
-       agrupadaEntrada[item.rutina_id].push(item);
-     });
-  
-     const asignacionIds = asignacionesTipadas.map((item) => item.asignacion_id);
-  
-     const [registrosResult, rmsResult] = await Promise.all([
-       supabase
-         .from("registros_entrenamiento")
-         .select("id,rutina_id,rutina_asignacion_id,rutina_ejercicio_id,entrada_calor_id,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rpe,rir")
-         .eq("alumno_id", alumnoActualId)
-         .in("rutina_asignacion_id", asignacionIds)
-         .eq("completado", true),
-       supabase
-         .from("rms_actuales")
-         .select("id,ejercicio_id,rm_calculado")
-         .eq("alumno_id", alumnoActualId),
-     ]);
-  
-     const registrosError = registrosResult.error;
-     const rmsError = rmsResult.error;
-  
-     if (registrosError) {
-       alert(registrosError.message);
-       setLoading(false);
-       return;
-     }
-  
-     if (rmsError) {
-       alert(rmsError.message);
-       setLoading(false);
-       return;
-     }
-  
-     const registrosData = registrosResult.data || [];
-     const rmsData = rmsResult.data || [];
-  
-     setRutinasAsignadas(asignacionesTipadas);
-     setEjerciciosPorRutina(agrupadosEjercicios);
-     setSeriesPorEjercicio(seriesAgrupadas);
-     setEntradaPorRutina(agrupadaEntrada);
-     setRegistros(registrosData);
-     setRmsActuales(rmsData);
-     setLoading(false);
+    const [asignacionesResult, registrosResult, rmsResult] = await Promise.all([
+      asignacionesQuery
+        .order("fecha_asignacion", { ascending: true })
+        .order("orden", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("registros_entrenamiento")
+        .select("id,rutina_id,rutina_asignacion_id,rutina_ejercicio_id,entrada_calor_id,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rpe,rir")
+        .eq("alumno_id", alumnoActualId)
+        .eq("completado", true),
+      supabase
+        .from("rms_actuales")
+        .select("id,ejercicio_id,rm_calculado")
+        .eq("alumno_id", alumnoActualId),
+    ]);
+
+    const asignacionesData = asignacionesResult.data;
+    const asignacionesError = asignacionesResult.error;
+    const registrosData = registrosResult.data || [];
+    const rmsData = rmsResult.data || [];
+
+    if (asignacionesError) {
+      mostrarToast(asignacionesError.message, "error");
+      setLoading(false);
+      return;
+    }
+
+    const rutinaIds = Array.from(
+      new Set((asignacionesData || []).map((item) => item.rutina_id).filter(Boolean))
+    );
+
+    let rutinasBase: Rutina[] = [];
+
+    if (rutinaIds.length > 0) {
+      const { data: rutinasData, error: rutinasError } = await supabase
+        .from("rutinas")
+        .select("id,nombre,descripcion,objetivo,estructura,entrada_calor")
+        .in("id", rutinaIds);
+
+      if (rutinasError) {
+        mostrarToast(rutinasError.message, "error");
+        setLoading(false);
+        return;
+      }
+
+      rutinasBase = rutinasData || [];
+    }
+
+    const asignacionesTipadas = (
+      (asignacionesData || []) as RutinaAsignacionResponse[]
+    ).map((item) => {
+      const rutinaRelacion = normalizarRelacion<Rutina>(item.rutinas as Rutina | Rutina[] | null);
+      const rutinaManual = rutinasBase.find((rutina) => rutina.id === item.rutina_id) || null;
+
+      return {
+        asignacion_id: item.id,
+        rutina_id: item.rutina_id,
+        activa: item.activa,
+        fecha_asignacion: item.fecha_asignacion,
+        orden: item.orden,
+        completada: item.completada,
+        fecha_completada: item.fecha_completada,
+        rutinas: rutinaManual || rutinaRelacion,
+      };
+    }) as RutinaAsignada[];
+
+    if (rutinaIds.length === 0) {
+      setRutinasAsignadas(asignacionesTipadas);
+      setEjerciciosPorRutina({});
+      setSeriesPorEjercicio({});
+      setEntradaPorRutina({});
+      setRegistros(registrosData);
+      setRmsActuales(rmsData);
+      setLoading(false);
+      return;
+    }
+
+    // ── ETAPA 3: Ejercicios + EntradaCalor + Videos + Series en paralelo ──
+    const [rutinaEjerciciosResult, entradaResult] = await Promise.all([
+      supabase
+        .from("rutina_ejercicios")
+        .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
+        .in("rutina_id", rutinaIds)
+        .order("orden", { ascending: true }),
+      supabase
+        .from("rutina_entrada_calor")
+        .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,duracion,repeticiones,observaciones,orden")
+        .in("rutina_id", rutinaIds)
+        .order("orden", { ascending: true }),
+    ]);
+
+    const ejerciciosError = rutinaEjerciciosResult.error;
+    const entradaError = entradaResult.error;
+
+    if (ejerciciosError) {
+      mostrarToast(ejerciciosError.message, "error");
+      setLoading(false);
+      return;
+    }
+
+    if (entradaError) {
+      mostrarToast(entradaError.message, "error");
+      setLoading(false);
+      return;
+    }
+
+    const rutinaEjercicios = rutinaEjerciciosResult.data || [];
+    const entrada = entradaResult.data || [];
+
+    const idsEjercicios =
+      rutinaEjercicios.map((item) => item.ejercicio_id).filter(Boolean) || [];
+    const idsEntrada =
+      entrada.map((item) => item.ejercicio_id).filter(Boolean) || [];
+    const ejerciciosAvanzadosIds = rutinaEjercicios
+      .filter((item) => item.tipo_configuracion === "avanzado")
+      .map((item) => item.id);
+
+    // Videos y series en paralelo
+    const [videosEjercicios, seriesResult, videosEntrada] = await Promise.all([
+      cargarVideosEjercicios(idsEjercicios as string[]),
+      ejerciciosAvanzadosIds.length > 0
+        ? supabase
+            .from("rutina_ejercicio_series")
+            .select("id,rutina_ejercicio_id,numero_serie,repeticiones,peso,porcentaje_rm")
+            .in("rutina_ejercicio_id", ejerciciosAvanzadosIds)
+            .order("numero_serie", { ascending: true })
+        : Promise.resolve({ data: [] as RutinaEjercicioSerie[] }),
+      cargarVideosEjercicios(idsEntrada as string[]),
+    ]);
+
+    const ejerciciosConVideo =
+      rutinaEjercicios?.map((item) => {
+        const video = videosEjercicios.find((v) => v.id === item.ejercicio_id);
+        return { ...item, youtube_url: obtenerUrlVideo(video) };
+      }) || [];
+
+    let seriesAgrupadas: Record<string, RutinaEjercicioSerie[]> = {};
+
+    if (ejerciciosAvanzadosIds.length > 0) {
+      const seriesData = (seriesResult as any)?.data || [];
+      const seriesError = (seriesResult as any)?.error;
+
+      if (seriesError) {
+        mostrarToast(seriesError.message, "error");
+        setLoading(false);
+        return;
+      }
+
+      seriesAgrupadas = (seriesData as RutinaEjercicioSerie[]).reduce<Record<string, RutinaEjercicioSerie[]>>(
+        (acc, serie) => {
+          acc[serie.rutina_ejercicio_id] = acc[serie.rutina_ejercicio_id] || [];
+          acc[serie.rutina_ejercicio_id].push(serie);
+          return acc;
+        },
+        {}
+      );
+    }
+
+    const agrupadosEjercicios: Record<string, RutinaEjercicio[]> = {};
+
+    ejerciciosConVideo.forEach((item) => {
+      if (!agrupadosEjercicios[item.rutina_id]) {
+        agrupadosEjercicios[item.rutina_id] = [];
+      }
+      agrupadosEjercicios[item.rutina_id].push(item);
+    });
+
+    const entradaConVideo =
+      entrada?.map((item) => {
+        const video = videosEntrada.find((v) => v.id === item.ejercicio_id);
+        return { ...item, youtube_url: obtenerUrlVideo(video) };
+      }) || [];
+
+    const agrupadaEntrada: Record<string, EntradaCalorEjercicio[]> = {};
+
+    entradaConVideo.forEach((item) => {
+      if (!item.rutina_id) return;
+
+      if (!agrupadaEntrada[item.rutina_id]) {
+        agrupadaEntrada[item.rutina_id] = [];
+      }
+
+      agrupadaEntrada[item.rutina_id].push(item);
+    });
+
+    setRutinasAsignadas(asignacionesTipadas);
+    setEjerciciosPorRutina(agrupadosEjercicios);
+    setSeriesPorEjercicio(seriesAgrupadas);
+    setEntradaPorRutina(agrupadaEntrada);
+    setRegistros(registrosData);
+    setRmsActuales(rmsData);
+    setLoading(false);
    }
  
    function ejercicioEstaCompletado(rutinaAsignacionId: string, rutinaEjercicioId: string) {
@@ -1262,12 +1266,12 @@ export default function RutinaEntrenamientoView({
      );
  
      if (!asignacionActual) {
-       alert("No se encontró la asignación de esta rutina.");
+       mostrarToast("No se encontró la asignación de esta rutina.");
        return;
      }
  
      if (entradaEstaCompletada(asignacionActual.asignacion_id, item.id)) {
-       alert("Esta entrada en calor ya fue completada.");
+       mostrarToast("Esta entrada en calor ya fue completada.", "info");
        return;
      }
  
@@ -1288,7 +1292,7 @@ export default function RutinaEntrenamientoView({
      );
  
      if (!asignacionActual) {
-       alert("No se encontró la asignación de esta rutina.");
+       mostrarToast("No se encontró la asignación de esta rutina.");
        return;
      }
  
@@ -1361,12 +1365,12 @@ export default function RutinaEntrenamientoView({
      );
  
      if (!asignacionActual) {
-       alert("No se encontró la asignación de esta rutina.");
+       mostrarToast("No se encontró la asignación de esta rutina.");
        return;
      }
  
      if (ejercicioEstaCompletado(asignacionActual.asignacion_id, item.id)) {
-       alert("Este ejercicio ya fue completado.");
+       mostrarToast("Este ejercicio ya fue completado.", "info");
        return;
      }
  
@@ -1436,7 +1440,7 @@ export default function RutinaEntrenamientoView({
      );
  
      if (!asignacionActual) {
-       alert("No se encontró la asignación de esta rutina.");
+       mostrarToast("No se encontró la asignación de esta rutina.");
        setGuardandoEjercicio(false);
        return;
      }
@@ -1447,14 +1451,14 @@ export default function RutinaEntrenamientoView({
          ejercicioSeleccionado.id
        )
      ) {
-       alert("Este ejercicio ya fue completado.");
+       mostrarToast("Este ejercicio ya fue completado.", "info");
        setEjercicioSeleccionado(null);
        setGuardandoEjercicio(false);
        return;
      }
  
      if (!rpe) {
-       alert("Completá el RPE.");
+       mostrarToast("Completá el RPE.", "info");
        setGuardandoEjercicio(false);
        return;
      }
@@ -1464,7 +1468,7 @@ export default function RutinaEntrenamientoView({
      const seriesConfiguradas = seriesPorEjercicio[ejercicioSeleccionado.id] || [];
 
      if (!esAvanzado && !esPorTiempo && (!seriesRealizadas[1]?.peso || !seriesRealizadas[1]?.repeticiones)) {
-       alert("Completá peso, repeticiones y RPE.");
+       mostrarToast("Completá peso, repeticiones y RPE.", "info");
        setGuardandoEjercicio(false);
        return;
      }
@@ -1486,7 +1490,7 @@ export default function RutinaEntrenamientoView({
        });
  
        if (seriesIncompletas) {
-         alert("Completá peso y repeticiones en cada serie.");
+         mostrarToast("Completá peso y repeticiones en cada serie.", "info");
          setGuardandoEjercicio(false);
          return;
        }
@@ -1496,7 +1500,7 @@ export default function RutinaEntrenamientoView({
      const rirNumero = rirReal ? Number(rirReal) : null;
  
      if (Number.isNaN(rpeNumero)) {
-       alert("Revisá el RPE ingresado.");
+       mostrarToast("Revisá el RPE ingresado.", "info");
        setGuardandoEjercicio(false);
        return;
      }
@@ -1548,7 +1552,7 @@ export default function RutinaEntrenamientoView({
            (esPorTiempo ? serie.repeticiones < 0 : serie.repeticiones <= 0)
        )
      ) {
-       alert("Revisá los valores ingresados en las series.");
+       mostrarToast("Revisá los valores ingresados en las series.", "info");
        setGuardandoEjercicio(false);
        return;
      }
@@ -1563,7 +1567,7 @@ export default function RutinaEntrenamientoView({
      const mejorSerieParaGuardar = mejorSerieConRM || mejorSeriePorReps;
  
      if (!mejorSerieParaGuardar) {
-       alert("No se encontró una serie válida para guardar el ejercicio.");
+       mostrarToast("No se encontró una serie válida para guardar el ejercicio.");
        setGuardandoEjercicio(false);
        return;
      }
@@ -1604,6 +1608,29 @@ export default function RutinaEntrenamientoView({
      );
  
      setEjercicioSeleccionado(null);
+
+     // Guardar inmediatamente en localStorage al completar un ejercicio
+     if (alumnoId) {
+       const progreso: ProgresoRutinaCache = {
+         ejercicios: [...ejerciciosCompletadosCache.filter(
+           (item) =>
+             !(
+               item.rutina_asignacion_id === nuevoEjercicioEnCache.rutina_asignacion_id &&
+               item.rutina_ejercicio_id === nuevoEjercicioEnCache.rutina_ejercicio_id
+             )
+         ), nuevoEjercicioEnCache],
+         entradas: entradaCalorCompletadaCache,
+         borradores: borradoresEjerciciosCache.filter(
+           (item) =>
+             !(
+               item.rutina_asignacion_id === nuevoEjercicioEnCache.rutina_asignacion_id &&
+               item.rutina_ejercicio_id === nuevoEjercicioEnCache.rutina_ejercicio_id
+             )
+         ),
+       };
+       localStorage.setItem(claveProgresoLocal(alumnoId), JSON.stringify(progreso));
+     }
+
      // setPesoUsado("");
      // setRepsRealizadas("");
      setRpe("");
@@ -1621,7 +1648,7 @@ export default function RutinaEntrenamientoView({
      );
  
      if (!asignacionActual) {
-       alert("No se encontró la asignación de esta rutina.");
+       mostrarToast("No se encontró la asignación de esta rutina.");
        return;
      }
  
@@ -2069,16 +2096,100 @@ export default function RutinaEntrenamientoView({
      );
    }
  
-   if (loading || cargandoModificacion) {
-     return (
-       <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
-         <div className="flex flex-col items-center gap-3">
-           <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-           <p className="text-zinc-500 text-sm">{cargandoModificacion ? "Preparando entrenamiento..." : "Cargando..."}</p>
-         </div>
-       </main>
-     );
-   }
+    if (loading || cargandoModificacion) {
+      if (cargandoModificacion) {
+        return (
+          <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-zinc-500 text-sm">Preparando entrenamiento...</p>
+            </div>
+          </main>
+        );
+      }
+
+      return (
+        <main className="min-h-screen bg-zinc-950 text-white pb-24">
+          <div className="max-w-2xl mx-auto px-4 pt-8 animate-pulse">
+            {/* Back button skeleton */}
+            <div className="h-5 w-16 rounded bg-zinc-800 mb-5" />
+
+            {/* Header skeleton */}
+            <div className="mb-8 space-y-3">
+              <div className="h-9 w-72 rounded bg-zinc-800" />
+              <div className="h-6 w-48 rounded bg-zinc-800" />
+            </div>
+
+            {/* Header de rutina skeleton */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 mb-8">
+              <div className="space-y-3">
+                <div className="h-7 w-56 rounded bg-zinc-800" />
+                <div className="h-4 w-64 rounded bg-zinc-800" />
+                <div className="flex gap-2">
+                  <div className="h-6 w-20 rounded-full bg-zinc-800" />
+                  <div className="h-6 w-24 rounded-full bg-zinc-800" />
+                </div>
+              </div>
+            </div>
+
+            {/* Seccion entrada en calor skeleton */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden mb-6">
+              <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-800 bg-zinc-950/50">
+                <div className="h-4 w-4 rounded bg-zinc-800" />
+                <div className="h-4 w-36 rounded bg-zinc-800" />
+                <div className="ml-auto h-4 w-20 rounded bg-zinc-800" />
+              </div>
+              <div className="p-4 space-y-4">
+                <div className="flex gap-4">
+                  <div className="h-8 w-8 rounded-full bg-zinc-800 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-5 w-48 rounded bg-zinc-800" />
+                    <div className="h-4 w-32 rounded bg-zinc-800" />
+                    <div className="flex gap-2">
+                      <div className="h-9 w-24 rounded-lg bg-zinc-800" />
+                      <div className="h-9 w-32 rounded-lg bg-zinc-800" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Seccion ejercicios skeleton */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-800 bg-zinc-950/50">
+                <div className="h-4 w-4 rounded bg-zinc-800" />
+                <div className="h-4 w-28 rounded bg-zinc-800" />
+                <div className="ml-auto h-4 w-20 rounded bg-zinc-800" />
+              </div>
+              <div className="p-4 space-y-4">
+                <div className="flex gap-4">
+                  <div className="h-8 w-8 rounded-full bg-zinc-800 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-5 w-56 rounded bg-zinc-800" />
+                    <div className="h-4 w-40 rounded bg-zinc-800" />
+                    <div className="flex gap-2">
+                      <div className="h-9 w-24 rounded-lg bg-zinc-800" />
+                      <div className="h-9 w-32 rounded-lg bg-zinc-800" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <div className="h-8 w-8 rounded-full bg-zinc-800 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-5 w-52 rounded bg-zinc-800" />
+                    <div className="h-4 w-36 rounded bg-zinc-800" />
+                    <div className="flex gap-2">
+                      <div className="h-9 w-24 rounded-lg bg-zinc-800" />
+                      <div className="h-9 w-32 rounded-lg bg-zinc-800" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      );
+    }
  
    const rutinaSeleccionada =
      asignacionId

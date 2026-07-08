@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
+import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 
 type HistorialActividad = {
   id: string;
@@ -86,6 +87,11 @@ export default function NuevaRutinaHistorialPage() {
   const [detalleEvaluacionRM, setDetalleEvaluacionRM] = useState<DetalleEntrenamiento[]>([]);
   const [rutinaSeleccionada, setRutinaSeleccionada] = useState<HistorialActividad | null>(null);
   const [errorDetalle, setErrorDetalle] = useState<string | null>(null);
+  const [modalRutina, setModalRutina] = useState<{
+    open: boolean;
+    id: string;
+    completada: boolean;
+  } | null>(null);
   // Deshacer UI flow state
   const [confirmarDeshacer, setConfirmarDeshacer] = useState<HistorialActividad | null>(null);
   const [deshaciendo, setDeshaciendo] = useState(false);
@@ -535,15 +541,23 @@ export default function NuevaRutinaHistorialPage() {
 
                   {(
                     <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          abrirDetalleActividad(actividad);
-                        }}
-                        className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
-                      >
-                        Ver
-                      </button>
+                      {actividad.tipo === "rutina" ? (
+                        <button
+                          type="button"
+                          onClick={() => setModalRutina({ open: true, id: actividad.id, completada: true })}
+                          className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
+                        >
+                          Ver detalles
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => abrirDetalleActividad(actividad)}
+                          className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
+                        >
+                          Ver
+                        </button>
+                      )}
                       {actividad.tipo === "rutina" && actividad.rutina_id !== null ? (
                         <>
                           <button
@@ -770,6 +784,14 @@ export default function NuevaRutinaHistorialPage() {
         </section>
       </div>
     )}
+      {modalRutina?.open && (
+        <VerRutinaModal
+          open={modalRutina.open}
+          onClose={() => setModalRutina(null)}
+          asignacionId={modalRutina.id}
+          completada={modalRutina.completada}
+        />
+      )}
     </main>
   );
 }

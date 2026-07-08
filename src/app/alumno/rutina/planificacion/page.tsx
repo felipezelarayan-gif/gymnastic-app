@@ -10,6 +10,7 @@ import {
 } from "@/lib/alumno/obtenerPendientesAlumnos";
 import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
+import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 
 function obtenerEtiquetaActividad(actividad: PendienteAlumno) {
   if (actividad.tipo === "rutina") return "Rutina";
@@ -45,6 +46,11 @@ export default function NuevaRutinaPlanificacionPage() {
     id: string;
     subtipo: "rm" | "fms";
   } | null>(null);
+  const [modalRutina, setModalRutina] = useState<{
+    open: boolean;
+    id: string;
+    completada: boolean;
+  } | null>(null);
 
   useEffect(() => {
     cargarPlanificacion();
@@ -54,10 +60,11 @@ export default function NuevaRutinaPlanificacionPage() {
     setCargando(true);
     setError(null);
 
-    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData?.session?.user;
 
-    if (authError || !authData.user) {
-      setError("No se pudo validar tu sesión.");
+    if (!user) {
+      setError("No se pudo validar tu sesi\u00f3n.");
       setCargando(false);
       return;
     }
@@ -65,7 +72,7 @@ export default function NuevaRutinaPlanificacionPage() {
     const { data: alumnoData, error: alumnoError } = await supabase
       .from("alumnos")
       .select("id")
-      .eq("user_id", authData.user.id)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (alumnoError) {
@@ -204,44 +211,72 @@ export default function NuevaRutinaPlanificacionPage() {
                 </div>
               );
 
+              const esRutina = actividad.tipo === "rutina";
+              const key = `${actividad.tipo}-${actividad.subtipo || "general"}-${actividad.id}`;
+
               if (esActividadActual && actividad.tipo === "evaluacion" && !actividad.puedeCargarAlumno) {
                 return (
-                  <button
-                    key={`${actividad.tipo}-${actividad.subtipo || "general"}-${actividad.id}`}
-                    type="button"
-                    onClick={() =>
-                      setModalEvaluacion({
-                        open: true,
-                        id: actividad.id,
-                        subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
-                      })
-                    }
-                    className="block w-full text-left rounded-3xl border border-emerald-800/70 bg-emerald-950/20 p-5 hover:border-emerald-500/80"
-                  >
-                    {contenidoTarjeta}
-                  </button>
+                  <div key={key} className="block rounded-3xl border border-emerald-800/70 bg-emerald-950/20 p-5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setModalEvaluacion({
+                          open: true,
+                          id: actividad.id,
+                          subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                        })
+                      }
+                      className="w-full text-left"
+                    >
+                      {contenidoTarjeta}
+                    </button>
+                    {esRutina && (
+                      <button
+                        type="button"
+                        onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
+                        className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
+                      >
+                        Ver detalles
+                      </button>
+                    )}
+                  </div>
                 );
               }
 
               if (esActividadActual) {
                 return (
-                  <Link
-                    key={`${actividad.tipo}-${actividad.subtipo || "general"}-${actividad.id}`}
-                    href={obtenerHrefActividad(actividad)}
-                    className="block rounded-3xl border border-emerald-800/70 bg-emerald-950/20 p-5 hover:border-emerald-500/80"
-                  >
-                    {contenidoTarjeta}
-                  </Link>
+                  <div key={key} className="block rounded-3xl border border-emerald-800/70 bg-emerald-950/20 p-5">
+                    <Link href={obtenerHrefActividad(actividad)} className="block">
+                      {contenidoTarjeta}
+                    </Link>
+                    {esRutina && (
+                      <button
+                        type="button"
+                        onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
+                        className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
+                      >
+                        Ver detalles
+                      </button>
+                    )}
+                  </div>
                 );
               }
 
               return (
-                <article
-                  key={`${actividad.tipo}-${actividad.subtipo || "general"}-${actividad.id}`}
-                  className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-5 opacity-80"
-                >
-                  {contenidoTarjeta}
-                </article>
+                <div key={key} className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-5 opacity-80">
+                  <article>
+                    {contenidoTarjeta}
+                  </article>
+                  {esRutina && (
+                    <button
+                      type="button"
+                      onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
+                      className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
+                    >
+                      Ver detalles
+                    </button>
+                  )}
+                </div>
               );
             })}
           </section>
@@ -253,6 +288,15 @@ export default function NuevaRutinaPlanificacionPage() {
             onClose={() => setModalEvaluacion(null)}
             evaluacionId={modalEvaluacion.id}
             subtipo={modalEvaluacion.subtipo}
+          />
+        )}
+
+        {modalRutina?.open && (
+          <VerRutinaModal
+            open={modalRutina.open}
+            onClose={() => setModalRutina(null)}
+            asignacionId={modalRutina.id}
+            completada={modalRutina.completada}
           />
         )}
       </div>
