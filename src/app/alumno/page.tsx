@@ -211,7 +211,7 @@ export default function AlumnoHomePage() {
       .eq("alumno_id", alumnoData.id)
       .eq("estado", "pendiente")
       .is("deleted_at", null)
-      .order("fecha_realizacion", { ascending: true });
+      .order("fecha_asignacion", { ascending: true });
 
     setEvaluacionesPendientes(
       (evaluacionesRMData || []).map((evaluacion) => ({

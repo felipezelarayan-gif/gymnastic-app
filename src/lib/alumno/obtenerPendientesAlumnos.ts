@@ -35,7 +35,7 @@ type EvaluacionRow = {
   id: string;
   nombre?: string | null;
   estado?: string | null;
-  fecha_realizacion?: string | null;
+  fecha_asignacion?: string | null;
   puede_cargar_alumno?: boolean | null;
   created_at?: string | null;
 };
@@ -86,7 +86,7 @@ function normalizarEvaluacionPendiente(
     subtipo,
     nombre: nombreBase,
     href: `/alumno/evaluaciones/${subtipo}/${row.id}`,
-    fecha: normalizarFechaSoloDia(row.fecha_realizacion || row.created_at || null),
+    fecha: normalizarFechaSoloDia(row.fecha_asignacion || null),
     puedeCargarAlumno: row.puede_cargar_alumno ?? null,
   };
 }
@@ -145,7 +145,7 @@ async function obtenerEvaluacionesRmPendientes(
         id,
         nombre,
         estado,
-        fecha_realizacion,
+        fecha_asignacion,
         puede_cargar_alumno,
         created_at
       `,
@@ -153,7 +153,7 @@ async function obtenerEvaluacionesRmPendientes(
     .eq("alumno_id", alumnoId)
     .is("deleted_at", null)
     .in("estado", ["pendiente", "incompleta"])
-    .order("created_at", { ascending: false });
+    .order("fecha_asignacion", { ascending: true });
 
   if (error) {
     console.error("Error obteniendo evaluaciones RM pendientes:", error);
@@ -177,7 +177,7 @@ async function obtenerEvaluacionesFmsPendientes(
       `
         id,
         estado,
-        fecha_realizacion,
+        fecha_asignacion,
         puede_cargar_alumno,
         created_at
       `,
@@ -185,7 +185,7 @@ async function obtenerEvaluacionesFmsPendientes(
     .eq("alumno_id", alumnoId)
     .is("deleted_at", null)
     .in("estado", ["pendiente", "incompleta"])
-    .order("fecha_realizacion", { ascending: true });
+    .order("fecha_asignacion", { ascending: true });
 
   if (error) {
     console.error("Error obteniendo evaluaciones FMS pendientes:", error);

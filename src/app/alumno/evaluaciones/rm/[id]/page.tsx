@@ -30,6 +30,7 @@ type SerieAproximacion = {
 type EvaluacionRM = {
   id: string;
   alumno_id: string;
+  fecha_asignacion: string | null;
   fecha_realizacion: string | null;
   observaciones: string | null;
   estado: string | null;
@@ -521,7 +522,7 @@ export default function RealizarEvaluacionRMDetalle() {
 
       const { data: evaluacionData, error: evaluacionError } = await supabase
         .from("evaluaciones_rm")
-        .select("id, alumno_id, fecha_realizacion, observaciones, estado, puede_cargar_alumno, permitir_carga_alumno, asignada_al_alumno")
+        .select("id, alumno_id, fecha_asignacion, fecha_realizacion, observaciones, estado, puede_cargar_alumno, permitir_carga_alumno, asignada_al_alumno")
         .eq("id", evaluacionId)
         .eq("alumno_id", alumnoActual.id)
         .single();
@@ -634,7 +635,7 @@ export default function RealizarEvaluacionRMDetalle() {
         <header className="mb-8">
           <p className="text-sm text-emerald-400 mb-2">Vista alumno · Evaluación RM</p>
           <h1 className="text-3xl font-bold">{alumno?.nombre || "Alumno"}</h1>
-          <p className="text-zinc-400 mt-2">Fecha asignada: {formatearFechaCorta(evaluacion.fecha_realizacion)}</p>
+          <p className="text-zinc-400 mt-2">Fecha a realizar: {formatearFechaCorta(evaluacion.fecha_asignacion) || "Sin fecha"}</p>
           {evaluacion.observaciones && <p className="text-zinc-500 mt-2">{evaluacion.observaciones}</p>}
           {puedeCompletar ? (
             <div className="mt-4 rounded-lg border border-emerald-900/60 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-300">

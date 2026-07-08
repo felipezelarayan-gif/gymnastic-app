@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type VerEvaluacionModalProps = {
   open: boolean;
@@ -33,7 +34,7 @@ type EvaluacionFMS = {
   }[];
 };
 
-function formatearFecha(fecha: string | null) {
+function formatearFechaBasico(fecha: string | null) {
   if (!fecha) return "Sin fecha";
 
   return new Intl.DateTimeFormat("es-AR", {
@@ -50,6 +51,7 @@ export default function VerEvaluacionModal({
   subtipo,
 }: VerEvaluacionModalProps) {
   const [loading, setLoading] = useState(false);
+  const { formatearFechaCorta } = useFormatoFecha();
   const [evaluacion, setEvaluacion] = useState<EvaluacionRM | EvaluacionFMS | null>(null);
 
   useEffect(() => {
@@ -164,8 +166,14 @@ export default function VerEvaluacionModal({
             </div>
 
             <div>
-              <p className="text-xs text-zinc-500 mb-1">Fecha asignada</p>
-              <p className="text-sm text-zinc-200">{formatearFecha(evaluacion.fecha_realizacion)}</p>
+              <p className="text-xs text-zinc-500 mb-1">{evaluacion.estado === "pendiente" ? "Fecha a realizar" : "Fecha completada"}</p>
+              <p className="text-sm text-zinc-200">
+                {formatearFechaCorta(
+                  evaluacion.estado === "pendiente" 
+                    ? (evaluacion as any).fecha_asignacion 
+                    : evaluacion.fecha_realizacion
+                )}
+              </p>
             </div>
 
             {evaluacion.observaciones && (

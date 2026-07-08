@@ -4,26 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
+import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
 
 type EvaluacionPendiente = {
   id: string;
   alumno_id: string;
   profesor_id?: string | null;
   alumno_nombre: string;
-  fecha_realizacion: string | null;
+  fecha_asignacion: string | null;
   observaciones: string | null;
   cantidad_ejercicios: number;
 };
-
-function formatearFecha(fecha: string | null) {
-  if (!fecha) return "Sin fecha";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(fecha));
-}
 
 export default function RealizarRM() {
   const [evaluaciones, setEvaluaciones] = useState<EvaluacionPendiente[]>([]);
@@ -46,11 +37,11 @@ export default function RealizarRM() {
 
       const { data: evaluacionesData, error: evaluacionesError } = await supabase
         .from("evaluaciones_rm")
-        .select("id, alumno_id, profesor_id, fecha_realizacion, observaciones")
+        .select("id, alumno_id, profesor_id, fecha_asignacion, observaciones")
         .eq("estado", "pendiente")
         .eq("profesor_id", profesorActualId)
         .is("deleted_at", null)
-        .order("fecha_realizacion", { ascending: true });
+        .order("fecha_asignacion", { ascending: true });
 
       if (evaluacionesError) {
         alert(evaluacionesError.message);
@@ -104,7 +95,7 @@ export default function RealizarRM() {
           alumno_id: evaluacion.alumno_id,
           profesor_id: evaluacion.profesor_id,
           alumno_nombre: alumnosPorId.get(evaluacion.alumno_id) || "Alumno sin nombre",
-          fecha_realizacion: evaluacion.fecha_realizacion,
+          fecha_asignacion: evaluacion.fecha_asignacion,
           observaciones: evaluacion.observaciones,
           cantidad_ejercicios: cantidadPorEvaluacion.get(evaluacion.id) || 0,
         }))
@@ -218,7 +209,7 @@ export default function RealizarRM() {
                   <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">Alumno</p>
                   <h2 className="text-lg font-semibold text-white">{evaluacion.alumno_nombre}</h2>
                   <div className="flex flex-wrap gap-3 mt-2 text-sm text-zinc-400">
-                    <span>Fecha: {formatearFecha(evaluacion.fecha_realizacion)}</span>
+                    <span>Fecha a realizar: {formatearFechaCorta(evaluacion.fecha_asignacion) || "Sin fecha"}</span>
                     <span>•</span>
                     <span>{evaluacion.cantidad_ejercicios} ejercicios</span>
                   </div>

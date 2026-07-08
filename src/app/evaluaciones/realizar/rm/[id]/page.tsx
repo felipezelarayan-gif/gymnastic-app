@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { obtenerRMsActualesAlumno } from "@/lib/rmActual";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import BackButton from "@/components/BackButton";
+import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
 
 type ModoCarga = "protocolo" | "rapida" | null;
 
@@ -16,6 +17,7 @@ type EvaluacionRM = {
   alumno_id: string;
   profesor_id?: string | null;
   estado?: string | null;
+  fecha_asignacion: string | null;
   fecha_realizacion: string | null;
   observaciones: string | null;
 };
@@ -61,16 +63,6 @@ type ResultadoRM = {
   intentos_protocolo?: IntentoProtocolo[];
   rm_actual?: number | null;
 };
-
-function formatearFecha(fecha: string | null) {
-  if (!fecha) return "Sin fecha";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(fecha));
-}
 
 function calcularRMEpley(peso: number | null, repeticiones: number | null) {
   if (!peso || !repeticiones) return null;
@@ -173,7 +165,7 @@ export default function RealizarEvaluacionRMDetalle() {
 
       const { data: evaluacionData, error: evaluacionError } = await supabase
         .from("evaluaciones_rm")
-        .select("id, alumno_id, profesor_id, estado, fecha_realizacion, observaciones")
+        .select("id, alumno_id, profesor_id, estado, fecha_asignacion, fecha_realizacion, observaciones")
         .eq("id", evaluacionId)
         .eq("profesor_id", profesorActualId)
         .single();
@@ -633,7 +625,7 @@ export default function RealizarEvaluacionRMDetalle() {
         <header className="mb-8">
           <p className="text-sm text-zinc-500 mb-2">Evaluación RM</p>
           <h1 className="text-3xl font-bold">{alumno?.nombre || "Alumno"}</h1>
-          <p className="text-zinc-400 mt-2">Fecha asignada: {formatearFecha(evaluacion.fecha_realizacion)}</p>
+          <p className="text-zinc-400 mt-2">Fecha a realizar: {formatearFechaCorta(evaluacion.fecha_asignacion) || "Sin fecha"}</p>
           {evaluacion.observaciones && <p className="text-zinc-500 mt-2">{evaluacion.observaciones}</p>}
         </header>
 

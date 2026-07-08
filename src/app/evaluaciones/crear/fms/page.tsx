@@ -153,7 +153,7 @@ export default function CrearEvaluacionFMS() {
       return;
     }
 
-    const fechaRealizacion = fecha ? new Date(`${fecha}T12:00:00`).toISOString() : null;
+    const fechaAsignacion = fecha || new Date().toISOString().split("T")[0];
     const puedeCargarAlumno = momentoEvaluacion === "alumno";
 
     const evaluacionesPayload = alumnosParaEvaluar.map((id) => ({
@@ -163,8 +163,8 @@ export default function CrearEvaluacionFMS() {
       asignada_al_alumno: puedeCargarAlumno,
       puede_cargar_alumno: puedeCargarAlumno,
       permitir_carga_alumno: puedeCargarAlumno,
-      fecha_asignacion: new Date().toISOString(),
-      fecha_realizacion: fechaRealizacion,
+      fecha_asignacion: fechaAsignacion,
+      fecha_realizacion: null,
       puntaje_total: 0,
       hay_dolor: false,
       hay_asimetrias: false,

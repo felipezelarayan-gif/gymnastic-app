@@ -522,7 +522,7 @@ export default function NuevaRutinaHistorialPage() {
                         {actividad.nombre}
                       </h2>
                       <div className="flex flex-wrap gap-2 text-sm text-zinc-500 mt-1">
-                        <span>{formatearFechaCorta(actividad.fecha)}</span>
+                        <span>Fecha completada: {formatearFechaCorta(actividad.fecha)}</span>
                         {actividad.estado && (
                           <>
                             <span>•</span>

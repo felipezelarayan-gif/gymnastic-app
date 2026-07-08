@@ -12,6 +12,7 @@ type EvaluacionFMS = {
   id: string;
   alumno_id: string;
   estado?: string | null;
+  fecha_asignacion: string | null;
   fecha_realizacion: string | null;
   observaciones: string | null;
   puede_cargar_alumno?: boolean | null;
@@ -150,7 +151,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
       // 3. Query evaluacion by id and alumno_id
       const { data: evaluacionData, error: evaluacionError } = await supabase
         .from("evaluaciones_fms")
-        .select("id, alumno_id, estado, fecha_realizacion, observaciones, puede_cargar_alumno")
+        .select("id, alumno_id, estado, fecha_asignacion, fecha_realizacion, observaciones, puede_cargar_alumno")
         .eq("id", evaluacionId)
         .eq("alumno_id", alumnoRow.id)
         .single();
@@ -429,7 +430,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold">{alumno?.nombre || "Alumno"}</h1>
-               <p className="text-zinc-400 mt-2">Fecha asignada: {formatearFechaCorta(evaluacion.fecha_realizacion)}</p>
+               <p className="text-zinc-400 mt-2">Fecha a realizar: {formatearFechaCorta(evaluacion.fecha_asignacion) || "Sin fecha"}</p>
               {evaluacion.observaciones && <p className="text-zinc-500 mt-2">{evaluacion.observaciones}</p>}
             </div>
             <div className="text-right shrink-0">

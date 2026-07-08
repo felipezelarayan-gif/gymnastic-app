@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import {
@@ -9,6 +10,7 @@ import {
 } from "@/lib/evaluaciones/obtenerEvaluacionesAlumnoProfe";
 import { eliminarEvaluacionAlumnoProfesor } from "@/lib/evaluaciones/eliminarEvaluacionAlumnoProfesor";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
 
 type Profile = {
   nombre: string;
@@ -41,8 +43,10 @@ export default function EvaluacionesPorAlumnoPage() {
   const [editandoEvaluacion, setEditandoEvaluacion] = useState<{
     id: string;
     tipo: "rm" | "fms";
-    fechaActual: string;
+    fechaAsignacion: string;
   } | null>(null);
+  const [verEvaluacionId, setVerEvaluacionId] = useState<string | null>(null);
+  const [verEvaluacionTipo, setVerEvaluacionTipo] = useState<"rm" | "fms">("rm");
   const { formatearFechaCorta } = useFormatoFecha();
 
   useEffect(() => {
@@ -153,16 +157,23 @@ export default function EvaluacionesPorAlumnoPage() {
     setCargandoEvaluaciones(false);
   }
 
-  async function actualizarFechaEvaluacion(evaluacionId: string, tipo: "rm" | "fms", nuevaFecha: string) {
+  async function actualizarFechaAsignacion(evaluacionId: string, tipo: "rm" | "fms", nuevaFecha: string) {
     const tabla = tipo === "rm" ? "evaluaciones_rm" : "evaluaciones_fms";
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from(tabla)
-      .update({ fecha_realizacion: nuevaFecha })
-      .eq("id", evaluacionId);
+      .update({ fecha_asignacion: nuevaFecha })
+      .eq("id", evaluacionId)
+      .eq("profesor_id", profesorId)
+      .select("id");
 
     if (error) {
       alert(error.message);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      alert("No se pudo actualizar la fecha. Verificá que tengas permiso sobre esta evaluación.");
       return;
     }
 
@@ -215,6 +226,10 @@ export default function EvaluacionesPorAlumnoPage() {
 
       await cargarEvaluacionesAlumno(alumnoSeleccionado, nuevaPagina);
     }
+  }
+
+  function estaCompletada(evaluacion: EvaluacionAlumnoProfe): boolean {
+    return evaluacion.estado === "completada" || evaluacion.estado === "cargado";
   }
 
   if (loading) {
@@ -319,69 +334,99 @@ export default function EvaluacionesPorAlumnoPage() {
               ) : (
                 <>
                   <div className="space-y-3">
-                    {evaluacionesAlumno.map((evaluacion) => (
-                      <div
-                        key={evaluacion.id}
-                        className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-                      >
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-semibold">
-                              {evaluacion.nombre || "Evaluación"}
-                            </h3>
-                            <span className="text-xs rounded-full border border-zinc-700 text-zinc-300 px-2 py-0.5 uppercase">
-                              {evaluacion.tipo}
-                            </span>
-                            <span className={`text-xs rounded-full px-2 py-1 font-semibold ${
-                              evaluacion.estado === "completada"
-                                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
-                                : "bg-zinc-800 text-zinc-400 border border-zinc-700"
-                            }`}>
-                              {evaluacion.estado === "completada" ? "Completada" : "Pendiente"}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-2 mt-2 text-sm text-zinc-400">
-                            <span>
-                              Fecha: {formatearFechaCorta(evaluacion.fecha_realizacion || evaluacion.created_at)}
-                            </span>
-                            <span>•</span>
-                            <span>
-                              {evaluacion.cantidad_items} {evaluacion.tipo === "rm" ? "ejercicios" : "tests"}
-                            </span>
-                          </div>
-                          {evaluacion.observaciones && (
-                            <p className="text-sm text-zinc-500 mt-2 line-clamp-2">
-                              {evaluacion.observaciones}
-                            </p>
-                          )}
-                        </div>
+                    {evaluacionesAlumno.map((evaluacion) => {
+                      const completada = estaCompletada(evaluacion);
+                      const esPendiente = !completada;
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setEditandoEvaluacion({
-                              id: evaluacion.id,
-                              tipo: evaluacion.tipo as "rm" | "fms",
-                              fechaActual: (evaluacion.fecha_realizacion || evaluacion.created_at || "").split('T')[0]
-                            })}
-                            title="Editar fecha"
-                            className="border border-zinc-700 text-zinc-300 font-semibold px-3 py-2 rounded-lg hover:bg-zinc-800 transition"
-                          >
-                            ✏️
-                          </button>
+                      return (
+                        <div
+                          key={evaluacion.id}
+                          className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                        >
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-semibold">
+                                {evaluacion.nombre || "Evaluación"}
+                              </h3>
+                              <span className="text-xs rounded-full border border-zinc-700 text-zinc-300 px-2 py-0.5 uppercase">
+                                {evaluacion.tipo}
+                              </span>
+                              <span className={`text-xs rounded-full px-2 py-1 font-semibold ${
+                                completada
+                                  ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                                  : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                              }`}>
+                                {completada ? "Completada" : "Pendiente"}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2 text-sm text-zinc-400">
+                              <span>
+                                {completada ? "Fecha completada: " : "Fecha a realizar: "}{formatearFechaCorta(completada ? evaluacion.fecha_realizacion : evaluacion.fecha_asignacion) || "Sin fecha"}
+                              </span>
+                              <span>•</span>
+                              <span>
+                                {evaluacion.cantidad_items} {evaluacion.tipo === "rm" ? "ejercicios" : "tests"}
+                              </span>
+                            </div>
+                            {evaluacion.observaciones && (
+                              <p className="text-sm text-zinc-500 mt-2 line-clamp-2">
+                                {evaluacion.observaciones}
+                              </p>
+                            )}
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => eliminarEvaluacion(evaluacion)}
-                            disabled={borrandoEvaluacionId === evaluacion.id}
-                            title="Eliminar evaluación"
-                            className="border border-red-900/60 text-red-400 font-semibold px-4 py-3 rounded-lg hover:bg-red-950/40 transition text-center disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {borrandoEvaluacionId === evaluacion.id ? "⏳" : "🗑️"}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {completada && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setVerEvaluacionId(evaluacion.id);
+                                  setVerEvaluacionTipo(evaluacion.tipo as "rm" | "fms");
+                                }}
+                                title="Ver evaluación"
+                                className="border border-zinc-700 text-zinc-300 font-semibold px-3 py-2 rounded-lg hover:bg-zinc-800 transition"
+                              >
+                                👁️
+                              </button>
+                            )}
+
+                            {esPendiente && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditandoEvaluacion({
+                                    id: evaluacion.id,
+                                    tipo: evaluacion.tipo as "rm" | "fms",
+                                    fechaAsignacion: evaluacion.fecha_asignacion || ""
+                                  })}
+                                  title="Editar fecha de asignación"
+                                  className="border border-zinc-700 text-zinc-300 font-semibold px-3 py-2 rounded-lg hover:bg-zinc-800 transition"
+                                >
+                                  ✏️
+                                </button>
+
+                                <Link
+                                  href={`/evaluaciones/realizar/${evaluacion.tipo}/${evaluacion.id}`}
+                                  className="bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-emerald-600 transition text-sm whitespace-nowrap"
+                                >
+                                  ✅ Completar
+                                </Link>
+                              </>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => eliminarEvaluacion(evaluacion)}
+                              disabled={borrandoEvaluacionId === evaluacion.id}
+                              title="Eliminar evaluación"
+                              className="border border-red-900/60 text-red-400 font-semibold px-4 py-3 rounded-lg hover:bg-red-950/40 transition text-center disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {borrandoEvaluacionId === evaluacion.id ? "⏳" : "🗑️"}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {totalPaginasEvaluaciones > 1 && (
@@ -427,14 +472,14 @@ export default function EvaluacionesPorAlumnoPage() {
         {editandoEvaluacion && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full">
-              <h3 className="text-xl font-bold mb-4">Editar fecha de evaluación</h3>
+              <h3 className="text-xl font-bold mb-4">Editar fecha de asignación</h3>
 
               <input
                 type="date"
-                value={editandoEvaluacion.fechaActual}
+                value={editandoEvaluacion.fechaAsignacion}
                 onChange={(e) => setEditandoEvaluacion({
                   ...editandoEvaluacion,
-                  fechaActual: e.target.value
+                  fechaAsignacion: e.target.value
                 })}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-white mb-4"
               />
@@ -451,10 +496,10 @@ export default function EvaluacionesPorAlumnoPage() {
                 <button
                   type="button"
                   onClick={async () => {
-                    await actualizarFechaEvaluacion(
+                    await actualizarFechaAsignacion(
                       editandoEvaluacion.id,
                       editandoEvaluacion.tipo,
-                      editandoEvaluacion.fechaActual
+                      editandoEvaluacion.fechaAsignacion
                     );
                     setEditandoEvaluacion(null);
                   }}
@@ -465,6 +510,15 @@ export default function EvaluacionesPorAlumnoPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {verEvaluacionId && (
+          <VerEvaluacionModal
+            open={true}
+            onClose={() => setVerEvaluacionId(null)}
+            evaluacionId={verEvaluacionId}
+            subtipo={verEvaluacionTipo}
+          />
         )}
       </div>
     </main>

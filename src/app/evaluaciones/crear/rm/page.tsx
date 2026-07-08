@@ -284,7 +284,7 @@ export default function CrearEvaluacionRM() {
       return;
     }
 
-    const fechaRealizacion = fecha ? new Date(`${fecha}T12:00:00`).toISOString() : null;
+    const fechaAsignacion = fecha || new Date().toISOString().split("T")[0];
 
     const asignadaAlAlumno = momentoEvaluacion === "alumno";
     const puedeCargarAlumno = momentoEvaluacion === "alumno";
@@ -296,8 +296,8 @@ export default function CrearEvaluacionRM() {
       asignada_al_alumno: asignadaAlAlumno,
       puede_cargar_alumno: puedeCargarAlumno,
       permitir_carga_alumno: puedeCargarAlumno,
-      fecha_asignacion: new Date().toISOString(),
-      fecha_realizacion: fechaRealizacion,
+      fecha_asignacion: fechaAsignacion,
+      fecha_realizacion: null,
       cerrada_incompleta: false,
       observaciones: notas || null,
     }));

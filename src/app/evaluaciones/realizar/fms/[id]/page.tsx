@@ -6,12 +6,14 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import FMSInfoModal from "@/components/fms/FMSInfoModal";
+import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
 
 type EvaluacionFMS = {
   id: string;
   alumno_id: string;
   profesor_id?: string | null;
   estado?: string | null;
+  fecha_asignacion: string | null;
   fecha_realizacion: string | null;
   observaciones: string | null;
 };
@@ -81,16 +83,6 @@ function calcularPuntajeBilateral(derecho: number | null, izquierdo: number | nu
   return Math.min(derecho, izquierdo);
 }
 
-function formatearFecha(fecha: string | null) {
-  if (!fecha) return "Sin fecha";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(fecha));
-}
-
 function totalLabel(total: number, maximo: number) {
   if (maximo <= 0) return "Sin tests cargados";
 
@@ -144,7 +136,7 @@ export default function RealizarEvaluacionFMSDetalle() {
 
       const { data: evaluacionData, error: evaluacionError } = await supabase
         .from("evaluaciones_fms")
-        .select("id, alumno_id, profesor_id, estado, fecha_realizacion, observaciones")
+        .select("id, alumno_id, profesor_id, estado, fecha_asignacion, fecha_realizacion, observaciones")
         .eq("id", evaluacionId)
         .eq("profesor_id", profesorActualId)
         .single();
@@ -386,7 +378,7 @@ export default function RealizarEvaluacionFMSDetalle() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold">{alumno?.nombre || "Alumno"}</h1>
-              <p className="text-zinc-400 mt-2">Fecha asignada: {formatearFecha(evaluacion.fecha_realizacion)}</p>
+              <p className="text-zinc-400 mt-2">Fecha a realizar: {formatearFechaCorta(evaluacion.fecha_asignacion) || "Sin fecha"}</p>
               {evaluacion.observaciones && <p className="text-zinc-500 mt-2">{evaluacion.observaciones}</p>}
             </div>
             <div className="text-right shrink-0">
