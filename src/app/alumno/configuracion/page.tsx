@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
+import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import type { FormatoFecha } from "@/lib/utils/formatearFecha";
 
 const ADMIN_EMAIL = "entrenamiento-app@hotmail.com";
-const APP_VERSION = "2.0.6";
+const APP_VERSION = "2.0.7";
 const LAST_UPDATE = "08/07/2026";
 
 type Alumno = {
@@ -32,6 +34,7 @@ const motivos = [
 export default function AlumnoConfiguracionPage() {
   const [loading, setLoading] = useState(true);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
+  const { formato, cambiarFormato } = useFormatoFecha();
 
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [passwordActual, setPasswordActual] = useState("");
@@ -365,6 +368,27 @@ ${mensaje}
           <p className="text-zinc-300">Versión {APP_VERSION}</p>
           <p className="text-zinc-400 mt-1">
             Última actualización: {LAST_UPDATE}
+          </p>
+        </section>
+
+        <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
+          <h2 className="text-xl font-semibold mb-3">📅 Formato de fecha</h2>
+          <p className="text-zinc-400 text-sm mb-3">
+            Elegí cómo querés ver las fechas en toda la aplicación.
+          </p>
+          <select
+            value={formato}
+            onChange={(e) => cambiarFormato(e.target.value as FormatoFecha)}
+            className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700 text-white"
+          >
+            <option value="dd/mm/aa">01/12/26</option>
+            <option value="dd/mm/aaaa">01/12/2026</option>
+            <option value="mm/dd/aa">12/01/26</option>
+            <option value="mm/dd/aaaa">12/01/2026</option>
+            <option value="aaaa-mm-dd">2026-12-01</option>
+          </select>
+          <p className="text-zinc-500 text-sm mt-2">
+            Formato actual: <span className="text-zinc-300">{formato}</span>
           </p>
         </section>
 
