@@ -15,6 +15,7 @@ import {
   invalidarEjerciciosCache,
 } from "@/lib/ejercicios-cache";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import AsignarModal from "@/components/shared/AsignarModal";
 
 type TipoPrescripcion = "repeticiones" | "tiempo";
 
@@ -146,7 +147,7 @@ export default function RutinaDetallePage({
   const [mostrarEjercicioPrincipal, setMostrarEjercicioPrincipal] = useState(false);
   const [mostrarEntradaCalor, setMostrarEntradaCalor] = useState(false);
   const [mostrarCrearEjercicio, setMostrarCrearEjercicio] = useState(false);
-  const [mostrarAsignarAlumno, setMostrarAsignarAlumno] = useState(false);
+  const [mostrarModalAsignar, setMostrarModalAsignar] = useState(false);
   const [mostrarAsignacionesModal, setMostrarAsignacionesModal] = useState(false);
 
   const [ejercicioEditandoId, setEjercicioEditandoId] = useState<string | null>(null);
@@ -186,8 +187,6 @@ export default function RutinaDetallePage({
   const [entradaRepeticiones, setEntradaRepeticiones] = useState("");
   const [entradaObservaciones, setEntradaObservaciones] = useState("");
 
-  const [alumnoId, setAlumnoId] = useState("");
-  const [fechaAsignacion, setFechaAsignacion] = useState("");
   const [mostrarHistorialEjercicio, setMostrarHistorialEjercicio] = useState(false);
   const [accionCargando, setAccionCargando] = useState<string | null>(null);
   const [mostrarConfirmarSalida, setMostrarConfirmarSalida] = useState(false);
@@ -1004,12 +1003,7 @@ export default function RutinaDetallePage({
     }
   }
 
-  async function asignarAlumno() {
-    if (!alumnoId) {
-      alert("Seleccioná un alumno.");
-      return;
-    }
-
+  async function asignarAlumno(alumnosSeleccionados: { id: string; nombre: string; fechaAsignacion?: string }[]) {
     if (!profesorId) {
       alert("No se pudo validar el profesor actual.");
       return;
@@ -1017,6 +1011,7 @@ export default function RutinaDetallePage({
 
     setAccionCargando("asignar-alumno");
     try {
+      // Validar que la rutina pertenece al profesor
       const { data: rutinaPropia, error: rutinaError } = await supabase
         .from("rutinas")
         .select("id")
@@ -1024,44 +1019,22 @@ export default function RutinaDetallePage({
         .eq("profesor_id", profesorId)
         .maybeSingle();
 
-      if (rutinaError) {
-        alert(rutinaError.message);
-        return;
-      }
-
-      if (!rutinaPropia) {
+      if (rutinaError || !rutinaPropia) {
         alert("No tenés permiso para asignar esta rutina.");
         return;
       }
 
-      const { data: alumnoPropio, error: alumnoError } = await supabase
-        .from("alumnos")
-        .select("id")
-        .eq("id", alumnoId)
-        .eq("profesor_id", profesorId)
-        .maybeSingle();
+      // Crear todas las asignaciones en batch
+      const asignaciones = alumnosSeleccionados.map((alumno) => ({
+        alumno_id: alumno.id,
+        rutina_id: id,
+        fecha_asignacion: alumno.fechaAsignacion || new Date().toISOString().slice(0, 10),
+        activa: true,
+      }));
 
-      if (alumnoError) {
-        alert(alumnoError.message);
-        return;
-      }
-
-      if (!alumnoPropio) {
-        alert("No tenés permiso para asignar esta rutina a ese alumno.");
-        return;
-      }
-
-      const fechaAsignacionFinal = fechaAsignacion || new Date().toISOString().slice(0, 10);
-
-      // Insertar directamente en Supabase
       const { error: insertError } = await supabase
         .from("rutina_asignaciones")
-        .insert({
-          alumno_id: alumnoId,
-          rutina_id: id,
-          fecha_asignacion: fechaAsignacionFinal,
-          activa: true,
-        });
+        .insert(asignaciones);
 
       if (insertError) {
         alert(insertError.message);
@@ -1070,10 +1043,6 @@ export default function RutinaDetallePage({
 
       // Recargar asignaciones desde Supabase (datos frescos)
       await cargarAsignaciones(profesorId);
-
-      setAlumnoId("");
-      setFechaAsignacion("");
-      setMostrarAsignarAlumno(false);
     } finally {
       setAccionCargando(null);
     }
@@ -1315,8 +1284,8 @@ export default function RutinaDetallePage({
 
               <button
                 type="button"
-                onClick={() => setMostrarAsignarAlumno(true)}
-                disabled={accionCargando !== null}
+                onClick={() => setMostrarModalAsignar(true)}
+                disabled={accionCargando !== null || alumnos.length === 0}
                 className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 + Asignar
@@ -2236,63 +2205,16 @@ export default function RutinaDetallePage({
           </div>
         )}
 
-        {mostrarAsignarAlumno && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h2 className="text-2xl font-bold mb-4">Asignar alumno</h2>
-
-              <select
-                value={alumnoId}
-                onChange={(e) => setAlumnoId(e.target.value)}
-                className="w-full bg-zinc-800 rounded-xl p-3"
-              >
-                <option value="">Seleccionar alumno</option>
-
-                {alumnos.map((alumno) => (
-                  <option key={alumno.id} value={alumno.id}>
-                    {alumno.nombre} {alumno.apellido}
-                  </option>
-                ))}
-              </select>
-
-              <label className="mt-3 block text-sm font-semibold text-zinc-300">
-                Fecha de asignación
-              </label>
-              <input
-                type="date"
-                value={fechaAsignacion}
-                onChange={(e) => setFechaAsignacion(e.target.value)}
-                className="mt-2 w-full bg-zinc-800 rounded-xl p-3"
-              />
-              <p className="mt-2 text-xs text-zinc-500">
-                Si no elegís una fecha, se asigna para hoy.
-              </p>
-
-              <div className="flex gap-3 mt-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAlumnoId("");
-                    setFechaAsignacion("");
-                    setMostrarAsignarAlumno(false);
-                  }}
-                  disabled={accionCargando !== null}
-                  className="flex-1 border border-zinc-700 rounded-xl py-3 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={asignarAlumno}
-                  disabled={accionCargando !== null}
-                  className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {accionCargando === "asignar-alumno" ? <BotonCargando texto="Asignando..." /> : "Asignar"}
-                </button>
-              </div>
-            </div>
-          </div>
+        {mostrarModalAsignar && (
+          <AsignarModal
+            tipo="alumnos"
+            items={alumnos.map((alumno) => ({
+              id: alumno.id,
+              nombre: `${alumno.nombre} ${alumno.apellido || ""}`.trim(),
+            }))}
+            onClose={() => setMostrarModalAsignar(false)}
+            onConfirm={asignarAlumno}
+          />
         )}
       </div>
             <EjercicioHistorialModal

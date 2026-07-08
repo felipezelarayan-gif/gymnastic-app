@@ -6,6 +6,7 @@ import { getRolCached } from "@/lib/rol-cache";
 import BackButton from "@/components/BackButton";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import AsignarModal from "@/components/shared/AsignarModal";
 
 type Alumno = {
   id: string;
@@ -110,6 +111,8 @@ export default function AlumnoRutinasProfesor({
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoObjetivo, setNuevoObjetivo] = useState("");
   const [nuevaDescripcion, setNuevaDescripcion] = useState("");
+
+  const [mostrarModalAsignar, setMostrarModalAsignar] = useState(false);
 
   const [rutinaDetalleId, setRutinaDetalleId] = useState<string | null>(null);
   const [quitandoId, setQuitandoId] = useState<string | null>(null);
@@ -284,12 +287,7 @@ export default function AlumnoRutinasProfesor({
     setLoading(false);
   }
 
-  async function asignarRutina() {
-    if (!rutinaSeleccionada) {
-      alert("Elegí una rutina.");
-      return;
-    }
-
+  async function asignarRutina(rutinasSeleccionadas: { id: string; nombre: string; fechaAsignacion?: string }[]) {
     if (!profesorId) {
       alert("No se pudo validar el profesor actual.");
       return;
@@ -297,69 +295,46 @@ export default function AlumnoRutinasProfesor({
 
     setGuardando(true);
 
-    const { data: alumnoPropio, error: alumnoError } = await supabase
-      .from("alumnos")
-      .select("id")
-      .eq("id", id)
-      .eq("profesor_id", profesorId)
-      .maybeSingle();
+    try {
+      // Validar que el alumno pertenece al profesor
+      const { data: alumnoPropio, error: alumnoError } = await supabase
+        .from("alumnos")
+        .select("id")
+        .eq("id", id)
+        .eq("profesor_id", profesorId)
+        .maybeSingle();
 
-    if (alumnoError) {
-      alert(alumnoError.message);
-      setGuardando(false);
-      return;
-    }
+      if (alumnoError || !alumnoPropio) {
+        alert("No tenés permiso para asignar rutinas a este alumno.");
+        return;
+      }
 
-    if (!alumnoPropio) {
-      alert("No tenés permiso para asignar rutinas a este alumno.");
-      setGuardando(false);
-      return;
-    }
-
-    const { data: rutinaPropia, error: rutinaError } = await supabase
-      .from("rutinas")
-      .select("id,nombre,descripcion,objetivo,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio,profesor_id")
-      .eq("id", rutinaSeleccionada)
-      .eq("profesor_id", profesorId)
-      .maybeSingle();
-
-    if (rutinaError) {
-      alert(rutinaError.message);
-      setGuardando(false);
-      return;
-    }
-
-    if (!rutinaPropia) {
-      alert("No tenés permiso para asignar esta rutina.");
-      setGuardando(false);
-      return;
-    }
-
-    const { data: nuevaAsignacion, error } = await supabase
-      .from("rutina_asignaciones")
-      .insert({
+      // Crear todas las asignaciones en batch
+      const asignaciones = rutinasSeleccionadas.map((rutina) => ({
         alumno_id: id,
-        rutina_id: rutinaSeleccionada,
+        rutina_id: rutina.id,
         activa: true,
         completada: false,
-        fecha_asignacion: new Date().toISOString(),
-      })
-      .select("id,alumno_id,rutina_id,activa,completada,fecha_asignacion,fecha_completada")
-      .single();
+        fecha_asignacion: rutina.fechaAsignacion || new Date().toISOString(),
+      }));
 
-    setGuardando(false);
+      const { error } = await supabase
+        .from("rutina_asignaciones")
+        .insert(asignaciones);
 
-    if (error || !nuevaAsignacion) {
-      alert(error?.message || "No se pudo crear la asignación.");
-      return;
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      // Recargar asignaciones desde Supabase
+      await cargarTodo();
+    } catch (error) {
+      console.error("Error al asignar rutinas:", error);
+      alert(`Error al asignar: ${error instanceof Error ? error.message : "Error desconocido"}`);
+    } finally {
+      setGuardando(false);
     }
-
-    setAsignadas((prev) => [
-      { ...nuevaAsignacion, rutinas: rutinaPropia as Rutina },
-      ...prev,
-    ]);
-
-    setRutinaSeleccionada("");
   }
 
   async function crearRutinaParaAlumno() {
@@ -758,6 +733,11 @@ export default function AlumnoRutinasProfesor({
     );
   }
 
+  const rutinasDisponibles = disponibles.map((rutina) => ({
+    id: rutina.id,
+    nombre: rutina.nombre || "Rutina sin nombre",
+  }));
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-5xl mx-auto">
@@ -841,33 +821,23 @@ export default function AlumnoRutinasProfesor({
             </div>
           )}
 
-          <h3 className="text-lg font-semibold mb-3">
-            Asignar rutina existente
-          </h3>
-
-          <div className="flex flex-col md:flex-row gap-3">
-            <select
-              className={input}
-              value={rutinaSeleccionada}
-              onChange={(e) => setRutinaSeleccionada(e.target.value)}
-            >
-              <option value="">Elegir rutina</option>
-              {disponibles.map((rutina) => (
-                <option key={rutina.id} value={rutina.id}>
-                  {rutina.nombre || "Rutina sin nombre"}
-                </option>
-              ))}
-            </select>
-
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold">Asignar rutinas existentes</h3>
             <button
               type="button"
-              disabled={guardando}
-              onClick={asignarRutina}
-              className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold hover:bg-emerald-600 disabled:opacity-50"
+              onClick={() => setMostrarModalAsignar(true)}
+              disabled={guardando || disponibles.length === 0}
+              className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Asignar
+              + Asignar
             </button>
           </div>
+
+          {disponibles.length === 0 && (
+            <p className="text-sm text-zinc-400">
+              No hay rutinas disponibles para asignar.
+            </p>
+          )}
         </section>
 
         <section className={card}>
@@ -994,6 +964,15 @@ export default function AlumnoRutinasProfesor({
             </div>
           )}
         </section>
+
+        {mostrarModalAsignar && (
+          <AsignarModal
+            tipo="rutinas"
+            items={rutinasDisponibles}
+            onClose={() => setMostrarModalAsignar(false)}
+            onConfirm={asignarRutina}
+          />
+        )}
 
         {rutinaDetalleId && detalleAsignacion && detalleRutina && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
