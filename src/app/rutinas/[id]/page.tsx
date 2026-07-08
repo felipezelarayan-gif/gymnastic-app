@@ -439,7 +439,7 @@ export default function RutinaDetallePage({
         )
       `)
       .eq("rutina_id", id)
-      .eq("activa", true);
+      .order("fecha_asignacion", { ascending: false });
 
     if (error) {
       alert(error.message);

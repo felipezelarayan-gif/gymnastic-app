@@ -40,6 +40,9 @@ function getMetricasProfesorCacheKey(profesorId: string) {
   return `${METRICAS_PROFESOR_CACHE_PREFIX}_${profesorId}`;
 }
 
+const APP_VERSION = "2.0.1";
+const LAST_UPDATE = "07/07/2026";
+
 export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -555,6 +558,14 @@ export default function ConfiguracionPage() {
           </select>
           <p className="text-zinc-500 text-sm mt-2">
             Formato actual: <span className="text-zinc-300">{formato}</span>
+          </p>
+        </section>
+
+        <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
+          <h2 className="text-xl font-semibold mb-3">📄 Información</h2>
+          <p className="text-zinc-300">Versión {APP_VERSION}</p>
+          <p className="text-zinc-400 mt-1">
+            Última actualización: {LAST_UPDATE}
           </p>
         </section>
 
