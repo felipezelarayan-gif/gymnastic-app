@@ -24,10 +24,6 @@ export default function AsignarModal({ tipo, items, onClose, onConfirm }: Asigna
   const itemNombre = tipo === "rutinas" ? "rutina" : "alumno";
   const itemNombrePlural = tipo === "rutinas" ? "rutinas" : "alumnos";
 
-  const itemsDisponibles = items.filter(
-    (item) => !seleccionados.some((s) => s.id === item.id)
-  );
-
   const handleAgregar = () => {
     if (!itemSeleccionado) {
       alert(`Seleccioná un${itemNombre} del dropdown.`);
@@ -42,7 +38,7 @@ export default function AsignarModal({ tipo, items, onClose, onConfirm }: Asigna
       ...prev,
       { ...item, fechaAsignacion: hoy },
     ]);
-    setItemSeleccionado("");
+    // No reseteamos itemSeleccionado para permitir agregar el mismo item varias veces
   };
 
   const handleQuitar = (id: string) => {
@@ -116,15 +112,11 @@ export default function AsignarModal({ tipo, items, onClose, onConfirm }: Asigna
             <select
               value={itemSeleccionado}
               onChange={(e) => setItemSeleccionado(e.target.value)}
-              disabled={cargando || itemsDisponibles.length === 0}
+              disabled={cargando}
               className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 p-3 text-white disabled:opacity-50"
             >
-              <option value="">
-                {itemsDisponibles.length === 0
-                  ? "Todos los items ya fueron agregados"
-                  : `Elegir ${itemNombre}`}
-              </option>
-              {itemsDisponibles.map((item) => (
+              <option value="">Elegir {itemNombre}</option>
+              {items.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.nombre}
                 </option>

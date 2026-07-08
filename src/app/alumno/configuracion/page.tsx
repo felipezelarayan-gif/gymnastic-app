@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 
 const ADMIN_EMAIL = "entrenamiento-app@hotmail.com";
-const APP_VERSION = "2.0.3";
+const APP_VERSION = "2.0.4";
 const LAST_UPDATE = "07/07/2026";
 
 type Alumno = {
