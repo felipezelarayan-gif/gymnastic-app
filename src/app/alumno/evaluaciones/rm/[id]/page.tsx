@@ -9,6 +9,7 @@ import { obtenerRMsActualesAlumno } from "@/lib/rmActual";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import BackButton from "@/components/BackButton";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type ModoCarga = "protocolo" | "rapida" | null;
 
@@ -149,6 +150,7 @@ export default function RealizarEvaluacionRMDetalle() {
   const [exito, setExito] = useState(false);
   const [alumnoActualId, setAlumnoActualId] = useState<string | null>(null);
   const { formatearFechaCorta } = useFormatoFecha();
+  const { mostrarToast } = useToast();
 
   function puedeGuardarEvaluacion() {
     if (!evaluacion) return false;
@@ -293,7 +295,7 @@ export default function RealizarEvaluacionRMDetalle() {
 
   async function validarEvaluacionAlumnoActual() {
     if (!evaluacion || !alumnoActualId) {
-      alert("No se pudo validar el alumno actual.");
+      mostrarToast("No se pudo validar el alumno actual.", "error");
       return false;
     }
 
@@ -305,12 +307,12 @@ export default function RealizarEvaluacionRMDetalle() {
       .maybeSingle();
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return false;
     }
 
     if (!evaluacionPropia) {
-      alert("No tenés permiso para modificar esta evaluación.");
+      mostrarToast("No tenés permiso para modificar esta evaluación.", "error");
       return false;
     }
 
@@ -321,7 +323,7 @@ export default function RealizarEvaluacionRMDetalle() {
         evaluacionPropia.asignada_al_alumno === true);
 
     if (!habilitada) {
-      alert("Esta evaluación no está habilitada para ser completada por el alumno.");
+      mostrarToast("Esta evaluación no está habilitada para ser completada por el alumno.", "error");
       return false;
     }
 
@@ -332,7 +334,7 @@ export default function RealizarEvaluacionRMDetalle() {
     if (guardando || !evaluacion) return;
 
     if (!puedeGuardarEvaluacion()) {
-      alert("Esta evaluación no está habilitada para ser completada por el alumno.");
+      mostrarToast("Esta evaluación no está habilitada para ser completada por el alumno.", "error");
       return;
     }
 
@@ -341,7 +343,7 @@ export default function RealizarEvaluacionRMDetalle() {
     );
 
     if (incompletos.length > 0) {
-      alert("Completá peso y repeticiones de todos los ejercicios.");
+      mostrarToast("Completá peso y repeticiones de todos los ejercicios.", "info");
       return;
     }
 
@@ -358,7 +360,7 @@ export default function RealizarEvaluacionRMDetalle() {
         await guardarResultadoEnBD(resultado);
       } catch (error) {
         setGuardando(false);
-        alert(error instanceof Error ? error.message : "No se pudo guardar la evaluación.");
+        mostrarToast(error instanceof Error ? error.message : "No se pudo guardar la evaluación.", "error");
         return;
       }
     }
@@ -375,7 +377,7 @@ export default function RealizarEvaluacionRMDetalle() {
     setGuardando(false);
 
     if (evaluacionError) {
-      alert(evaluacionError.message);
+      mostrarToast(evaluacionError.message, "error");
       return;
     }
 
@@ -386,7 +388,7 @@ export default function RealizarEvaluacionRMDetalle() {
     if (guardando || !evaluacion) return;
 
     if (!puedeGuardarEvaluacion()) {
-      alert("Esta evaluación no está habilitada para ser completada por el alumno.");
+      mostrarToast("Esta evaluación no está habilitada para ser completada por el alumno.", "error");
       return;
     }
 
@@ -396,7 +398,7 @@ export default function RealizarEvaluacionRMDetalle() {
     });
 
     if (incompletos.length > 0) {
-      alert("Completá RM de referencia y al menos un intento logrado por cada ejercicio.");
+      mostrarToast("Completá RM de referencia y al menos un intento logrado por cada ejercicio.", "info");
       return;
     }
 
@@ -414,7 +416,7 @@ export default function RealizarEvaluacionRMDetalle() {
 
       if (!mejorIntento || !mejorIntento.rm) {
         setGuardando(false);
-        alert("Hay ejercicios sin intento logrado.");
+        mostrarToast("Hay ejercicios sin intento logrado.", "info");
         return;
       }
 
@@ -463,7 +465,7 @@ export default function RealizarEvaluacionRMDetalle() {
         await guardarResultadoEnBD(resultadoParaGuardar);
       } catch (error) {
         setGuardando(false);
-        alert(error instanceof Error ? error.message : "No se pudo guardar la evaluación.");
+        mostrarToast(error instanceof Error ? error.message : "No se pudo guardar la evaluación.", "error");
         return;
       }
     }
@@ -480,7 +482,7 @@ export default function RealizarEvaluacionRMDetalle() {
     setGuardando(false);
 
     if (evaluacionError) {
-      alert(evaluacionError.message);
+      mostrarToast(evaluacionError.message, "error");
       return;
     }
 
@@ -495,7 +497,7 @@ export default function RealizarEvaluacionRMDetalle() {
       const userId = sessionData.session?.user.id;
 
       if (!userId) {
-        alert("No se pudo identificar al alumno. Volvé a iniciar sesión.");
+        mostrarToast("No se pudo identificar al alumno. Volvé a iniciar sesión.", "error");
         window.location.href = "/login";
         return;
       }
@@ -507,13 +509,13 @@ export default function RealizarEvaluacionRMDetalle() {
         .maybeSingle();
 
       if (alumnoActualError) {
-        alert(alumnoActualError.message);
+        mostrarToast(alumnoActualError.message, "error");
         setLoading(false);
         return;
       }
 
       if (!alumnoActual) {
-        alert("No se encontró el alumno asociado a este usuario.");
+        mostrarToast("No se encontró el alumno asociado a este usuario.", "error");
         setLoading(false);
         return;
       }
@@ -528,7 +530,7 @@ export default function RealizarEvaluacionRMDetalle() {
         .single();
 
       if (evaluacionError || !evaluacionData) {
-        alert(evaluacionError?.message || "No se pudo cargar la evaluación RM.");
+        mostrarToast(evaluacionError?.message || "No se pudo cargar la evaluación RM.", "error");
         setLoading(false);
         return;
       }
@@ -553,19 +555,19 @@ export default function RealizarEvaluacionRMDetalle() {
       ]);
 
       if (alumnoError) {
-        alert(alumnoError.message);
+        mostrarToast(alumnoError.message, "error");
         setLoading(false);
         return;
       }
 
       if (resultadosError) {
-        alert(resultadosError.message);
+        mostrarToast(resultadosError.message, "error");
         setLoading(false);
         return;
       }
 
       if (rmsActualesError) {
-        alert(rmsActualesError.message);
+        mostrarToast(rmsActualesError.message, "error");
         setLoading(false);
         return;
       }
@@ -598,7 +600,34 @@ export default function RealizarEvaluacionRMDetalle() {
   }, [evaluacionId]);
 
   if (loading) {
-    return <main className="min-h-screen bg-zinc-950 text-white p-8">Cargando evaluación RM...</main>;
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white p-6">
+        <div className="max-w-4xl mx-auto animate-pulse">
+          {/* Back button skeleton */}
+          <div className="h-5 w-20 rounded bg-zinc-800 mb-6" />
+
+          {/* Header skeleton */}
+          <div className="mb-8 space-y-3">
+            <div className="h-4 w-40 rounded bg-zinc-800" />
+            <div className="h-9 w-56 rounded bg-zinc-800" />
+            <div className="h-4 w-48 rounded bg-zinc-800" />
+          </div>
+
+          {/* Banner skeleton */}
+          <div className="h-14 rounded-lg bg-zinc-900 border border-zinc-800 mb-8" />
+
+          {/* Selector de modo skeleton */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+            <div className="h-7 w-64 rounded bg-zinc-800 mb-2" />
+            <div className="h-4 w-72 rounded bg-zinc-800 mb-6" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="h-32 rounded-xl bg-zinc-950 border border-zinc-800" />
+              <div className="h-32 rounded-xl bg-zinc-950 border border-zinc-800" />
+            </div>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   if (!evaluacion) {

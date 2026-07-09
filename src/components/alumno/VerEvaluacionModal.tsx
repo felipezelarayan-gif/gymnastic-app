@@ -9,12 +9,31 @@ type VerEvaluacionModalProps = {
   onClose: () => void;
   evaluacionId: string;
   subtipo: "rm" | "fms";
+  completada?: boolean;
+};
+
+type ResultadoRM = {
+  id: string;
+  ejercicio: string;
+  peso_usado: number | null;
+  repeticiones: number | null;
+  rm_final: number | null;
+};
+
+type ResultadoFMS = {
+  id: string;
+  test_nombre: string;
+  puntaje: number | null;
+  puntaje_derecho: number | null;
+  puntaje_izquierdo: number | null;
+  observaciones: string | null;
 };
 
 type EvaluacionRM = {
   id: string;
   nombre?: string | null;
   fecha_realizacion: string | null;
+  fecha_asignacion: string | null;
   observaciones: string | null;
   estado: string | null;
   resultados?: {
@@ -27,6 +46,7 @@ type EvaluacionRM = {
 type EvaluacionFMS = {
   id: string;
   fecha_realizacion: string | null;
+  fecha_asignacion: string | null;
   observaciones: string | null;
   estado: string | null;
   tests?: {
@@ -34,25 +54,18 @@ type EvaluacionFMS = {
   }[];
 };
 
-function formatearFechaBasico(fecha: string | null) {
-  if (!fecha) return "Sin fecha";
-
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(fecha));
-}
-
 export default function VerEvaluacionModal({
   open,
   onClose,
   evaluacionId,
   subtipo,
+  completada = false,
 }: VerEvaluacionModalProps) {
   const [loading, setLoading] = useState(false);
   const { formatearFechaCorta } = useFormatoFecha();
   const [evaluacion, setEvaluacion] = useState<EvaluacionRM | EvaluacionFMS | null>(null);
+  const [resultadosRM, setResultadosRM] = useState<ResultadoRM[]>([]);
+  const [resultadosFMS, setResultadosFMS] = useState<ResultadoFMS[]>([]);
 
   useEffect(() => {
     if (!open || !evaluacionId) return;
@@ -64,58 +77,69 @@ export default function VerEvaluacionModal({
 
       try {
         if (subtipo === "rm") {
+          // Cargar datos de la evaluacion RM
           const { data, error } = await supabase
             .from("evaluaciones_rm")
             .select(
-              `
-              id, nombre, fecha_realizacion, observaciones, estado,
-              evaluaciones_rm_resultados (
-                ejercicio:ejercicios (nombre)
-              )
-            `
+              "id, nombre, fecha_realizacion, fecha_asignacion, observaciones, estado"
             )
             .eq("id", evaluacionId)
             .single();
 
           if (error || !data) {
             console.error("Error cargando evaluación RM:", error);
+            setLoading(false);
             return;
           }
 
           if (!cancelled) {
-            const resultadosNormalizados = (data as any).evaluaciones_rm_resultados?.map(
-              (r: any) => ({
-                ejercicio: Array.isArray(r.ejercicio) ? r.ejercicio[0] || null : r.ejercicio,
-              })
-            ) || [];
+            setEvaluacion(data as EvaluacionRM);
+          }
 
-            setEvaluacion({
-              ...data,
-              resultados: resultadosNormalizados,
-            } as EvaluacionRM);
+          // Cargar ejercicios
+          const { data: ejerciciosData } = await supabase
+            .from("evaluaciones_rm_resultados")
+            .select("id, peso_usado, repeticiones, rm_final, ejercicio:ejercicios(nombre)")
+            .eq("evaluacion_rm_id", evaluacionId)
+            .order("orden", { ascending: true });
+
+          if (!cancelled) {
+            const resultados = (ejerciciosData || []).map((r: any) => ({
+              id: r.id,
+              ejercicio: r.ejercicio?.nombre || "Ejercicio",
+              peso_usado: r.peso_usado,
+              repeticiones: r.repeticiones,
+              rm_final: r.rm_final,
+            }));
+            setResultadosRM(resultados);
           }
         } else {
+          // Cargar datos de la evaluacion FMS
           const { data, error } = await supabase
             .from("evaluaciones_fms")
-            .select(
-              `
-              id, fecha_realizacion, observaciones, estado,
-              evaluaciones_fms_tests (test_nombre)
-            `
-            )
+            .select("id, fecha_realizacion, fecha_asignacion, observaciones, estado")
             .eq("id", evaluacionId)
             .single();
 
           if (error || !data) {
             console.error("Error cargando evaluación FMS:", error);
+            setLoading(false);
             return;
           }
 
           if (!cancelled) {
-            setEvaluacion({
-              ...data,
-              tests: (data as any).evaluaciones_fms_tests || [],
-            } as EvaluacionFMS);
+            setEvaluacion(data as EvaluacionFMS);
+          }
+
+          // Cargar tests
+          const { data: testsData } = await supabase
+            .from("evaluaciones_fms_tests")
+            .select("id, test_nombre, puntaje, puntaje_derecho, puntaje_izquierdo, observaciones")
+            .eq("evaluacion_fms_id", evaluacionId)
+            .order("created_at", { ascending: true });
+
+          if (!cancelled) {
+            setResultadosFMS((testsData || []) as ResultadoFMS[]);
           }
         }
       } catch (error) {
@@ -139,13 +163,21 @@ export default function VerEvaluacionModal({
   const esRM = subtipo === "rm";
   const titulo = esRM ? "Evaluación RM" : "Evaluación FMS";
   const items = esRM
-    ? (evaluacion as EvaluacionRM | null)?.resultados?.map((r) => r.ejercicio?.nombre).filter(Boolean) || []
-    : (evaluacion as EvaluacionFMS | null)?.tests?.map((t) => t.test_nombre) || [];
+    ? resultadosRM.map((r) => r.ejercicio).filter(Boolean)
+    : resultadosFMS.map((t) => t.test_nombre).filter(Boolean);
+
+  function PUNTAJE_COLORS(puntaje: number | null) {
+    if (puntaje === null) return "";
+    if (puntaje === 0) return "bg-red-900/40 border-red-700 text-red-400";
+    if (puntaje === 1) return "bg-orange-900/40 border-orange-700 text-orange-400";
+    if (puntaje === 2) return "bg-yellow-900/40 border-yellow-700 text-yellow-400";
+    return "bg-emerald-900/40 border-emerald-700 text-emerald-400";
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-      <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-        <div className="flex items-center justify-between mb-4">
+      <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between mb-4 shrink-0">
           <h3 className="text-xl font-bold text-zinc-100">{titulo}</h3>
           <button
             type="button"
@@ -156,62 +188,138 @@ export default function VerEvaluacionModal({
           </button>
         </div>
 
-        {loading ? (
-          <p className="text-zinc-400 text-sm">Cargando...</p>
-        ) : evaluacion ? (
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs text-zinc-500 mb-1">Tipo</p>
-              <p className="text-sm text-zinc-200">{esRM ? "Evaluación RM" : "Evaluación FMS"}</p>
+        <div className="overflow-y-auto flex-1 pr-1 space-y-4">
+          {loading ? (
+            <div className="space-y-3 animate-pulse">
+              <div className="h-4 w-32 rounded bg-zinc-800" />
+              <div className="h-4 w-48 rounded bg-zinc-800" />
+              <div className="h-4 w-40 rounded bg-zinc-800" />
+              <div className="h-20 w-full rounded-xl bg-zinc-800" />
             </div>
+          ) : evaluacion ? (
+            <>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-zinc-500 mb-1">Tipo</p>
+                  <p className="text-sm text-zinc-200">{esRM ? "Evaluación RM" : "Evaluación FMS"}</p>
+                </div>
 
-            <div>
-              <p className="text-xs text-zinc-500 mb-1">{evaluacion.estado === "pendiente" ? "Fecha a realizar" : "Fecha completada"}</p>
-              <p className="text-sm text-zinc-200">
-                {formatearFechaCorta(
-                  evaluacion.estado === "pendiente" 
-                    ? (evaluacion as any).fecha_asignacion 
-                    : evaluacion.fecha_realizacion
+                <div>
+                  <p className="text-xs text-zinc-500 mb-1">
+                    {completada ? "Fecha completada" : "Fecha a realizar"}
+                  </p>
+                  <p className="text-sm text-zinc-200">
+                    {formatearFechaCorta(
+                      completada
+                        ? evaluacion.fecha_realizacion
+                        : (evaluacion as any).fecha_asignacion
+                    ) || "Sin fecha"}
+                  </p>
+                </div>
+
+                {evaluacion.observaciones && (
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-1">Observaciones</p>
+                    <p className="text-sm text-zinc-300 whitespace-pre-wrap">{evaluacion.observaciones}</p>
+                  </div>
                 )}
-              </p>
-            </div>
-
-            {evaluacion.observaciones && (
-              <div>
-                <p className="text-xs text-zinc-500 mb-1">Observaciones</p>
-                <p className="text-sm text-zinc-300 whitespace-pre-wrap">{evaluacion.observaciones}</p>
               </div>
-            )}
 
-            <div>
-              <p className="text-xs text-zinc-500 mb-2">
-                {esRM ? "Ejercicios a evaluar" : "Tests a evaluar"}
-              </p>
-              {items.length === 0 ? (
-                <p className="text-sm text-zinc-500">Sin items cargados.</p>
-              ) : (
-                <ul className="space-y-1">
-                  {items.map((nombre, index) => (
-                    <li key={index} className="text-sm text-zinc-300">
-                      {index + 1}. {nombre}
-                    </li>
-                  ))}
-                </ul>
+              <div>
+                <p className="text-xs text-zinc-500 mb-2 font-semibold uppercase tracking-wide">
+                  {esRM ? "Ejercicios" : "Tests"}
+                </p>
+
+                {/* Vista pendiente: solo muestra la lista */}
+                {!completada && items.length === 0 && (
+                  <p className="text-sm text-zinc-500">Sin items cargados.</p>
+                )}
+
+                {!completada && items.length > 0 && (
+                  <ul className="space-y-1">
+                    {items.map((nombre, index) => (
+                      <li key={index} className="text-sm text-zinc-300">
+                        {index + 1}. {nombre}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {/* Vista completada RM: muestra resultados */}
+                {completada && esRM && resultadosRM.length > 0 && (
+                  <div className="space-y-3">
+                    {resultadosRM.map((r) => (
+                      <div
+                        key={r.id}
+                        className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
+                      >
+                        <p className="font-semibold text-zinc-200">{r.ejercicio}</p>
+                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-400">
+                          <span>Peso: {r.peso_usado ?? "-"} kg</span>
+                          <span>Reps: {r.repeticiones ?? "-"}</span>
+                          <span className="text-emerald-400 font-semibold">
+                            RM: {r.rm_final ?? "-"} kg
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Vista completada FMS: muestra puntajes */}
+                {completada && !esRM && resultadosFMS.length > 0 && (
+                  <div className="space-y-3">
+                    {resultadosFMS.map((t) => {
+                      const bilateral = t.puntaje_derecho !== null || t.puntaje_izquierdo !== null;
+                      return (
+                        <div
+                          key={t.id}
+                          className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="font-semibold text-zinc-200">{t.test_nombre}</p>
+                            {t.puntaje !== null && (
+                              <span className={`shrink-0 text-sm font-bold px-3 py-1 rounded-full border ${PUNTAJE_COLORS(t.puntaje)}`}>
+                                {t.puntaje}
+                              </span>
+                            )}
+                          </div>
+                          {bilateral && (
+                            <div className="mt-2 flex gap-3 text-sm text-zinc-500">
+                              <span>D: {t.puntaje_derecho ?? "-"}</span>
+                              <span>I: {t.puntaje_izquierdo ?? "-"}</span>
+                            </div>
+                          )}
+                          {t.observaciones && (
+                            <p className="text-xs text-zinc-500 mt-2">{t.observaciones}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {completada && items.length === 0 && (
+                  <p className="text-sm text-zinc-500">Sin resultados registrados.</p>
+                )}
+              </div>
+
+              {/* Banner para evaluaciones pendientes que no puede cargar el alumno */}
+              {!completada && (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                  <p className="text-sm text-zinc-300">
+                    Esta evaluación fue asignada para ser realizada por tu profesor. Podés ver los{" "}
+                    {esRM ? "ejercicios" : "tests"}, pero no podés cargar resultados.
+                  </p>
+                </div>
               )}
-            </div>
+            </>
+          ) : (
+            <p className="text-zinc-400 text-sm">No se pudo cargar la información de la evaluación.</p>
+          )}
+        </div>
 
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-              <p className="text-sm text-zinc-300">
-                Esta evaluación fue asignada para ser realizada por tu profesor. Podés ver los{" "}
-                {esRM ? "ejercicios" : "tests"}, pero no podés cargar resultados.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="text-zinc-400 text-sm">No se pudo cargar la información de la evaluación.</p>
-        )}
-
-        <div className="mt-6 flex justify-end">
+        <div className="mt-4 flex justify-end shrink-0 border-t border-zinc-800 pt-4">
           <button
             type="button"
             onClick={onClose}

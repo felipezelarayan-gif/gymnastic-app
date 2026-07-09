@@ -212,6 +212,7 @@ export default function NuevaRutinaPlanificacionPage() {
               );
 
               const esRutina = actividad.tipo === "rutina";
+              const esEvaluacion = actividad.tipo === "evaluacion";
               const key = `${actividad.tipo}-${actividad.subtipo || "general"}-${actividad.id}`;
 
               if (esActividadActual && actividad.tipo === "evaluacion" && !actividad.puedeCargarAlumno) {
@@ -239,6 +240,21 @@ export default function NuevaRutinaPlanificacionPage() {
                         Ver detalles
                       </button>
                     )}
+                    {esEvaluacion && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setModalEvaluacion({
+                            open: true,
+                            id: actividad.id,
+                            subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                          })
+                        }
+                        className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
+                      >
+                        Ver detalles
+                      </button>
+                    )}
                   </div>
                 );
               }
@@ -258,6 +274,21 @@ export default function NuevaRutinaPlanificacionPage() {
                         Ver detalles
                       </button>
                     )}
+                    {esEvaluacion && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setModalEvaluacion({
+                            open: true,
+                            id: actividad.id,
+                            subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                          })
+                        }
+                        className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
+                      >
+                        Ver detalles
+                      </button>
+                    )}
                   </div>
                 );
               }
@@ -271,6 +302,21 @@ export default function NuevaRutinaPlanificacionPage() {
                     <button
                       type="button"
                       onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
+                      className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
+                    >
+                      Ver detalles
+                    </button>
+                  )}
+                  {esEvaluacion && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setModalEvaluacion({
+                          open: true,
+                          id: actividad.id,
+                          subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                        })
+                      }
                       className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
                     >
                       Ver detalles

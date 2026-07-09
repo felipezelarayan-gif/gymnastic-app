@@ -7,6 +7,8 @@ import { getRolCached } from "@/lib/rol-cache";
 import BackButton from "@/components/BackButton";
 import { obtenerRMsActualesAlumno, type RMActualCalculado } from "@/lib/rmActual";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { useToast } from "@/components/ui/ToastProvider";
+import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 
 type Alumno = {
   id: string;
@@ -14,39 +16,43 @@ type Alumno = {
   apellido?: string | null;
 };
 
-type RegistroEntrenamiento = {
-  id: string;
-  alumno_id: string;
-  rutina_id?: string | null;
-  rutina_ejercicio_id?: string | null;
-  ejercicio_id?: string | null;
-  nombre_ejercicio?: string | null;
-  peso_kg?: number | null;
-  repeticiones?: number | null;
-  rpe?: number | null;
-  rir?: number | null;
-  rm_calculado?: number | null;
-  completado?: boolean | null;
-  created_at?: string | null;
-};
-
-
 type Ejercicio = {
   id: string;
   nombre: string;
+};
+
+type RutinaReciente = {
+  id: string;
+  rutina_id: string;
+  fecha_completada: string | null;
+  rutinas: {
+    nombre: string | null;
+  } | null;
 };
 
 export default function MisProgresosPage() {
   const [loading, setLoading] = useState(true);
 
   const [alumno, setAlumno] = useState<Alumno | null>(null);
-  const [registros, setRegistros] = useState<RegistroEntrenamiento[]>([]);
   const [rmsActuales, setRmsActuales] = useState<RMActualCalculado[]>([]);
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
 
+  // Números del header (desde counts)
+  const [rutinasCompletadas, setRutinasCompletadas] = useState(0);
+  const [ejerciciosCompletados, setEjerciciosCompletados] = useState(0);
+  const [ultimoEntrenamiento, setUltimoEntrenamiento] = useState<string | null>(null);
+
+  // Últimas rutinas completadas
+  const [rutinasRecientes, setRutinasRecientes] = useState<RutinaReciente[]>([]);
+
   const [verTodosRM, setVerTodosRM] = useState(false);
-  const [verTodosEntrenamientos, setVerTodosEntrenamientos] = useState(false);
+  const [modalRutina, setModalRutina] = useState<{
+    open: boolean;
+    id: string;
+    completada: boolean;
+  } | null>(null);
   const { formatearFechaCorta } = useFormatoFecha();
+  const { mostrarToast } = useToast();
 
   async function cargarDatos() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -72,49 +78,95 @@ export default function MisProgresosPage() {
       .single();
 
     if (alumnoError || !alumnoData) {
-      alert(alumnoError?.message || "No se pudo cargar el alumno.");
+      mostrarToast(alumnoError?.message || "No se pudo cargar el alumno.", "error");
       setLoading(false);
       return;
     }
 
-    setAlumno(alumnoData);
+    // ETAPA 2: Conteos + RMS + Rutinas recientes en paralelo
+    const [
+      ejerciciosCountResult,
+      rutinasCountResult,
+      ultimoResult,
+      rmsResult,
+      rutinasRecientesResult,
+    ] = await Promise.all([
+      // Total ejercicios completados
+      supabase
+        .from("registros_entrenamiento")
+        .select("id", { count: "exact", head: true })
+        .eq("alumno_id", alumnoData.id)
+        .eq("completado", true),
+      // Total rutinas completadas (distintas)
+      supabase
+        .from("registros_entrenamiento")
+        .select("rutina_id", { count: "exact", head: true })
+        .eq("alumno_id", alumnoData.id)
+        .eq("completado", true)
+        .not("rutina_id", "is", null),
+      // Último entrenamiento
+      supabase
+        .from("registros_entrenamiento")
+        .select("created_at")
+        .eq("alumno_id", alumnoData.id)
+        .eq("completado", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      // RMS (sin cambios)
+      obtenerRMsActualesAlumno(alumnoData.id),
+      // Últimas 5 rutinas completadas
+      supabase
+        .from("rutina_asignaciones")
+        .select(`
+          id,
+          rutina_id,
+          fecha_completada,
+          rutinas (nombre)
+        `)
+        .eq("alumno_id", alumnoData.id)
+        .eq("completada", true)
+        .order("fecha_completada", { ascending: false })
+        .limit(5),
+    ]);
 
-    const { data: registrosData } = await supabase
-      .from("registros_entrenamiento")
-      .select("id,alumno_id,rutina_id,rutina_ejercicio_id,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rpe,rir,rm_calculado,completado,created_at")
-      .eq("alumno_id", alumnoData.id)
-      .eq("completado", true)
-      .order("created_at", { ascending: false });
-
-    const registrosCompletados = registrosData || [];
-
-    setRegistros(registrosCompletados);
-
-    const { data: rmsCalculados, error: rmsError } = await obtenerRMsActualesAlumno(alumnoData.id);
+    const rmsCalculados = rmsResult.data || [];
+    const rmsError = rmsResult.error;
 
     if (rmsError) {
-      alert(rmsError.message);
+      mostrarToast(rmsError.message, "error");
       setLoading(false);
       return;
     }
 
-    setRmsActuales(rmsCalculados || []);
-
+    // ETAPA 3: Ejercicios (depende de RMS)
     const idsEjercicios = Array.from(
       new Set((rmsCalculados || []).map((rm) => rm.ejercicio_id).filter(Boolean))
     );
 
+    let ejerciciosData: Ejercicio[] = [];
     if (idsEjercicios.length > 0) {
-      const { data: ejerciciosData } = await supabase
+      const { data } = await supabase
         .from("ejercicios")
         .select("id,nombre")
         .in("id", idsEjercicios);
-
-      setEjercicios(ejerciciosData || []);
-    } else {
-      setEjercicios([]);
+      ejerciciosData = data || [];
     }
 
+    // Normalizar rutinas recientes
+    const rutinasData = (rutinasRecientesResult.data || []).map((r: any) => ({
+      ...r,
+      rutinas: Array.isArray(r.rutinas) ? r.rutinas[0] || null : r.rutinas,
+    })) as RutinaReciente[];
+
+    // Agrupar todos los setState para reducir renders
+    setAlumno(alumnoData);
+    setRmsActuales(rmsCalculados);
+    setEjercicios(ejerciciosData);
+    setEjerciciosCompletados(ejerciciosCountResult.count ?? 0);
+    setRutinasCompletadas(rutinasCountResult.count ?? 0);
+    setUltimoEntrenamiento(ultimoResult.data?.created_at || null);
+    setRutinasRecientes(rutinasData);
     setLoading(false);
   }
 
@@ -126,33 +178,9 @@ export default function MisProgresosPage() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-  const rutinasCompletadas = useMemo(() => {
-  const rutinaIds = [...new Set(registros.map((item) => item.rutina_id))];
-
-  return rutinaIds.filter((rutinaId) => {
-    if (!rutinaId) return false;
-
-    const ejerciciosDeRutina = registros.filter(
-      (registro) => registro.rutina_id === rutinaId
-    );
-
-    return ejerciciosDeRutina.length > 0;
-  }).length;
-}, [registros]);
-
-  const ejerciciosCompletados = registros.length;
-
-  const ultimoEntrenamiento = registros[0]?.created_at || null;
-
-  const rmsOrdenados = useMemo(() => {
-    return rmsActuales;
-  }, [rmsActuales]);
+  const rmsOrdenados = useMemo(() => rmsActuales, [rmsActuales]);
 
   const rmsMostrados = verTodosRM ? rmsOrdenados : rmsOrdenados.slice(0, 5);
-
-  const entrenamientosMostrados = verTodosEntrenamientos
-    ? registros
-    : registros.slice(0, 3);
 
   function nombreEjercicio(ejercicioId: string) {
     const ejercicio = ejercicios.find((item) => item.id === ejercicioId);
@@ -161,8 +189,39 @@ export default function MisProgresosPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white p-6">
-        Cargando progresos...
+      <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
+        <div className="max-w-5xl mx-auto animate-pulse">
+          <div className="h-5 w-20 rounded bg-zinc-800 mb-6" />
+
+          <div className="mb-6 space-y-3">
+            <div className="h-9 w-56 rounded bg-zinc-800" />
+            <div className="h-4 w-40 rounded bg-zinc-800" />
+          </div>
+
+          {/* Header numbers skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+            <div className="h-24 rounded-2xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-24 rounded-2xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-24 rounded-2xl bg-zinc-900 border border-zinc-800" />
+          </div>
+
+          {/* Mis mejores marcas skeleton */}
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 mt-5">
+            <div className="h-7 w-48 rounded bg-zinc-800 mb-4" />
+            <div className="space-y-3">
+              <div className="h-16 rounded-xl bg-zinc-950/40 border border-zinc-800" />
+              <div className="h-16 rounded-xl bg-zinc-950/40 border border-zinc-800" />
+            </div>
+          </div>
+
+          {/* Rutinas recientes skeleton */}
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 mt-5">
+            <div className="h-7 w-56 rounded bg-zinc-800 mb-4" />
+            <div className="space-y-3">
+              <div className="h-16 rounded-xl bg-zinc-950/40 border border-zinc-800" />
+            </div>
+          </div>
+        </div>
       </main>
     );
   }
@@ -260,85 +319,48 @@ export default function MisProgresosPage() {
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 mt-5">
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
-              <h2 className="text-2xl font-bold">📝 Últimos entrenamientos</h2>
+              <h2 className="text-2xl font-bold">📝 Últimas rutinas completadas</h2>
               <p className="text-zinc-400 text-sm mt-1">
-                Se muestran los últimos 3 registros.
+                Las últimas 5 rutinas que completaste.
               </p>
             </div>
 
-            {registros.length > 3 && (
-              <button
-                type="button"
-                onClick={() =>
-                  setVerTodosEntrenamientos(!verTodosEntrenamientos)
-                }
-                className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-800"
-              >
-                {verTodosEntrenamientos ? "Ver menos" : "Ver más"}
-              </button>
-            )}
+            <Link
+              href="/alumno/rutina/historial"
+              className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-800"
+            >
+              Ver historial
+            </Link>
           </div>
 
-          {entrenamientosMostrados.length === 0 ? (
+          {rutinasRecientes.length === 0 ? (
             <p className="text-zinc-500">
-              Todavía no hay entrenamientos registrados.
+              Todavía no hay rutinas completadas.
             </p>
           ) : (
             <div className="space-y-3">
-              {entrenamientosMostrados.map((registro) => (
+              {rutinasRecientes.map((rutina) => (
                 <div
-                  key={registro.id}
+                  key={rutina.id}
                   className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
                       <h3 className="font-semibold text-lg">
-                        {registro.nombre_ejercicio || "Ejercicio"}
+                        🏋️ {rutina.rutinas?.nombre || "Rutina"}
                       </h3>
-
                       <p className="text-zinc-500 text-sm">
-                        {formatearFechaCorta(registro.created_at)}
+                        Completada: {formatearFechaCorta(rutina.fecha_completada)}
                       </p>
                     </div>
 
-                    <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1 text-sm font-semibold">
-                      Completado
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 mt-4 text-sm">
-                    {registro.peso_kg !== null &&
-                      registro.peso_kg !== undefined && (
-                        <span className="rounded-full bg-zinc-800 px-3 py-1">
-                          Peso: {registro.peso_kg} kg
-                        </span>
-                      )}
-
-                    {registro.repeticiones !== null &&
-                      registro.repeticiones !== undefined && (
-                        <span className="rounded-full bg-zinc-800 px-3 py-1">
-                          Reps: {registro.repeticiones}
-                        </span>
-                      )}
-
-                    {registro.rpe !== null && registro.rpe !== undefined && (
-                      <span className="rounded-full bg-zinc-800 px-3 py-1">
-                        RPE: {registro.rpe}
-                      </span>
-                    )}
-
-                    {registro.rir !== null && registro.rir !== undefined && (
-                      <span className="rounded-full bg-zinc-800 px-3 py-1">
-                        RIR: {registro.rir}
-                      </span>
-                    )}
-
-                    {registro.rm_calculado !== null &&
-                      registro.rm_calculado !== undefined && (
-                        <span className="rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
-                          RM estimado: {registro.rm_calculado} kg
-                        </span>
-                      )}
+                    <button
+                      type="button"
+                      onClick={() => setModalRutina({ open: true, id: rutina.id, completada: true })}
+                      className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300 shrink-0"
+                    >
+                      Ver detalles
+                    </button>
                   </div>
                 </div>
               ))}
@@ -346,36 +368,14 @@ export default function MisProgresosPage() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 mt-5">
-          <h2 className="text-2xl font-bold">🧪 Evaluaciones</h2>
-
-          <p className="text-zinc-400 mt-2">
-            Próximamente vas a poder ver acá evaluaciones específicas:
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
-              <h3 className="font-semibold">Cálculos de RM</h3>
-              <p className="text-zinc-500 text-sm mt-1">
-                Evaluaciones de fuerza en días específicos.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
-              <h3 className="font-semibold">Tests físicos</h3>
-              <p className="text-zinc-500 text-sm mt-1">
-                Saltos, velocidad, resistencia y otros tests.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
-              <h3 className="font-semibold">FMS / movilidad</h3>
-              <p className="text-zinc-500 text-sm mt-1">
-                Evaluaciones de movimiento, movilidad y control corporal.
-              </p>
-            </div>
-          </div>
-        </section>
+        {modalRutina?.open && (
+          <VerRutinaModal
+            open={modalRutina.open}
+            onClose={() => setModalRutina(null)}
+            asignacionId={modalRutina.id}
+            completada={modalRutina.completada}
+          />
+        )}
       </div>
     </main>
   );

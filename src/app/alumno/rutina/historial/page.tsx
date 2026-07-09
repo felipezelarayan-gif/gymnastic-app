@@ -8,6 +8,7 @@ import BackButton from "@/components/BackButton";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
 import VerRutinaModal from "@/components/alumno/VerRutinaModal";
+import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
 
 type HistorialActividad = {
   id: string;
@@ -91,6 +92,11 @@ export default function NuevaRutinaHistorialPage() {
     open: boolean;
     id: string;
     completada: boolean;
+  } | null>(null);
+  const [modalEvaluacion, setModalEvaluacion] = useState<{
+    open: boolean;
+    id: string;
+    subtipo: "rm" | "fms";
   } | null>(null);
   // Deshacer UI flow state
   const [confirmarDeshacer, setConfirmarDeshacer] = useState<HistorialActividad | null>(null);
@@ -552,10 +558,14 @@ export default function NuevaRutinaHistorialPage() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => abrirDetalleActividad(actividad)}
+                          onClick={() => setModalEvaluacion({
+                            open: true,
+                            id: actividad.id,
+                            subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                          })}
                           className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
                         >
-                          Ver
+                          Ver detalles
                         </button>
                       )}
                       {actividad.tipo === "rutina" && actividad.rutina_id !== null ? (
@@ -790,6 +800,15 @@ export default function NuevaRutinaHistorialPage() {
           onClose={() => setModalRutina(null)}
           asignacionId={modalRutina.id}
           completada={modalRutina.completada}
+        />
+      )}
+      {modalEvaluacion?.open && (
+        <VerEvaluacionModal
+          open={modalEvaluacion.open}
+          onClose={() => setModalEvaluacion(null)}
+          evaluacionId={modalEvaluacion.id}
+          subtipo={modalEvaluacion.subtipo}
+          completada={true}
         />
       )}
     </main>

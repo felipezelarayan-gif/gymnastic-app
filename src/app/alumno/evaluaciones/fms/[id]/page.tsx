@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import FMSInfoModal from "@/components/fms/FMSInfoModal";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type EvaluacionFMS = {
   id: string;
@@ -118,6 +119,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
   const [alumnoId, setAlumnoId] = useState<string | null>(null);
   const [testInfoAbierto, setTestInfoAbierto] = useState<string | null>(null);
   const { formatearFechaCorta } = useFormatoFecha();
+  const { mostrarToast } = useToast();
 
   useEffect(() => {
     async function cargarEvaluacion() {
@@ -128,7 +130,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
       const userId = sessionData.session?.user.id;
 
       if (!userId) {
-        alert("No se pudo identificar al alumno. Volve a iniciar sesion.");
+        mostrarToast("No se pudo identificar al alumno. Volve a iniciar sesion.", "error");
         window.location.href = "/login";
         return;
       }
@@ -141,7 +143,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
         .single();
 
       if (alumnoRowError || !alumnoRow) {
-        alert(alumnoRowError?.message || "No se pudo identificar al alumno. Volve a iniciar sesion.");
+        mostrarToast(alumnoRowError?.message || "No se pudo identificar al alumno. Volve a iniciar sesion.", "error");
         window.location.href = "/login";
         return;
       }
@@ -157,19 +159,19 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
         .single();
 
       if (evaluacionError || !evaluacionData) {
-        alert(evaluacionError?.message || "No se pudo cargar la evaluacion FMS.");
+        mostrarToast(evaluacionError?.message || "No se pudo cargar la evaluacion FMS.", "error");
         setLoading(false);
         return;
       }
 
       if (evaluacionData.estado !== "pendiente") {
-        alert("Esta evaluación ya no está pendiente para completar.");
+        mostrarToast("Esta evaluación ya no está pendiente para completar.", "error");
         setLoading(false);
         return;
       }
 
       if (evaluacionData.puede_cargar_alumno === false) {
-        alert("Esta evaluación no está habilitada para ser completada por el alumno.");
+        mostrarToast("Esta evaluación no está habilitada para ser completada por el alumno.", "error");
         setLoading(false);
         return;
       }
@@ -189,13 +191,13 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
       ]);
 
       if (alumnoError) {
-        alert(alumnoError.message);
+        mostrarToast(alumnoError.message, "error");
         setLoading(false);
         return;
       }
 
       if (testsError) {
-        alert(testsError.message);
+        mostrarToast(testsError.message, "error");
         setLoading(false);
         return;
       }
@@ -211,7 +213,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
 
   async function validarEvaluacionPropia() {
     if (!evaluacion || !alumnoId) {
-      alert("No se pudo validar la evaluación actual.");
+      mostrarToast("No se pudo validar la evaluación actual.", "error");
       return false;
     }
 
@@ -223,22 +225,22 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
       .maybeSingle();
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return false;
     }
 
     if (!evaluacionPropia) {
-      alert("No tenés permiso para modificar esta evaluación.");
+      mostrarToast("No tenés permiso para modificar esta evaluación.", "error");
       return false;
     }
 
     if (evaluacionPropia.estado !== "pendiente") {
-      alert("Esta evaluación ya no está pendiente para completar.");
+      mostrarToast("Esta evaluación ya no está pendiente para completar.", "error");
       return false;
     }
 
     if (evaluacionPropia.puede_cargar_alumno === false) {
-      alert("Esta evaluación no está habilitada para ser completada por el alumno.");
+      mostrarToast("Esta evaluación no está habilitada para ser completada por el alumno.", "error");
       return false;
     }
 
@@ -312,7 +314,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
     if (guardando || !evaluacion || total === null) return;
 
     if (!valoresCompletos) {
-      alert("Completa el puntaje de todos los tests FMS.");
+      mostrarToast("Completa el puntaje de todos los tests FMS.", "info");
       return;
     }
 
@@ -345,7 +347,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
 
       if (testError) {
         setGuardando(false);
-        alert(testError.message);
+        mostrarToast(testError.message, "error");
         return;
       }
     }
@@ -353,7 +355,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
     // Insert alumnoId check before update
     if (!alumnoId) {
       setGuardando(false);
-      alert("No se pudo identificar al alumno actual.");
+      mostrarToast("No se pudo identificar al alumno actual.", "error");
       return;
     }
 
@@ -373,7 +375,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
     setGuardando(false);
 
     if (evaluacionError) {
-      alert(evaluacionError.message);
+      mostrarToast(evaluacionError.message, "error");
       return;
     }
 
@@ -392,7 +394,56 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
   }
 
   if (loading) {
-    return <main className="min-h-screen bg-zinc-950 text-white p-8">Cargando evaluación...</main>;
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white p-6">
+        <div className="max-w-4xl mx-auto animate-pulse">
+          {/* Back button skeleton */}
+          <div className="h-5 w-20 rounded bg-zinc-800 mb-6" />
+
+          {/* Header skeleton */}
+          <div className="mb-8 space-y-3">
+            <div className="h-4 w-36 rounded bg-zinc-800" />
+            <div className="h-9 w-56 rounded bg-zinc-800" />
+            <div className="h-4 w-48 rounded bg-zinc-800" />
+            <div className="h-1.5 w-full rounded-full bg-zinc-800 mt-4" />
+          </div>
+
+          {/* Cards de tests skeleton */}
+          <div className="space-y-4">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="space-y-2">
+                  <div className="h-3 w-20 rounded bg-zinc-800" />
+                  <div className="h-5 w-40 rounded bg-zinc-800" />
+                </div>
+                <div className="h-7 w-12 rounded-full bg-zinc-800" />
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                <div className="h-16 rounded-lg bg-zinc-800" />
+                <div className="h-16 rounded-lg bg-zinc-800" />
+                <div className="h-16 rounded-lg bg-zinc-800" />
+                <div className="h-16 rounded-lg bg-zinc-800" />
+              </div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="space-y-2">
+                  <div className="h-3 w-20 rounded bg-zinc-800" />
+                  <div className="h-5 w-44 rounded bg-zinc-800" />
+                </div>
+                <div className="h-7 w-12 rounded-full bg-zinc-800" />
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                <div className="h-16 rounded-lg bg-zinc-800" />
+                <div className="h-16 rounded-lg bg-zinc-800" />
+                <div className="h-16 rounded-lg bg-zinc-800" />
+                <div className="h-16 rounded-lg bg-zinc-800" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   if (!evaluacion) {
@@ -590,7 +641,7 @@ export default function RealizarEvaluacionFMSAlumnoPage() {
             disabled={!valoresCompletos || guardando}
             className="bg-white text-zinc-950 font-semibold px-6 py-3 rounded-lg hover:bg-zinc-200 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {guardando ? "Guardando..." : "Finalizar evaluación"}
+            {guardando ? "Guardando..." : "Finalizar evaluaci\u00f3n"}
           </button>
           <BackButton fallback="/alumno/rutina" />
         </div>
