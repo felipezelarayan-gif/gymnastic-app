@@ -8,8 +8,8 @@ import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import type { FormatoFecha } from "@/lib/utils/formatearFecha";
 
 const ADMIN_EMAIL = "entrenamiento-app@hotmail.com";
-const APP_VERSION = "2.0.8";
-const LAST_UPDATE = "08/07/2026";
+const APP_VERSION = "2.0.9";
+const LAST_UPDATE = "09/07/2026";
 
 type Alumno = {
   id: string;

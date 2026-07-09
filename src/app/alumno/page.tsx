@@ -11,6 +11,7 @@ import {
   type ResumenPendientesAlumno,
 } from "@/lib/alumno/obtenerPendientesAlumnos";
 import { obtenerRMsActualesAlumno } from "@/lib/rmActual";
+import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
 
 type Profile = {
   id: string;
@@ -90,8 +91,8 @@ export default function AlumnoHomePage() {
   const [ejerciciosCompletados, setEjerciciosCompletados] = useState(0);
   const [entrenamientosSemana, setEntrenamientosSemana] = useState(0);
   const [mejorRM, setMejorRM] = useState<{ nombre: string; rm: number } | null>(null);
-
   const [rutinasCompletadas, setRutinasCompletadas] = useState(0);
+  const [evaluacionesCompletadas, setEvaluacionesCompletadas] = useState(0);
 
   async function cargarDatos() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -132,7 +133,7 @@ export default function AlumnoHomePage() {
       return;
     }
 
-    // ── ETAPA 2: Pendientes + Asignaciones + Evaluaciones + Conteos + RMS en paralelo ──
+    // ── ETAPA 2: Pendientes + Asignaciones + Evaluaciones + Métricas + RMS en paralelo ──
     const hace7Dias = new Date();
     hace7Dias.setDate(hace7Dias.getDate() - 7);
     hace7Dias.setHours(0, 0, 0, 0);
@@ -141,8 +142,7 @@ export default function AlumnoHomePage() {
       pendientesAlumno,
       asignacionesResult,
       evaluacionesResult,
-      ejerciciosCountResult,
-      rutinasCountResult,
+      metricasResumen,
       entrenamientosCountResult,
       rmsResult,
     ] = await Promise.all([
@@ -172,19 +172,8 @@ export default function AlumnoHomePage() {
         .eq("estado", "pendiente")
         .is("deleted_at", null)
         .order("fecha_asignacion", { ascending: true }),
-      // Total ejercicios completados (sin límite, count exacto)
-      supabase
-        .from("registros_entrenamiento")
-        .select("id", { count: "exact", head: true })
-        .eq("alumno_id", alumnoData.id)
-        .eq("completado", true),
-      // Total rutinas completadas (rutinas distintas con al menos 1 registro)
-      supabase
-        .from("registros_entrenamiento")
-        .select("rutina_id", { count: "exact", head: true })
-        .eq("alumno_id", alumnoData.id)
-        .eq("completado", true)
-        .not("rutina_id", "is", null),
+      // Métricas compartidas con /progreso (ejercicios + rutinas completadas)
+      obtenerMetricasResumen(supabase, alumnoData.id),
       // Entrenamientos en la última semana
       supabase
         .from("registros_entrenamiento")
@@ -233,19 +222,15 @@ export default function AlumnoHomePage() {
       mejorRMNombre = ejercicioData?.nombre || "Ejercicio";
     }
 
-    // Contar rutinas completadas desde las asignaciones
-    const rutinasCompletadasCount = asignaciones.filter(
-      (item) => item.completada
-    ).length;
-
     // Agrupar todos los setState para reducir re-renders
     setProfile(perfil);
     setAlumno(alumnoData);
     setResumenPendientes(pendientesAlumno);
     setRutinasAsignadas(asignaciones);
     setEvaluacionesPendientes(evaluacionesPendientesMapeadas);
-    setEjerciciosCompletados(ejerciciosCountResult.count ?? 0);
-    setRutinasCompletadas(rutinasCompletadasCount);
+    setEjerciciosCompletados(metricasResumen.ejerciciosCompletados);
+    setRutinasCompletadas(metricasResumen.rutinasCompletadas);
+    setEvaluacionesCompletadas(metricasResumen.evaluacionesCompletadas);
     setEntrenamientosSemana(entrenamientosCountResult.count ?? 0);
     setMejorRM(
       mejorRMCalculado
@@ -312,7 +297,7 @@ export default function AlumnoHomePage() {
           {/* Resumen rápido skeleton */}
           <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
             <div className="h-6 w-48 rounded bg-zinc-800 mb-4" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="h-24 rounded-xl bg-zinc-950/40 border border-zinc-800" />
               <div className="h-24 rounded-xl bg-zinc-950/40 border border-zinc-800" />
               <div className="h-24 rounded-xl bg-zinc-950/40 border border-zinc-800" />
@@ -397,11 +382,18 @@ export default function AlumnoHomePage() {
         <section className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5 mt-4">
           <h2 className="text-xl font-semibold mb-4">📊 Resumen rápido</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-zinc-950/40 border border-zinc-800 p-4">
               <p className="text-zinc-400 text-sm">Rutinas completadas</p>
               <p className="text-3xl font-bold mt-1">
                 {rutinasCompletadas}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-zinc-950/40 border border-zinc-800 p-4">
+              <p className="text-zinc-400 text-sm">Evaluaciones</p>
+              <p className="text-3xl font-bold mt-1">
+                {evaluacionesCompletadas}
               </p>
             </div>
 

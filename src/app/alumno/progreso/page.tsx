@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import BackButton from "@/components/BackButton";
 import { obtenerRMsActualesAlumno, type RMActualCalculado } from "@/lib/rmActual";
+import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { useToast } from "@/components/ui/ToastProvider";
 import VerRutinaModal from "@/components/alumno/VerRutinaModal";
@@ -40,6 +41,7 @@ export default function MisProgresosPage() {
   // Números del header (desde counts)
   const [rutinasCompletadas, setRutinasCompletadas] = useState(0);
   const [ejerciciosCompletados, setEjerciciosCompletados] = useState(0);
+  const [evaluacionesCompletadas, setEvaluacionesCompletadas] = useState(0);
   const [ultimoEntrenamiento, setUltimoEntrenamiento] = useState<string | null>(null);
 
   // Últimas rutinas completadas
@@ -83,27 +85,15 @@ export default function MisProgresosPage() {
       return;
     }
 
-    // ETAPA 2: Conteos + RMS + Rutinas recientes en paralelo
+    // ETAPA 2: Métricas + RMS + Rutinas recientes en paralelo
     const [
-      ejerciciosCountResult,
-      rutinasCountResult,
+      metricasResumen,
       ultimoResult,
       rmsResult,
       rutinasRecientesResult,
     ] = await Promise.all([
-      // Total ejercicios completados
-      supabase
-        .from("registros_entrenamiento")
-        .select("id", { count: "exact", head: true })
-        .eq("alumno_id", alumnoData.id)
-        .eq("completado", true),
-      // Total rutinas completadas (distintas)
-      supabase
-        .from("registros_entrenamiento")
-        .select("rutina_id", { count: "exact", head: true })
-        .eq("alumno_id", alumnoData.id)
-        .eq("completado", true)
-        .not("rutina_id", "is", null),
+      // Métricas compartidas con /alumno (ejercicios + rutinas completadas)
+      obtenerMetricasResumen(supabase, alumnoData.id),
       // Último entrenamiento
       supabase
         .from("registros_entrenamiento")
@@ -163,8 +153,9 @@ export default function MisProgresosPage() {
     setAlumno(alumnoData);
     setRmsActuales(rmsCalculados);
     setEjercicios(ejerciciosData);
-    setEjerciciosCompletados(ejerciciosCountResult.count ?? 0);
-    setRutinasCompletadas(rutinasCountResult.count ?? 0);
+    setEjerciciosCompletados(metricasResumen.ejerciciosCompletados);
+    setRutinasCompletadas(metricasResumen.rutinasCompletadas);
+    setEvaluacionesCompletadas(metricasResumen.evaluacionesCompletadas);
     setUltimoEntrenamiento(ultimoResult.data?.created_at || null);
     setRutinasRecientes(rutinasData);
     setLoading(false);
@@ -178,9 +169,7 @@ export default function MisProgresosPage() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-  const rmsOrdenados = useMemo(() => rmsActuales, [rmsActuales]);
-
-  const rmsMostrados = verTodosRM ? rmsOrdenados : rmsOrdenados.slice(0, 5);
+  const rmsMostrados = verTodosRM ? rmsActuales : rmsActuales.slice(0, 5);
 
   function nombreEjercicio(ejercicioId: string) {
     const ejercicio = ejercicios.find((item) => item.id === ejercicioId);
@@ -239,10 +228,15 @@ export default function MisProgresosPage() {
           </p>
         </header>
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <section className="grid grid-cols-2 gap-4">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
             <p className="text-zinc-400 text-sm">Rutinas completadas</p>
             <p className="text-3xl font-bold mt-2">{rutinasCompletadas}</p>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+            <p className="text-zinc-400 text-sm">Evaluaciones completadas</p>
+            <p className="text-3xl font-bold mt-2">{evaluacionesCompletadas}</p>
           </div>
 
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
@@ -267,7 +261,7 @@ export default function MisProgresosPage() {
               </p>
             </div>
 
-            {rmsOrdenados.length > 5 && (
+            {rmsActuales.length > 5 && (
               <button
                 type="button"
                 onClick={() => setVerTodosRM(!verTodosRM)}

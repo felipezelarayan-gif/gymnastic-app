@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import BackButton from "@/components/BackButton";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
 
 type Alumno = {
   id: string;
@@ -45,6 +46,9 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const [form, setForm] = useState<Alumno | null>(null);
   const [editando, setEditando] = useState(false);
+  const [rutinasCompletadas, setRutinasCompletadas] = useState(0);
+  const [evaluacionesCompletadas, setEvaluacionesCompletadas] = useState(0);
+  const [ejerciciosCompletados, setEjerciciosCompletados] = useState(0);
 
   useEffect(() => {
     cargarAlumno();
@@ -80,6 +84,14 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
 
     setAlumno(data);
     setForm(data);
+
+    // Cargar métricas
+    obtenerMetricasResumen(supabase, id).then((metricas) => {
+      setRutinasCompletadas(metricas.rutinasCompletadas);
+      setEvaluacionesCompletadas(metricas.evaluacionesCompletadas);
+      setEjerciciosCompletados(metricas.ejerciciosCompletados);
+    });
+
     setLoading(false);
   }
 
@@ -187,6 +199,20 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
               <button type="button" onClick={() => setShowConfirm(true)} disabled={borrando} className="rounded-xl border border-red-800 px-4 py-3 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed">{borrando ? "Borrando..." : "Borrar"}</button>
             </div>
           </div>
+          <section className="grid grid-cols-3 gap-3 mt-5">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+              <p className="text-xs text-zinc-400">Rutinas completadas</p>
+              <p className="text-2xl font-bold mt-1">{rutinasCompletadas}</p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+              <p className="text-xs text-zinc-400">Evaluaciones</p>
+              <p className="text-2xl font-bold mt-1">{evaluacionesCompletadas}</p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+              <p className="text-xs text-zinc-400">Ejercicios</p>
+              <p className="text-2xl font-bold mt-1">{ejerciciosCompletados}</p>
+            </div>
+          </section>
         </section>
 
         <section className={`${card} mt-5`}>

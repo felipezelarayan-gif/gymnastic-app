@@ -9,6 +9,7 @@ import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
 import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
+import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
 
 type HistorialActividad = {
   id: string;
@@ -85,7 +86,6 @@ export default function NuevaRutinaHistorialPage() {
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [detalleRutina, setDetalleRutina] = useState<DetalleEntrenamiento[]>([]);
   const [detalleFms, setDetalleFms] = useState<DetalleFms[]>([]);
-  const [detalleEvaluacionRM, setDetalleEvaluacionRM] = useState<DetalleEntrenamiento[]>([]);
   const [rutinaSeleccionada, setRutinaSeleccionada] = useState<HistorialActividad | null>(null);
   const [errorDetalle, setErrorDetalle] = useState<string | null>(null);
   const [modalRutina, setModalRutina] = useState<{
@@ -98,6 +98,10 @@ export default function NuevaRutinaHistorialPage() {
     id: string;
     subtipo: "rm" | "fms";
   } | null>(null);
+  // Métricas compartidas
+  const [rutinasCompletadas, setRutinasCompletadas] = useState(0);
+  const [evaluacionesCompletadas, setEvaluacionesCompletadas] = useState(0);
+  const [ejerciciosCompletados, setEjerciciosCompletados] = useState(0);
   // Deshacer UI flow state
   const [confirmarDeshacer, setConfirmarDeshacer] = useState<HistorialActividad | null>(null);
   const [deshaciendo, setDeshaciendo] = useState(false);
@@ -140,8 +144,16 @@ export default function NuevaRutinaHistorialPage() {
       return;
     }
 
-    const historialActividades = await cargarHistorial(alumnoData.id);
+    // Cargar historial y métricas en paralelo
+    const [historialActividades, metricas] = await Promise.all([
+      cargarHistorial(alumnoData.id),
+      obtenerMetricasResumen(supabase, alumnoData.id),
+    ]);
+
     setHistorial(historialActividades);
+    setRutinasCompletadas(metricas.rutinasCompletadas);
+    setEvaluacionesCompletadas(metricas.evaluacionesCompletadas);
+    setEjerciciosCompletados(metricas.ejerciciosCompletados);
     setCargando(false);
   }
 
@@ -453,8 +465,6 @@ export default function NuevaRutinaHistorialPage() {
     setCargandoDetalle(false);
   }
 
-  const rutinasCompletadas = historial.filter((actividad) => actividad.tipo === "rutina").length;
-  const evaluacionesCompletadas = historial.filter((actividad) => actividad.tipo === "evaluacion").length;
   const detalleAgrupado = agruparDetallePorEjercicio(detalleRutina);
 
   if (cargando) {
@@ -498,7 +508,7 @@ export default function NuevaRutinaHistorialPage() {
           </p>
         </header>
 
-        <section className="grid grid-cols-2 gap-3">
+        <section className="grid grid-cols-3 gap-3">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
             <p className="text-sm text-zinc-400">Rutinas completadas</p>
             <p className="text-3xl font-bold mt-1">{rutinasCompletadas}</p>
@@ -506,6 +516,10 @@ export default function NuevaRutinaHistorialPage() {
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
             <p className="text-sm text-zinc-400">Evaluaciones realizadas</p>
             <p className="text-3xl font-bold mt-1">{evaluacionesCompletadas}</p>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+            <p className="text-sm text-zinc-400">Ejercicios completados</p>
+            <p className="text-3xl font-bold mt-1">{ejerciciosCompletados}</p>
           </div>
         </section>
 
