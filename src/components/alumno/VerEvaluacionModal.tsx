@@ -18,6 +18,7 @@ type VerEvaluacionModalProps = {
 
 type ResultadoRM = {
   id: string;
+  ejercicio_id: string;
   ejercicio: string;
   peso_usado: number | null;
   repeticiones: number | null;
@@ -35,6 +36,7 @@ type ResultadoFMS = {
 
 type EvaluacionRM = {
   id: string;
+  alumno_id: string;
   nombre?: string | null;
   fecha_realizacion: string | null;
   fecha_asignacion: string | null;
@@ -119,7 +121,7 @@ export default function VerEvaluacionModal({
           const { data, error } = await supabase
             .from("evaluaciones_rm")
             .select(
-              "id, nombre, fecha_realizacion, fecha_asignacion, observaciones, estado"
+              "id, alumno_id, nombre, fecha_realizacion, fecha_asignacion, observaciones, estado"
             )
             .eq("id", evaluacionId)
             .single();
@@ -136,13 +138,14 @@ export default function VerEvaluacionModal({
 
           const { data: ejerciciosData } = await supabase
             .from("evaluaciones_rm_resultados")
-            .select("id, peso_usado, repeticiones, rm_final, ejercicio:ejercicios(nombre)")
+            .select("id, ejercicio_id, peso_usado, repeticiones, rm_final, ejercicio:ejercicios(nombre)")
             .eq("evaluacion_rm_id", evaluacionId)
             .order("orden", { ascending: true });
 
           if (!cancelled) {
             const resultados = (ejerciciosData || []).map((r: any) => ({
               id: r.id,
+              ejercicio_id: r.ejercicio_id,
               ejercicio: r.ejercicio?.nombre || "Ejercicio",
               peso_usado: r.peso_usado,
               repeticiones: r.repeticiones,
@@ -320,8 +323,10 @@ export default function VerEvaluacionModal({
             .eq("evaluacion_rm_resultado_id", resultado.id)
             .maybeSingle();
 
+          const evaluacionRM = evaluacion as EvaluacionRM;
           const historialPayload = {
-            alumno_id: (evaluacion as EvaluacionRM).id,
+            alumno_id: evaluacionRM.alumno_id,
+            ejercicio_id: resultado.ejercicio_id,
             peso_kg: peso,
             repeticiones: reps,
             rm_calculado: rmFinal,
@@ -338,11 +343,12 @@ export default function VerEvaluacionModal({
         }
 
         // Recalcular RM actuales
+        const evaluacionRM = evaluacion as EvaluacionRM;
         for (const resultado of resultadosRM) {
           try {
             await recalcularRMActual({
-              alumnoId: (evaluacion as EvaluacionRM).id,
-              ejercicioId: resultado.id,
+              alumnoId: evaluacionRM.alumno_id,
+              ejercicioId: resultado.ejercicio_id,
             });
           } catch (e) {
             console.error("Error recalculando RM:", e);
