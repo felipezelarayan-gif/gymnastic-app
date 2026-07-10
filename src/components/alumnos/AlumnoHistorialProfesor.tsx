@@ -6,6 +6,7 @@ import { getRolCached } from "@/lib/rol-cache";
 import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
 import BackButton from "@/components/BackButton";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
 
 type Alumno = { id: string; nombre: string; apellido?: string | null };
 type Rutina = { id: string; nombre?: string | null };
@@ -157,6 +158,11 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
   const [evaluacionesFMSTests, setEvaluacionesFMSTests] = useState<EvaluacionFMSTest[]>([]);
   const [itemSeleccionado, setItemSeleccionado] = useState<HistorialItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [modalEvaluacion, setModalEvaluacion] = useState<{
+    open: boolean;
+    id: string;
+    subtipo: "rm" | "fms";
+  } | null>(null);
   const { formatearFechaCorta } = useFormatoFecha();
 
   useEffect(() => {
@@ -425,7 +431,17 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
 
                   <button
                     type="button"
-                    onClick={() => setItemSeleccionado(item)}
+                    onClick={() => {
+                      if (item.tipo === "evaluacion_rm" || item.tipo === "evaluacion_fms") {
+                        setModalEvaluacion({
+                          open: true,
+                          id: item.id,
+                          subtipo: item.tipo === "evaluacion_rm" ? "rm" : "fms",
+                        });
+                      } else {
+                        setItemSeleccionado(item);
+                      }
+                    }}
                     className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
                   >
                     Ver
@@ -436,6 +452,17 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
           </section>
         )}
       </div>
+
+      {modalEvaluacion?.open && (
+        <VerEvaluacionModal
+          open={modalEvaluacion.open}
+          onClose={() => setModalEvaluacion(null)}
+          evaluacionId={modalEvaluacion.id}
+          subtipo={modalEvaluacion.subtipo}
+          completada={true}
+          vista="profesor"
+        />
+      )}
 
       {itemSeleccionado && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">

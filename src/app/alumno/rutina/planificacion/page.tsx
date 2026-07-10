@@ -45,6 +45,7 @@ export default function NuevaRutinaPlanificacionPage() {
     open: boolean;
     id: string;
     subtipo: "rm" | "fms";
+    puedeCargarAlumno?: boolean;
   } | null>(null);
   const [modalRutina, setModalRutina] = useState<{
     open: boolean;
@@ -225,6 +226,7 @@ export default function NuevaRutinaPlanificacionPage() {
                           open: true,
                           id: actividad.id,
                           subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                          puedeCargarAlumno: actividad.puedeCargarAlumno ?? false,
                         })
                       }
                       className="w-full text-left"
@@ -248,6 +250,7 @@ export default function NuevaRutinaPlanificacionPage() {
                             open: true,
                             id: actividad.id,
                             subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                            puedeCargarAlumno: actividad.puedeCargarAlumno ?? false,
                           })
                         }
                         className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
@@ -282,6 +285,7 @@ export default function NuevaRutinaPlanificacionPage() {
                             open: true,
                             id: actividad.id,
                             subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                            puedeCargarAlumno: actividad.puedeCargarAlumno ?? false,
                           })
                         }
                         className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
@@ -315,6 +319,7 @@ export default function NuevaRutinaPlanificacionPage() {
                           open: true,
                           id: actividad.id,
                           subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                          puedeCargarAlumno: actividad.puedeCargarAlumno ?? false,
                         })
                       }
                       className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
@@ -334,6 +339,7 @@ export default function NuevaRutinaPlanificacionPage() {
             onClose={() => setModalEvaluacion(null)}
             evaluacionId={modalEvaluacion.id}
             subtipo={modalEvaluacion.subtipo}
+            permitirCargaAlumno={modalEvaluacion.puedeCargarAlumno}
           />
         )}
 
