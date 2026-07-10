@@ -10,9 +10,39 @@ type Profile = {
   foto_url?: string | null;
 };
 
+type HomePageCache = {
+  profile: Profile;
+  savedAt: string;
+};
+
+const HOME_CACHE_KEY = "home_page_cache_v1";
+
+function cargarHomeDesdeCache(): Profile | null {
+  try {
+    const raw = localStorage.getItem(HOME_CACHE_KEY);
+    if (!raw) return null;
+
+    const cache = JSON.parse(raw) as HomePageCache;
+    if (!cache.profile?.nombre || !cache.profile?.rol) return null;
+
+    return cache.profile;
+  } catch {
+    return null;
+  }
+}
+
+function guardarHomeEnCache(profile: Profile) {
+  try {
+    const cache: HomePageCache = { profile, savedAt: new Date().toISOString() };
+    localStorage.setItem(HOME_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // ignorar errores de localStorage
+  }
+}
+
 export default function Home() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(() => cargarHomeDesdeCache());
+  const [loading, setLoading] = useState(!profile);
   const { mostrarToast } = useToast();
 
   useEffect(() => {
@@ -20,40 +50,54 @@ export default function Home() {
       const { data: sessionData } = await supabase.auth.getSession();
 
       if (!sessionData.session) {
-        setLoading(false);
+        // Si no hay sesión y teníamos caché, limpiarla y redirigir
+        if (profile) {
+          try { localStorage.removeItem(HOME_CACHE_KEY); } catch { /* ignore */ }
+        }
+        window.location.href = "/login";
         return;
       }
 
       const user = sessionData.session.user;
 
       const { data, error } = await supabase
-  .from("profiles")
-  .select("nombre, rol, foto_url")
-  .eq("id", user.id)
-  .maybeSingle();
+        .from("profiles")
+        .select("nombre, rol, foto_url")
+        .eq("id", user.id)
+        .maybeSingle();
 
-if (error) {
-  mostrarToast(error.message, "error");
-  setLoading(false);
-  return;
-}
+      if (error) {
+        mostrarToast(error.message, "error");
+        setLoading(false);
+        return;
+      }
 
-if (!data) {
-  mostrarToast("No se encontró tu perfil.", "error");
-  setLoading(false);
-  return;
-}
+      if (!data) {
+        mostrarToast("No se encontró tu perfil.", "error");
+        setLoading(false);
+        return;
+      }
 
-      if (data?.rol === "alumno") {
+      // Si es alumno, redirigir y limpiar caché
+      if (data.rol === "alumno") {
+        try { localStorage.removeItem(HOME_CACHE_KEY); } catch { /* ignore */ }
         window.location.href = "/alumno";
         return;
       }
 
+      // Guardar en caché y mostrar
+      guardarHomeEnCache(data);
       setProfile(data);
       setLoading(false);
     }
 
-    cargarPerfil();
+    // Si ya tenemos caché, cargamos en background sin mostrar skeleton
+    if (profile) {
+      cargarPerfil();
+    } else {
+      // Si no hay caché, mostramos skeleton mientras carga
+      cargarPerfil();
+    }
   }, []);
 
   if (loading) {
@@ -104,25 +148,25 @@ if (!data) {
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-5xl mx-auto">
         <header className="flex items-center gap-4 mb-8">
-  <img
-    src={
-      profile.foto_url ||
-      "https://placehold.co/120x120/png?text=👤"
-    }
-    alt="Foto de perfil"
-    className="w-20 h-20 rounded-full object-cover border-2 border-zinc-700"
-  />
+          <img
+            src={
+              profile.foto_url ||
+              "https://placehold.co/120x120/png?text=👤"
+            }
+            alt="Foto de perfil"
+            className="w-20 h-20 rounded-full object-cover border-2 border-zinc-700"
+          />
 
-  <div>
-    <h1 className="text-3xl font-bold">
-      Panel del profe
-    </h1>
+          <div>
+            <h1 className="text-3xl font-bold">
+              Panel del profe
+            </h1>
 
-    <p className="text-zinc-400 mt-1">
-      Hola, {profile.nombre}
-    </p>
-  </div>
-</header>
+            <p className="text-zinc-400 mt-1">
+              Hola, {profile.nombre}
+            </p>
+          </div>
+        </header>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <a
@@ -130,12 +174,12 @@ if (!data) {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-  👥 Alumnos
-</h2>
+              👥 Alumnos
+            </h2>
 
             <p className="text-zinc-400 mt-2">
-  Ver, crear y administrar alumnos.
-</p>
+              Ver, crear y administrar alumnos.
+            </p>
           </a>
 
           <a
@@ -143,12 +187,12 @@ if (!data) {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-  📋 Rutinas
-</h2>
+              📋 Rutinas
+            </h2>
 
             <p className="text-zinc-400 mt-2">
-  Crear rutinas y asignarlas a alumnos.
-</p>
+              Crear rutinas y asignarlas a alumnos.
+            </p>
           </a>
 
           <a
@@ -156,12 +200,12 @@ if (!data) {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-  🏋️ Registrar entrenamientos
-</h2>
+              🏋️ Registrar entrenamientos
+            </h2>
 
             <p className="text-zinc-400 mt-2">
-  Cargar entrenamientos de alumnos activos.
-</p>
+              Cargar entrenamientos de alumnos activos.
+            </p>
           </a>
 
           <a
@@ -169,12 +213,12 @@ if (!data) {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-  💪 Ejercicios
-</h2>
+              💪 Ejercicios
+            </h2>
 
             <p className="text-zinc-400 mt-2">
-  Ver y editar ejercicios con videos de YouTube.
-</p>
+              Ver y editar ejercicios con videos de YouTube.
+            </p>
           </a>
 
           <a
@@ -182,38 +226,38 @@ if (!data) {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-  📈 Historial
-</h2>
+              📈 Historial
+            </h2>
 
             <p className="text-zinc-400 mt-2">
-  Revisar entrenamientos completados y progreso.
-</p>
+              Revisar entrenamientos completados y progreso.
+            </p>
           </a>
-          
-<a
-  href="/evaluaciones"
-  className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
->
-  <h2 className="text-xl font-semibold">
-    📏 Evaluaciones
-  </h2>
 
-  <p className="text-zinc-400 mt-2">
-    Gestionar evaluaciones RM y FMS.
-  </p>
-</a>
+          <a
+            href="/evaluaciones"
+            className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
+          >
+            <h2 className="text-xl font-semibold">
+              📏 Evaluaciones
+            </h2>
+
+            <p className="text-zinc-400 mt-2">
+              Gestionar evaluaciones RM y FMS.
+            </p>
+          </a>
 
           <a
             href="/configuracion"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition md:col-span-2"
           >
             <h2 className="text-xl font-semibold">
-  ⚙️ Configuración
-</h2>
+              ⚙️ Configuración
+            </h2>
 
             <p className="text-zinc-400 mt-2">
-  Gestionar profesores, permisos y ajustes generales.
-</p>
+              Gestionar profesores, permisos y ajustes generales.
+            </p>
           </a>
         </section>
       </div>

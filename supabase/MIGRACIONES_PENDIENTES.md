@@ -2,6 +2,58 @@
 
 Este archivo documenta las migraciones SQL que deben ejecutarse manualmente en Supabase para activar funcionalidades completas.
 
+## Migración 007: Agregar columna `created_at` a `rutina_ejercicios` y `rutina_entrada_calor`
+
+**Fecha de creación**: 2026-07-09
+**Propósito**: Corregir el error `column rutina_ejercicios.created_at does not exist` al editar rutinas desde `/alumnos/[id]/rutinas`
+
+### ¿Qué hace esta migración?
+
+Agrega la columna `created_at` (timestamp with time zone, default `now()`) a las tablas `rutina_ejercicios` y `rutina_entrada_calor`. Estas tablas no tenían esa columna, pero el código de duplicación de rutinas la consulta al copiar ejercicios.
+
+### ¿Cuándo ejecutarla?
+
+**Inmediatamente**. Sin esta migración, la función "Editar" rutina desde el perfil de un alumno falla con el error mencionado.
+
+### Pasos para ejecutar:
+
+1. **Abrir Supabase Dashboard**
+   - Ve a https://supabase.com/dashboard
+   - Selecciona tu proyecto
+
+2. **Ir al SQL Editor**
+   - En el menú lateral, click en "SQL Editor"
+   - Click en "New query"
+
+3. **Copiar y ejecutar el SQL**
+   ```sql
+   BEGIN;
+
+   ALTER TABLE rutina_ejercicios
+     ADD COLUMN IF NOT EXISTS created_at timestamp with time zone NULL DEFAULT now();
+
+   ALTER TABLE rutina_entrada_calor
+     ADD COLUMN IF NOT EXISTS created_at timestamp with time zone NULL DEFAULT now();
+
+   COMMIT;
+   ```
+
+4. **Ejecutar**
+   - Click en "Run" (o presiona Cmd/Ctrl + Enter)
+   - Deberías ver: "Success. No rows returned"
+
+5. **Verificar**
+   - Recarga la aplicación
+   - Ve a Alumnos → Rutinas → Editar rutina
+   - Ahora debería funcionar sin error
+
+### Notas importantes
+
+- La migración es **segura** y no borra datos existentes
+- Si la columna ya existe, el `IF NOT EXISTS` previene errores
+- Los registros existentes quedan con `created_at = NULL` (no se backfill)
+- Los nuevos registros se crean automáticamente con la fecha actual
+
 ## Migración 006: Agregar columna `creado_por` a profesores
 
 **Fecha de creación**: 2026-07-06
