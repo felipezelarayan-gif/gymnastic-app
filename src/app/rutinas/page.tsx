@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import { borrarRutina as borrarRutinaLib } from "@/lib/rutinas/borrarRutina";
 import BackButton from "@/components/BackButton";
+import VerRutinaPlantillaModal from "@/components/rutinas/VerRutinaPlantillaModal";
+import CrearRutinaModal from "@/components/rutinas/CrearRutinaModal";
+import { OPCIONES_TIPO } from "@/lib/rutinas/opciones-tipo";
 
 type Rutina = {
   id: string;
@@ -32,6 +35,14 @@ export default function RutinasPage() {
   const [rutinas, setRutinas] = useState<Rutina[]>([]);
   const [loading, setLoading] = useState(true);
   const [actualizandoRutinas, setActualizandoRutinas] = useState(false);
+
+  // Paginación y filtros
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [paginaActual, setPaginaActual] = useState(0);
+  const [rutinasPorPagina] = useState(10);
+  const [totalRutinas, setTotalRutinas] = useState(0);
+  const [filtrosAbierto, setFiltrosAbierto] = useState(false);
 
   function cargarRutinasDesdeCache(userId: string) {
     try {
@@ -78,19 +89,14 @@ export default function RutinasPage() {
       // Si localStorage falla, igual intentamos recargar desde la base.
     }
 
-    await cargarRutinas(userId, true);
+    await cargarRutinas(userId, true, true);
+    setPaginaActual(0);
   }
 
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [creando, setCreando] = useState(false);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
-
-  const [nombre, setNombre] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [objetivo, setObjetivo] = useState("");
-  const [objetivoPersonalizado, setObjetivoPersonalizado] = useState("");
-  const [estructura, setEstructura] = useState("");
-  const [estructuraPersonalizada, setEstructuraPersonalizada] = useState("");
+  const [verRutinaId, setVerRutinaId] = useState<string | null>(null);
+  const [profesorId, setProfesorId] = useState<string | null>(null);
 
   useEffect(() => {
     verificarPermiso();
@@ -117,11 +123,12 @@ export default function RutinasPage() {
       return;
     }
 
+    setProfesorId(sessionData.session.user.id);
     const tieneCache = cargarRutinasDesdeCache(sessionData.session.user.id);
-    await cargarRutinas(sessionData.session.user.id, !tieneCache);
+    await cargarRutinas(sessionData.session.user.id, !tieneCache, true);
   }
 
-  async function cargarRutinas(profesorId?: string, mostrarLoading = true) {
+  const cargarRutinas = useCallback(async (profesorId?: string, mostrarLoading = true, esRecargaFiltros = false) => {
     if (mostrarLoading) {
       setLoading(true);
     }
@@ -130,16 +137,37 @@ export default function RutinasPage() {
       setActualizandoRutinas(true);
     }
 
+    const LIMITE = rutinasPorPagina;
+    const desde = esRecargaFiltros ? 0 : paginaActual * LIMITE;
+
     let query = supabase
       .from("rutinas")
-      .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id,profesor_id")
-      .order("created_at", { ascending: false });
+      .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id,profesor_id", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(desde, desde + LIMITE - 1);
 
     if (profesorId) {
       query = query.eq("profesor_id", profesorId);
     }
 
-    const { data, error } = await query;
+    // Aplicar filtros
+    if (busqueda.trim()) {
+      query = query.ilike("nombre", `%${busqueda.trim()}%`);
+    }
+
+    if (filtroTipo) {
+      const opcion = OPCIONES_TIPO.find((o) => o.label === filtroTipo);
+      if (opcion) {
+        if (opcion.objetivo) {
+          query = query.eq("objetivo", opcion.objetivo);
+        }
+        if (opcion.estructura) {
+          query = query.eq("estructura", opcion.estructura);
+        }
+      }
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
       alert(error.message);
@@ -150,75 +178,44 @@ export default function RutinasPage() {
 
     const rutinasData = (data || []) as Rutina[];
 
+    if (count !== null) {
+      setTotalRutinas(count);
+    }
+
+    if (esRecargaFiltros || desde === 0) {
+      setRutinas(rutinasData);
+    } else {
+      setRutinas(prev => [...prev, ...rutinasData]);
+    }
+
     if (profesorId) {
       guardarRutinasEnCache(profesorId, rutinasData);
     }
 
-    setRutinas(rutinasData);
     setActualizandoRutinas(false);
     setLoading(false);
-  }
+  }, [rutinasPorPagina, paginaActual, busqueda, filtroTipo]);
 
-  async function crearRutina() {
-    if (creando) return;
-    if (!nombre.trim()) {
-      alert("Ingresá un nombre para la rutina.");
-      return;
-    }
+  const aplicarFiltros = useCallback(() => {
+    setFiltrosAbierto(false);
+    setPaginaActual(0);
+    cargarRutinas(undefined, true, true);
+  }, [cargarRutinas]);
 
-    setCreando(true);
+  const limpiarFiltros = useCallback(() => {
+    setBusqueda("");
+    setFiltroTipo("");
+    setFiltrosAbierto(false);
+    setPaginaActual(0);
+    cargarRutinas(undefined, true, true);
+  }, [cargarRutinas]);
 
-    const objetivoFinal =
-      objetivo === "otro" ? objetivoPersonalizado : objetivo;
+  const handleRutinaCreada = useCallback((rutinaId: string) => {
+    setMostrarModal(false);
+    window.location.href = `/rutinas/${rutinaId}`;
+  }, []);
 
-    const estructuraFinal =
-      estructura === "otro" ? estructuraPersonalizada : estructura;
-
-    const { data: sessionData } = await supabase.auth.getSession();
-
-    const profesorId = sessionData.session?.user.id;
-
-    if (!profesorId) {
-      window.location.href = "/login";
-      return;
-    }
-
-    const { data: rutinaCreada, error } = await supabase
-      .from("rutinas")
-      .insert({
-        nombre: nombre.trim(),
-        descripcion: descripcion.trim() || null,
-        objetivo: objetivoFinal || null,
-        estructura: estructuraFinal || null,
-        creada_por: profesorId,
-        profesor_id: profesorId,
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      alert(error.message);
-      setCreando(false);
-      return;
-    }
-
-    if (!rutinaCreada?.id) {
-      alert("La rutina se creó, pero no se pudo abrir el editor.");
-      setCreando(false);
-      await cargarRutinas(profesorId);
-      return;
-    }
-
-    try {
-      localStorage.removeItem(getRutinasCacheKey(profesorId));
-    } catch {
-      // Si localStorage falla, continuamos igual hacia el editor.
-    }
-
-    window.location.href = `/rutinas/${rutinaCreada.id}`;
-  }
-
-  async function borrarRutina(rutinaId: string) {
+  const borrarRutina = useCallback(async (rutinaId: string) => {
     if (borrandoId) return;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -248,7 +245,8 @@ export default function RutinasPage() {
         }
         return;
       }
-      await cargarRutinas(sessionData.session?.user.id);
+      await cargarRutinas(sessionData.session?.user.id, true, true);
+      setPaginaActual(0);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(err);
@@ -256,214 +254,275 @@ export default function RutinasPage() {
     } finally {
       setBorrandoId(null);
     }
-  }
+  }, [borrandoId, cargarRutinas]);
+
+  const totalPaginas = useMemo(() => Math.max(1, Math.ceil(totalRutinas / rutinasPorPagina)), [totalRutinas, rutinasPorPagina]);
+  const paginaSegura = useMemo(() => Math.min(paginaActual, totalPaginas - 1), [paginaActual, totalPaginas]);
+  const opcionesFiltro = useMemo(() => OPCIONES_TIPO.filter((o) => !o.esPersonalizado), []);
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white p-6">
-        Cargando rutinas...
+      <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
+        <div className="max-w-6xl mx-auto animate-pulse">
+          <div className="h-5 w-20 rounded bg-zinc-800 mb-6" />
+          <div className="h-9 w-36 rounded bg-zinc-800 mb-6" />
+          <div className="h-14 rounded-2xl bg-zinc-900 border border-zinc-800 mb-5" />
+          <div className="grid gap-4">
+            <div className="h-40 rounded-2xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-40 rounded-2xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-40 rounded-2xl bg-zinc-900 border border-zinc-800" />
+          </div>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6">
+    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <header className="flex items-start justify-between mb-6">
           <div>
             <BackButton fallback="/" />
             <h1 className="text-3xl font-bold mt-4">Rutinas</h1>
-            <p className="text-zinc-400">
-              Creá rutinas y asignalas a tus alumnos.
+            <p className="text-zinc-400 mt-1">
+              {totalRutinas > 0
+                ? `${totalRutinas} ${totalRutinas === 1 ? "rutina" : "rutinas"}`
+                : "Creá rutinas y asignalas a tus alumnos."
+              }
               {actualizandoRutinas && (
                 <span className="ml-2 text-xs text-zinc-500">Actualizando...</span>
               )}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={actualizarRutinasManual}
-              disabled={loading || actualizandoRutinas}
-              className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actualizandoRutinas ? "Actualizando..." : "Actualizar"}
-            </button>
+          <div className="flex items-center gap-2 mt-4">
+            <div className="hidden md:flex gap-2">
+              <button
+                type="button"
+                onClick={actualizarRutinasManual}
+                disabled={loading || actualizandoRutinas}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-5 py-3 text-sm font-semibold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {actualizandoRutinas ? "Actualizando..." : "Actualizar"}
+              </button>
 
+              <button
+                type="button"
+                onClick={() => setMostrarModal(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition"
+              >
+                + Agregar rutina
+              </button>
+            </div>
+
+            {/* Mobile: solo botón + */}
             <button
               type="button"
               onClick={() => setMostrarModal(true)}
-              className="rounded-full w-12 h-12 bg-emerald-500 flex items-center justify-center text-2xl font-bold hover:bg-emerald-600"
+              className="md:hidden rounded-full w-12 h-12 bg-emerald-500 flex items-center justify-center text-2xl font-bold hover:bg-emerald-600"
             >
               +
             </button>
           </div>
+        </header>
+
+        {/* Mobile: ⚙️ filtros + 🔍 buscador siempre visible */}
+        <div className="md:hidden flex items-center gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => setFiltrosAbierto(true)}
+            className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700 transition shrink-0"
+          >
+            ⚙️
+          </button>
+          <div className="flex-1 relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm">🔍</span>
+            <input
+              type="text"
+              placeholder="Buscar rutina..."
+              value={busqueda}
+              onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(0); }}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-2 pl-10 pr-3 outline-none focus:border-emerald-500 text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Desktop: ⚙️ filtros + buscador */}
+        <div className="hidden md:flex items-center gap-3 mb-5">
+          <button
+            type="button"
+            onClick={() => setFiltrosAbierto(true)}
+            className="rounded-xl border border-zinc-700 bg-zinc-800 w-12 h-12 flex items-center justify-center text-sm hover:bg-zinc-700 transition shrink-0"
+          >
+            ⚙️
+          </button>
+          <div className="flex-1 relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm">🔍</span>
+            <input
+              type="text"
+              placeholder="Buscar por nombre..."
+              value={busqueda}
+              onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(0); }}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-emerald-500"
+            />
+          </div>
         </div>
 
         {rutinas.length === 0 ? (
-          <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-            <h2 className="text-xl font-semibold">No hay rutinas todavía</h2>
+          <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
+            <h2 className="text-xl font-semibold">No se encontraron rutinas</h2>
             <p className="text-zinc-400 mt-2">
-              Tocá el botón + para crear tu primera rutina.
+              {busqueda || filtroTipo
+                ? "Probá con otros filtros o creá una nueva rutina."
+                : "Tocá el botón + para crear tu primera rutina."
+              }
             </p>
           </section>
         ) : (
-          <div className="grid gap-4">
-            {rutinas.map((rutina) => (
-              <div
-                key={rutina.id}
-                className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:bg-zinc-800"
-              >
-                <a href={`/rutinas/${rutina.id}`} className="block">
-                  <h2 className="text-xl font-semibold">{rutina.nombre}</h2>
-
-                  {rutina.creada_para_alumno_id && (
-                    <span className="mt-2 inline-flex rounded-full bg-yellow-500/10 px-2 py-1 text-xs font-semibold text-yellow-400">
-                      ⚠ Personalizada
-                    </span>
-                  )}
-
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {rutina.objetivo && (
-                      <span className="text-sm rounded-full bg-emerald-500/10 text-emerald-400 px-3 py-1">
-                        {rutina.objetivo}
-                      </span>
-                    )}
-
-                    {rutina.estructura && (
-                      <span className="text-sm rounded-full bg-zinc-800 text-zinc-300 px-3 py-1">
-                        {rutina.estructura}
-                      </span>
-                    )}
+          <>
+            <div className="grid gap-3">
+              {rutinas.map((rutina) => (
+                <div
+                  key={rutina.id}
+                  className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
+                >
+                  {/* Mobile */}
+                  <div className="md:hidden flex items-center justify-between gap-2">
+                    <a href={`/rutinas/${rutina.id}`} className="min-w-0 flex-1">
+                      <h3 className="font-semibold truncate text-sm">{rutina.nombre}</h3>
+                    </a>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setVerRutinaId(rutina.id)}
+                        className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
+                      >
+                        👁️
+                      </button>
+                      <a
+                        href={`/rutinas/${rutina.id}`}
+                        className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
+                      >
+                        ✏️
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => borrarRutina(rutina.id)}
+                        disabled={borrandoId === rutina.id}
+                        className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
 
-                  {rutina.descripcion && (
-                    <p className="text-zinc-400 mt-3">
-                      {rutina.descripcion}
-                    </p>
-                  )}
-                </a>
-
-                <div className="flex gap-2 mt-4">
-                  <a
-                    href={`/rutinas/${rutina.id}`}
-                    className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
-                  >
-                    Editar
-                  </a>
-
-                  <button
-                    type="button"
-                    onClick={() => borrarRutina(rutina.id)}
-                    disabled={borrandoId === rutina.id}
-                    className="rounded-xl border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {borrandoId === rutina.id ? "Borrando..." : "Borrar"}
-                  </button>
+                  {/* Desktop */}
+                  <div className="hidden md:flex items-center gap-4">
+                    <a href={`/rutinas/${rutina.id}`} className="min-w-0 flex-1 hover:opacity-80 transition">
+                      <h3 className="font-semibold truncate">{rutina.nombre}</h3>
+                    </a>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setVerRutinaId(rutina.id)}
+                        className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
+                      >
+                        Ver/Asignar
+                      </button>
+                      <a
+                        href={`/rutinas/${rutina.id}`}
+                        className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
+                      >
+                        Editar
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => borrarRutina(rutina.id)}
+                        disabled={borrandoId === rutina.id}
+                        className="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {borrandoId === rutina.id ? "..." : "Borrar"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              ))}
+            </div>
+
+            {totalPaginas > 1 && (
+              <div className="flex items-center justify-center gap-4 mt-6">
+                <button type="button" onClick={() => setPaginaActual((p) => Math.max(0, p - 1))} disabled={paginaSegura === 0} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed">← Anterior</button>
+                <span className="text-sm text-zinc-400">Página {paginaSegura + 1} de {totalPaginas}</span>
+                <button type="button" onClick={() => setPaginaActual((p) => Math.min(totalPaginas - 1, p + 1))} disabled={paginaSegura >= totalPaginas - 1} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed">Siguiente →</button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
 
-        {mostrarModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h2 className="text-2xl font-bold mb-1">Nueva rutina</h2>
-              <p className="mb-4 text-sm text-zinc-400">
-                Primero creás la base. Después se abre el editor para agregar entrada en calor, ejercicios y asignarla.
-              </p>
+        <CrearRutinaModal
+          open={mostrarModal}
+          onClose={() => setMostrarModal(false)}
+          onCreada={handleRutinaCreada}
+        />
 
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="Nombre de la rutina"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                />
+        {/* Modal Ver/Asignar rutina */}
+        {verRutinaId && profesorId && (
+          <VerRutinaPlantillaModal
+            open={true}
+            onClose={() => setVerRutinaId(null)}
+            rutinaId={verRutinaId}
+            profesorId={profesorId}
+          />
+        )}
 
-                <select
-                  value={objetivo}
-                  onChange={(e) => setObjetivo(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3"
+        {/* Bottom sheet: filtros */}
+        {filtrosAbierto && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70">
+            <div className="w-full max-w-lg rounded-t-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold">🎯 Filtrar y ordenar</h3>
+                <button
+                  type="button"
+                  onClick={() => setFiltrosAbierto(false)}
+                  className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
                 >
-                  <option value="">Seleccionar objetivo</option>
-                  <option value="Fuerza">Fuerza</option>
-                  <option value="Hipertrofia">Hipertrofia</option>
-                  <option value="HIIT">HIIT</option>
-                  <option value="otro">Crear nuevo objetivo</option>
-                </select>
-
-                {objetivo === "otro" && (
-                  <input
-                    type="text"
-                    placeholder="Nuevo objetivo"
-                    value={objetivoPersonalizado}
-                    onChange={(e) => setObjetivoPersonalizado(e.target.value)}
-                    className="w-full bg-zinc-800 rounded-xl p-3"
-                  />
-                )}
-
-                <select
-                  value={estructura}
-                  onChange={(e) => setEstructura(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                >
-                  <option value="">Seleccionar estructura</option>
-                  <option value="Miembros superiores">
-                    Miembros superiores
-                  </option>
-                  <option value="Miembros inferiores">
-                    Miembros inferiores
-                  </option>
-                  <option value="Full body">Full body</option>
-                  <option value="Push">Push</option>
-                  <option value="Pull">Pull</option>
-                  <option value="Piernas">Piernas</option>
-                  <option value="Core">Core</option>
-                  <option value="Cardio / HIIT">Cardio / HIIT</option>
-                  <option value="otro">Crear nueva estructura</option>
-                </select>
-
-                {estructura === "otro" && (
-                  <input
-                    type="text"
-                    placeholder="Nueva estructura"
-                    value={estructuraPersonalizada}
-                    onChange={(e) =>
-                      setEstructuraPersonalizada(e.target.value)
-                    }
-                    className="w-full bg-zinc-800 rounded-xl p-3"
-                  />
-                )}
-
-                <textarea
-                  placeholder="Descripción"
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3 min-h-28"
-                />
+                  ✕
+                </button>
               </div>
 
-              <div className="flex gap-3 mt-5">
-                <button
-                  type="button"
-                  onClick={() => setMostrarModal(false)}
-                  className="flex-1 border border-zinc-700 rounded-xl py-3"
-                >
-                  Cancelar
-                </button>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Tipo</label>
+                  <select
+                    value={filtroTipo}
+                    onChange={(e) => setFiltroTipo(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
+                  >
+                    <option value="">Todos los tipos</option>
+                    {opcionesFiltro.map((opcion) => (
+                      <option key={opcion.label} value={opcion.label}>
+                        {opcion.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={crearRutina}
-                  disabled={creando}
-                  className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {creando ? "Creando..." : "Crear y editar"}
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={limpiarFiltros}
+                    className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800"
+                  >
+                    Limpiar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={aplicarFiltros}
+                    className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600"
+                  >
+                    Aplicar filtros
+                  </button>
+                </div>
               </div>
             </div>
           </div>
