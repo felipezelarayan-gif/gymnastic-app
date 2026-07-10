@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
@@ -37,7 +37,7 @@ function calcularRMEpley(peso: number | null, repeticiones: number | null) {
   return Number((peso * (1 + repeticiones / 30)).toFixed(2));
 }
 
-export default function ModificarEvaluacionPage() {
+function ModificarEvaluacionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const evaluacionId = searchParams.get("evaluacionId") || "";
@@ -520,5 +520,19 @@ export default function ModificarEvaluacionPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function ModificarEvaluacionPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-zinc-950 text-white p-6">
+        <div className="max-w-2xl mx-auto">
+          <p className="text-zinc-400">Cargando evaluación...</p>
+        </div>
+      </main>
+    }>
+      <ModificarEvaluacionContent />
+    </Suspense>
   );
 }
