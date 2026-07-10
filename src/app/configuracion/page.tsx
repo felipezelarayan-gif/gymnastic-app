@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
+import InformacionCard from "@/components/ui/InformacionCard";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { FormatoFecha } from "@/lib/utils/formatearFecha";
 
@@ -39,9 +40,6 @@ const METRICAS_PROFESOR_CACHE_PREFIX = "config_metricas_profesor_v1";
 function getMetricasProfesorCacheKey(profesorId: string) {
   return `${METRICAS_PROFESOR_CACHE_PREFIX}_${profesorId}`;
 }
-
-const APP_VERSION = "2.0.9";
-const LAST_UPDATE = "09/07/2026";
 
 export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true);
@@ -556,13 +554,7 @@ export default function ConfiguracionPage() {
           </p>
         </section>
 
-        <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
-          <h2 className="text-xl font-semibold mb-3">📄 Información</h2>
-          <p className="text-zinc-300">Versión {APP_VERSION}</p>
-          <p className="text-zinc-400 mt-1">
-            Última actualización: {LAST_UPDATE}
-          </p>
-        </section>
+        <InformacionCard />
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
           <h2 className="text-xl font-semibold mb-3">🌎 Idioma</h2>

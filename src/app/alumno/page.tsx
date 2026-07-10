@@ -174,14 +174,13 @@ export default function AlumnoHomePage() {
         .order("fecha_asignacion", { ascending: true }),
       // Métricas compartidas con /progreso (ejercicios + rutinas completadas)
       obtenerMetricasResumen(supabase, alumnoData.id),
-      // Entrenamientos en la última semana
+      // Entrenamientos en los últimos 7 días (mismo origen que rutinas completadas)
       supabase
-        .from("registros_entrenamiento")
-        .select("rutina_id", { count: "exact", head: true })
+        .from("rutina_asignaciones")
+        .select("id", { count: "exact", head: true })
         .eq("alumno_id", alumnoData.id)
-        .eq("completado", true)
-        .not("rutina_id", "is", null)
-        .gte("created_at", hace7Dias.toISOString()),
+        .eq("completada", true)
+        .gte("fecha_completada", hace7Dias.toISOString()),
       // Mejor RM usando la lib existente (busca en rms_historial)
       obtenerRMsActualesAlumno(alumnoData.id),
     ]);
@@ -333,7 +332,7 @@ export default function AlumnoHomePage() {
               {entrenamientosSemana > 0
                 ? `🔥 ${entrenamientosSemana} entrenamiento${
                     entrenamientosSemana === 1 ? "" : "s"
-                  } esta semana`
+                  } los \u00faltimos 7 d\u00edas`
                 : "Listo para entrenar"}
             </p>
           </div>

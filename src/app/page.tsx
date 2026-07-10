@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Profile = {
   nombre: string;
@@ -12,11 +13,11 @@ type Profile = {
 export default function Home() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const { mostrarToast } = useToast();
 
   useEffect(() => {
     async function cargarPerfil() {
       const { data: sessionData } = await supabase.auth.getSession();
-      console.log("SESSION", sessionData);
 
       if (!sessionData.session) {
         setLoading(false);
@@ -32,13 +33,13 @@ export default function Home() {
   .maybeSingle();
 
 if (error) {
-  alert(error.message);
+  mostrarToast(error.message, "error");
   setLoading(false);
   return;
 }
 
 if (!data) {
-  alert("No se encontró tu perfil.");
+  mostrarToast("No se encontró tu perfil.", "error");
   setLoading(false);
   return;
 }
@@ -57,8 +58,28 @@ if (!data) {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white p-8">
-        Cargando...
+      <main className="min-h-screen bg-zinc-950 text-white p-6">
+        <div className="max-w-5xl mx-auto animate-pulse">
+          {/* Header skeleton */}
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-20 h-20 rounded-full bg-zinc-800 shrink-0" />
+            <div className="space-y-3">
+              <div className="h-8 w-48 rounded bg-zinc-800" />
+              <div className="h-4 w-32 rounded bg-zinc-800" />
+            </div>
+          </div>
+
+          {/* Grid de cards skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800 md:col-span-2" />
+          </div>
+        </div>
       </main>
     );
   }
@@ -75,16 +96,6 @@ if (!data) {
             Ir al login
           </a>
         </div>
-      </main>
-    );
-  }
-
-  if (profile.rol === "alumno") {
-    return (
-      <main className="min-h-screen bg-zinc-950 text-white p-8">
-        <h1 className="text-3xl font-bold">Hola, {profile.nombre}</h1>
-
-        <p className="mt-3 text-zinc-400">Estás entrando como alumno.</p>
       </main>
     );
   }

@@ -6,10 +6,9 @@ import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import type { FormatoFecha } from "@/lib/utils/formatearFecha";
+import InformacionCard from "@/components/ui/InformacionCard";
 
 const ADMIN_EMAIL = "entrenamiento-app@hotmail.com";
-const APP_VERSION = "2.0.9";
-const LAST_UPDATE = "09/07/2026";
 
 type Alumno = {
   id: string;
@@ -362,14 +361,7 @@ ${mensaje}
           </div>
         </section>
 
-        <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
-          <h2 className="text-xl font-semibold mb-4">📄 Información</h2>
-
-          <p className="text-zinc-300">Versión {APP_VERSION}</p>
-          <p className="text-zinc-400 mt-1">
-            Última actualización: {LAST_UPDATE}
-          </p>
-        </section>
+        <InformacionCard />
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
           <h2 className="text-xl font-semibold mb-3">📅 Formato de fecha</h2>
