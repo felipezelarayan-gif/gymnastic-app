@@ -73,7 +73,7 @@ export default function EjercicioHistorialModal({
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-white">
+      <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-white">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold">Historial del ejercicio</h2>

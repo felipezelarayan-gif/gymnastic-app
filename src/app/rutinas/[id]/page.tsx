@@ -803,6 +803,15 @@ export default function RutinaDetallePage({
     setEjercicioId(item.ejercicio_id || "");
     setNombreEjercicio(item.nombre_ejercicio || "");
 
+    // Si el ejercicio_id no está en el array cargado, agregarlo para que el selector lo muestre
+    if (item.ejercicio_id && !ejercicios.find((e) => e.id === item.ejercicio_id)) {
+      const ejercicioFaltante: Ejercicio = {
+        id: item.ejercicio_id,
+        nombre: item.nombre_ejercicio,
+      };
+      setEjercicios((prev) => [...prev, ejercicioFaltante]);
+    }
+
     if (item.series && item.series > 5) {
       setSeries("custom");
       setSeriesCustom(String(item.series));
