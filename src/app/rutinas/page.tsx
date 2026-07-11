@@ -17,6 +17,8 @@ type Rutina = {
   estructura?: string | null;
   created_at?: string | null;
   creada_para_alumno_id?: string | null;
+  creada_desde_perfil_alumno?: boolean | null;
+  es_duplicado_limpio?: boolean | null;
   profesor_id?: string | null;
 };
 
@@ -131,7 +133,7 @@ export default function RutinasPage() {
 
     let query = supabase
       .from("rutinas")
-      .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id,profesor_id", { count: "exact" })
+      .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio,profesor_id", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(desde, desde + LIMITE - 1)
       .eq("profesor_id", pid);
@@ -452,7 +454,14 @@ export default function RutinasPage() {
                   {/* Mobile */}
                   <div className="md:hidden flex items-center justify-between gap-2">
                     <a href={`/rutinas/${rutina.id}`} className="min-w-0 flex-1">
-                      <h3 className="font-semibold truncate text-sm">{rutina.nombre}</h3>
+                      <h3 className="font-semibold truncate text-sm">
+                        {rutina.nombre}
+                        {rutina.creada_desde_perfil_alumno && !rutina.es_duplicado_limpio && (
+                          <span className="ml-2 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400 align-middle">
+                            Personalizada
+                          </span>
+                        )}
+                      </h3>
                     </a>
                     <div className="flex gap-2 shrink-0">
                       <button
@@ -482,7 +491,14 @@ export default function RutinasPage() {
                   {/* Desktop */}
                   <div className="hidden md:flex items-center gap-4">
                     <a href={`/rutinas/${rutina.id}`} className="min-w-0 flex-1 hover:opacity-80 transition">
-                      <h3 className="font-semibold truncate">{rutina.nombre}</h3>
+                      <h3 className="font-semibold truncate">
+                        {rutina.nombre}
+                        {rutina.creada_desde_perfil_alumno && !rutina.es_duplicado_limpio && (
+                          <span className="ml-2 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400 align-middle">
+                            Personalizada
+                          </span>
+                        )}
+                      </h3>
                     </a>
                     <div className="flex gap-2 shrink-0">
                       <button
