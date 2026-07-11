@@ -135,12 +135,16 @@ export default function RutinasPage() {
 
     const desde = esRecargaFiltros ? 0 : pag * LIMITE;
 
-    // Traer todas las rutinas del profesor (sin filtro de personalizadas en SQL)
     let query = supabase
       .from("rutinas")
       .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio,profesor_id", { count: "exact" })
       .order("created_at", { ascending: false })
       .eq("profesor_id", pid);
+
+    // Filtrar en SQL: ocultar personalizadas si no está activado el checkbox
+    if (!mp) {
+      query = query.not('creada_desde_perfil_alumno', 'eq', true);
+    }
 
     // Aplicar filtros
     if (bq.trim()) {
@@ -159,7 +163,7 @@ export default function RutinasPage() {
       }
     }
 
-    // Aplicar paginación DESPUÉS de los filtros
+    // Aplicar paginación DESPUÉS de todos los filtros
     query = query.range(desde, desde + LIMITE - 1);
 
     const { data, error, count } = await query;
@@ -171,26 +175,10 @@ export default function RutinasPage() {
       return;
     }
 
-    let rutinasData = (data || []) as Rutina[];
+    const rutinasData = (data || []) as Rutina[];
 
-    // Filtrar en frontend: ocultar personalizadas si no está activado el checkbox
-    if (!mp) {
-      rutinasData = rutinasData.filter((r) => r.creada_desde_perfil_alumno !== true);
-    }
-
-    // Actualizar el total de rutinas
     if (count !== null) {
-      if (mp) {
-        setTotalRutinas(count);
-      } else {
-        const { count: totalGenericas } = await supabase
-          .from("rutinas")
-          .select("id", { count: "exact", head: true })
-          .eq("profesor_id", pid)
-          .or('creada_desde_perfil_alumno.is.null,creada_desde_perfil_alumno.eq.false');
-        
-        setTotalRutinas(totalGenericas ?? rutinasData.length);
-      }
+      setTotalRutinas(count);
     }
 
     setRutinas(rutinasData);
