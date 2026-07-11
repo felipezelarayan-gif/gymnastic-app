@@ -42,6 +42,7 @@ export default function RutinasPage() {
   // Paginación y filtros
   const [busqueda, setBusqueda] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
+  const [mostrarPersonalizadas, setMostrarPersonalizadas] = useState(false);
   const [paginaActual, setPaginaActual] = useState(0);
   const [totalRutinas, setTotalRutinas] = useState(0);
   const [filtrosAbierto, setFiltrosAbierto] = useState(false);
@@ -49,12 +50,14 @@ export default function RutinasPage() {
   // Refs para leer valores actuales sin que sean dependencias de cargarRutinas
   const busquedaRef = useRef(busqueda);
   const filtroTipoRef = useRef(filtroTipo);
+  const mostrarPersonalizadasRef = useRef(mostrarPersonalizadas);
   const paginaActualRef = useRef(paginaActual);
   const profesorIdRef = useRef<string | null>(null);
 
   // Sincronizar refs con estado
   busquedaRef.current = busqueda;
   filtroTipoRef.current = filtroTipo;
+  mostrarPersonalizadasRef.current = mostrarPersonalizadas;
   paginaActualRef.current = paginaActual;
 
   // Timer para debounce de búsqueda
@@ -120,6 +123,7 @@ export default function RutinasPage() {
     const pag = pagina ?? paginaActualRef.current;
     const bq = busq ?? busquedaRef.current;
     const ft = filtro ?? filtroTipoRef.current;
+    const mp = mostrarPersonalizadasRef.current;
 
     if (!pid) return;
 
@@ -131,11 +135,11 @@ export default function RutinasPage() {
 
     const desde = esRecargaFiltros ? 0 : pag * LIMITE;
 
+    // Traer todas las rutinas del profesor (sin filtro de personalizadas en SQL)
     let query = supabase
       .from("rutinas")
       .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio,profesor_id", { count: "exact" })
       .order("created_at", { ascending: false })
-      .range(desde, desde + LIMITE - 1)
       .eq("profesor_id", pid);
 
     // Aplicar filtros
@@ -155,6 +159,9 @@ export default function RutinasPage() {
       }
     }
 
+    // Aplicar paginación DESPUÉS de los filtros
+    query = query.range(desde, desde + LIMITE - 1);
+
     const { data, error, count } = await query;
 
     if (error) {
@@ -164,16 +171,36 @@ export default function RutinasPage() {
       return;
     }
 
-    const rutinasData = (data || []) as Rutina[];
+    let rutinasData = (data || []) as Rutina[];
 
+    // Filtrar en frontend: ocultar personalizadas si no está activado el checkbox
+    if (!mp) {
+      rutinasData = rutinasData.filter(
+        (r) => !(r.creada_desde_perfil_alumno === true && r.es_duplicado_limpio === false)
+      );
+    }
+
+    // Actualizar el total de rutinas
     if (count !== null) {
-      setTotalRutinas(count);
+      if (mp) {
+        setTotalRutinas(count);
+      } else {
+        // Cuando ocultamos personalizadas, el count de Supabase incluye todo.
+        // Hacemos una consulta separada para contar solo las genéricas.
+        const { count: totalGenericas } = await supabase
+          .from("rutinas")
+          .select("id", { count: "exact", head: true })
+          .eq("profesor_id", pid)
+          .or('creada_desde_perfil_alumno.is.null,creada_desde_perfil_alumno.eq.false');
+        
+        setTotalRutinas(totalGenericas ?? rutinasData.length);
+      }
     }
 
     setRutinas(rutinasData);
 
     // Guardar en caché solo en carga inicial sin filtros
-    if (!esRecargaFiltros && pag === 0 && !bq && !ft) {
+    if (!esRecargaFiltros && pag === 0 && !bq && !ft && !mp) {
       guardarRutinasEnCache(pid, rutinasData);
     }
 
@@ -584,6 +611,20 @@ export default function RutinasPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={mostrarPersonalizadas}
+                      onChange={(e) => setMostrarPersonalizadas(e.target.checked)}
+                      className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-black"
+                    />
+                    <span className="text-sm text-zinc-300">
+                      Mostrar personalizadas
+                    </span>
+                  </label>
                 </div>
 
                 <div className="flex gap-3">

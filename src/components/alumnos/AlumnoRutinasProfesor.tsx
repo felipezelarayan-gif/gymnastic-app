@@ -721,10 +721,12 @@ export default function AlumnoRutinasProfesor({
     );
   }
 
-  const rutinasDisponibles = disponibles.map((rutina) => ({
-    id: rutina.id,
-    nombre: rutina.nombre || "Rutina sin nombre",
-  }));
+  const rutinasDisponibles = disponibles
+    .filter((rutina) => !(rutina.creada_desde_perfil_alumno && !rutina.es_duplicado_limpio))
+    .map((rutina) => ({
+      id: rutina.id,
+      nombre: rutina.nombre || "Rutina sin nombre",
+    }));
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
