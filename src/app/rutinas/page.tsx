@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import { borrarRutina as borrarRutinaLib } from "@/lib/rutinas/borrarRutina";
@@ -215,6 +215,13 @@ export default function RutinasPage() {
     window.location.href = `/rutinas/${rutinaId}`;
   }, []);
 
+  // Auto-cargar cuando cambian los filtros o la página
+  useEffect(() => {
+    if (profesorId) {
+      cargarRutinas(profesorId, true, true);
+    }
+  }, [cargarRutinas, profesorId]);
+
   const borrarRutina = useCallback(async (rutinaId: string) => {
     if (borrandoId) return;
     try {
@@ -256,9 +263,9 @@ export default function RutinasPage() {
     }
   }, [borrandoId, cargarRutinas]);
 
-  const totalPaginas = useMemo(() => Math.max(1, Math.ceil(totalRutinas / rutinasPorPagina)), [totalRutinas, rutinasPorPagina]);
-  const paginaSegura = useMemo(() => Math.min(paginaActual, totalPaginas - 1), [paginaActual, totalPaginas]);
-  const opcionesFiltro = useMemo(() => OPCIONES_TIPO.filter((o) => !o.esPersonalizado), []);
+  const totalPaginas = Math.max(1, Math.ceil(totalRutinas / rutinasPorPagina));
+  const paginaSegura = Math.min(paginaActual, totalPaginas - 1);
+  const opcionesFiltro = OPCIONES_TIPO.filter((o) => !o.esPersonalizado);
 
   if (loading) {
     return (
