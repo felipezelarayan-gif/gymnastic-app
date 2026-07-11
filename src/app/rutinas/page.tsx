@@ -7,6 +7,7 @@ import { borrarRutina as borrarRutinaLib } from "@/lib/rutinas/borrarRutina";
 import BackButton from "@/components/BackButton";
 import VerRutinaPlantillaModal from "@/components/rutinas/VerRutinaPlantillaModal";
 import CrearRutinaModal from "@/components/rutinas/CrearRutinaModal";
+import { useToast } from "@/components/ui/ToastProvider";
 import { OPCIONES_TIPO } from "@/lib/rutinas/opciones-tipo";
 
 type Rutina = {
@@ -169,7 +170,7 @@ export default function RutinasPage() {
     const { data, error, count } = await query;
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       setActualizandoRutinas(false);
       setLoading(false);
       return;
@@ -215,6 +216,7 @@ export default function RutinasPage() {
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
   const [verRutinaId, setVerRutinaId] = useState<string | null>(null);
   const [profesorId, setProfesorId] = useState<string | null>(null);
+  const { mostrarToast } = useToast();
 
   useEffect(() => {
     verificarPermiso();
@@ -317,7 +319,7 @@ export default function RutinasPage() {
       });
       if (!result.ok) {
         if (result.error !== "Operación cancelada por el usuario.") {
-          alert(result.error);
+          mostrarToast(result.error || "Error al borrar la rutina.", "error");
         }
         return;
       }
@@ -326,7 +328,7 @@ export default function RutinasPage() {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(err);
-      alert("Error al borrar la rutina.");
+      mostrarToast("Error al borrar la rutina.", "error");
     } finally {
       setBorrandoId(null);
     }
