@@ -175,9 +175,7 @@ export default function RutinasPage() {
 
     // Filtrar en frontend: ocultar personalizadas si no está activado el checkbox
     if (!mp) {
-      rutinasData = rutinasData.filter(
-        (r) => !(r.creada_desde_perfil_alumno === true && r.es_duplicado_limpio === false)
-      );
+      rutinasData = rutinasData.filter((r) => r.creada_desde_perfil_alumno !== true);
     }
 
     // Actualizar el total de rutinas
@@ -185,8 +183,6 @@ export default function RutinasPage() {
       if (mp) {
         setTotalRutinas(count);
       } else {
-        // Cuando ocultamos personalizadas, el count de Supabase incluye todo.
-        // Hacemos una consulta separada para contar solo las genéricas.
         const { count: totalGenericas } = await supabase
           .from("rutinas")
           .select("id", { count: "exact", head: true })
@@ -483,7 +479,7 @@ export default function RutinasPage() {
                     <a href={`/rutinas/${rutina.id}`} className="min-w-0 flex-1">
                       <h3 className="font-semibold truncate text-sm">
                         {rutina.nombre}
-                        {rutina.creada_desde_perfil_alumno && !rutina.es_duplicado_limpio && (
+                        {rutina.creada_desde_perfil_alumno && (
                           <span className="ml-2 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400 align-middle">
                             Personalizada
                           </span>
@@ -520,7 +516,7 @@ export default function RutinasPage() {
                     <a href={`/rutinas/${rutina.id}`} className="min-w-0 flex-1 hover:opacity-80 transition">
                       <h3 className="font-semibold truncate">
                         {rutina.nombre}
-                        {rutina.creada_desde_perfil_alumno && !rutina.es_duplicado_limpio && (
+                        {rutina.creada_desde_perfil_alumno && (
                           <span className="ml-2 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400 align-middle">
                             Personalizada
                           </span>

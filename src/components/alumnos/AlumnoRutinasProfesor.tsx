@@ -722,7 +722,7 @@ export default function AlumnoRutinasProfesor({
   }
 
   const rutinasDisponibles = disponibles
-    .filter((rutina) => !(rutina.creada_desde_perfil_alumno && !rutina.es_duplicado_limpio))
+    .filter((rutina) => rutina.creada_desde_perfil_alumno !== true)
     .map((rutina) => ({
       id: rutina.id,
       nombre: rutina.nombre || "Rutina sin nombre",
@@ -888,8 +888,7 @@ export default function AlumnoRutinasProfesor({
                           {rutina?.nombre || "Rutina sin nombre"}
                         </h3>
 
-                        {rutina?.creada_desde_perfil_alumno &&
-                          !rutina?.es_duplicado_limpio && (
+                        {rutina?.creada_desde_perfil_alumno && (
                             <p className="mt-2 rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400">
                               Esta rutina fue creada originalmente para este
                               alumno.
