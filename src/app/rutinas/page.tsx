@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import { borrarRutina as borrarRutinaLib } from "@/lib/rutinas/borrarRutina";
@@ -26,6 +26,7 @@ type RutinasPageCache = {
 };
 
 const RUTINAS_CACHE_PREFIX = "rutinas_page_cache_v1";
+const LIMITE = 10;
 
 function getRutinasCacheKey(userId: string) {
   return `${RUTINAS_CACHE_PREFIX}_${userId}`;
@@ -40,9 +41,22 @@ export default function RutinasPage() {
   const [busqueda, setBusqueda] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
   const [paginaActual, setPaginaActual] = useState(0);
-  const [rutinasPorPagina] = useState(10);
   const [totalRutinas, setTotalRutinas] = useState(0);
   const [filtrosAbierto, setFiltrosAbierto] = useState(false);
+
+  // Refs para leer valores actuales sin que sean dependencias de cargarRutinas
+  const busquedaRef = useRef(busqueda);
+  const filtroTipoRef = useRef(filtroTipo);
+  const paginaActualRef = useRef(paginaActual);
+  const profesorIdRef = useRef<string | null>(null);
+
+  // Sincronizar refs con estado
+  busquedaRef.current = busqueda;
+  filtroTipoRef.current = filtroTipo;
+  paginaActualRef.current = paginaActual;
+
+  // Timer para debounce de búsqueda
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function cargarRutinasDesdeCache(userId: string) {
     try {
@@ -62,6 +76,9 @@ export default function RutinasPage() {
   }
 
   function guardarRutinasEnCache(userId: string, rutinasParaGuardar: Rutina[]) {
+    // Solo guardar en caché cuando no hay filtros activos
+    if (busquedaRef.current || filtroTipoRef.current) return;
+
     try {
       const cache: RutinasPageCache = {
         rutinas: rutinasParaGuardar,
@@ -74,89 +91,58 @@ export default function RutinasPage() {
     }
   }
 
-  async function actualizarRutinasManual() {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
+  /**
+   * Función central para cargar rutinas desde Supabase.
+   * Lee los valores actuales de los refs, no del estado, para evitar dependencias.
+   */
+  const cargarRutinas = useCallback(async (
+    opciones: {
+      profesorId?: string;
+      pagina?: number;
+      busqueda?: string;
+      filtroTipo?: string;
+      mostrarLoading?: boolean;
+      esRecargaFiltros?: boolean;
+    } = {}
+  ) => {
+    const {
+      profesorId: pId,
+      pagina,
+      busqueda: busq,
+      filtroTipo: filtro,
+      mostrarLoading = true,
+      esRecargaFiltros = false,
+    } = opciones;
 
-    if (!userId) {
-      window.location.href = "/login";
-      return;
-    }
+    const pid = pId ?? profesorIdRef.current;
+    const pag = pagina ?? paginaActualRef.current;
+    const bq = busq ?? busquedaRef.current;
+    const ft = filtro ?? filtroTipoRef.current;
 
-    try {
-      localStorage.removeItem(getRutinasCacheKey(userId));
-    } catch {
-      // Si localStorage falla, igual intentamos recargar desde la base.
-    }
+    if (!pid) return;
 
-    await cargarRutinas(userId, true, true);
-    setPaginaActual(0);
-  }
-
-  const [mostrarModal, setMostrarModal] = useState(false);
-  const [borrandoId, setBorrandoId] = useState<string | null>(null);
-  const [verRutinaId, setVerRutinaId] = useState<string | null>(null);
-  const [profesorId, setProfesorId] = useState<string | null>(null);
-
-  useEffect(() => {
-    verificarPermiso();
-  }, []);
-
-  async function verificarPermiso() {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const profesorId = sessionData.session?.user.id;
-
-    if (!profesorId) {
-      window.location.href = "/login";
-      return;
-    }
-
-    if (!sessionData.session) {
-      window.location.href = "/login";
-      return;
-    }
-
-    const rol = await getRolCached(sessionData.session.user.id);
-
-    if (rol !== "profe") {
-      window.location.href = "/alumno";
-      return;
-    }
-
-    setProfesorId(sessionData.session.user.id);
-    const tieneCache = cargarRutinasDesdeCache(sessionData.session.user.id);
-    await cargarRutinas(sessionData.session.user.id, !tieneCache, true);
-  }
-
-  const cargarRutinas = useCallback(async (profesorId?: string, mostrarLoading = true, esRecargaFiltros = false) => {
     if (mostrarLoading) {
       setLoading(true);
-    }
-
-    if (!mostrarLoading) {
+    } else {
       setActualizandoRutinas(true);
     }
 
-    const LIMITE = rutinasPorPagina;
-    const desde = esRecargaFiltros ? 0 : paginaActual * LIMITE;
+    const desde = esRecargaFiltros ? 0 : pag * LIMITE;
 
     let query = supabase
       .from("rutinas")
       .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id,profesor_id", { count: "exact" })
       .order("created_at", { ascending: false })
-      .range(desde, desde + LIMITE - 1);
-
-    if (profesorId) {
-      query = query.eq("profesor_id", profesorId);
-    }
+      .range(desde, desde + LIMITE - 1)
+      .eq("profesor_id", pid);
 
     // Aplicar filtros
-    if (busqueda.trim()) {
-      query = query.ilike("nombre", `%${busqueda.trim()}%`);
+    if (bq.trim()) {
+      query = query.ilike("nombre", `%${bq.trim()}%`);
     }
 
-    if (filtroTipo) {
-      const opcion = OPCIONES_TIPO.find((o) => o.label === filtroTipo);
+    if (ft) {
+      const opcion = OPCIONES_TIPO.find((o) => o.label === ft);
       if (opcion) {
         if (opcion.objetivo) {
           query = query.eq("objetivo", opcion.objetivo);
@@ -182,24 +168,91 @@ export default function RutinasPage() {
       setTotalRutinas(count);
     }
 
-    if (esRecargaFiltros || desde === 0) {
-      setRutinas(rutinasData);
-    } else {
-      setRutinas(prev => [...prev, ...rutinasData]);
-    }
+    setRutinas(rutinasData);
 
-    if (profesorId) {
-      guardarRutinasEnCache(profesorId, rutinasData);
+    // Guardar en caché solo en carga inicial sin filtros
+    if (!esRecargaFiltros && pag === 0 && !bq && !ft) {
+      guardarRutinasEnCache(pid, rutinasData);
     }
 
     setActualizandoRutinas(false);
     setLoading(false);
-  }, [rutinasPorPagina, paginaActual, busqueda, filtroTipo]);
+  }, []); // Sin dependencias: lee todo de refs
 
+  async function actualizarRutinasManual() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+
+    if (!userId) {
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      localStorage.removeItem(getRutinasCacheKey(userId));
+    } catch {
+      // Si localStorage falla, igual intentamos recargar desde la base.
+    }
+
+    setPaginaActual(0);
+    await cargarRutinas({ profesorId: userId, esRecargaFiltros: true });
+  }
+
+  const [mostrarModal, setMostrarModal] = useState(false);
+  const [borrandoId, setBorrandoId] = useState<string | null>(null);
+  const [verRutinaId, setVerRutinaId] = useState<string | null>(null);
+  const [profesorId, setProfesorId] = useState<string | null>(null);
+
+  useEffect(() => {
+    verificarPermiso();
+  }, []);
+
+  async function verificarPermiso() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const pid = sessionData.session?.user.id;
+
+    if (!pid) {
+      window.location.href = "/login";
+      return;
+    }
+
+    if (!sessionData.session) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const rol = await getRolCached(sessionData.session.user.id);
+
+    if (rol !== "profe") {
+      window.location.href = "/alumno";
+      return;
+    }
+
+    setProfesorId(pid);
+    profesorIdRef.current = pid;
+    const tieneCache = cargarRutinasDesdeCache(pid);
+    await cargarRutinas({ profesorId: pid, mostrarLoading: !tieneCache, esRecargaFiltros: true });
+  }
+
+  // Manejar cambio de búsqueda con debounce
+  const handleBusquedaChange = useCallback((value: string) => {
+    setBusqueda(value);
+    setPaginaActual(0);
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      cargarRutinas({ esRecargaFiltros: true });
+    }, 300);
+  }, [cargarRutinas]);
+
+  // Manejar cambio de filtro desde el bottom sheet
   const aplicarFiltros = useCallback(() => {
     setFiltrosAbierto(false);
     setPaginaActual(0);
-    cargarRutinas(undefined, true, true);
+    cargarRutinas({ esRecargaFiltros: true });
   }, [cargarRutinas]);
 
   const limpiarFiltros = useCallback(() => {
@@ -207,7 +260,7 @@ export default function RutinasPage() {
     setFiltroTipo("");
     setFiltrosAbierto(false);
     setPaginaActual(0);
-    cargarRutinas(undefined, true, true);
+    cargarRutinas({ esRecargaFiltros: true });
   }, [cargarRutinas]);
 
   const handleRutinaCreada = useCallback((rutinaId: string) => {
@@ -215,12 +268,15 @@ export default function RutinasPage() {
     window.location.href = `/rutinas/${rutinaId}`;
   }, []);
 
-  // Auto-cargar cuando cambian los filtros o la página
+  // Disparar carga cuando cambia la página (solo después del montaje inicial)
+  const primeraVezRef = useRef(true);
   useEffect(() => {
-    if (profesorId) {
-      cargarRutinas(profesorId, true, true);
+    if (primeraVezRef.current) {
+      primeraVezRef.current = false;
+      return;
     }
-  }, [cargarRutinas, profesorId]);
+    cargarRutinas({ esRecargaFiltros: false });
+  }, [paginaActual]);
 
   const borrarRutina = useCallback(async (rutinaId: string) => {
     if (borrandoId) return;
@@ -252,7 +308,7 @@ export default function RutinasPage() {
         }
         return;
       }
-      await cargarRutinas(sessionData.session?.user.id, true, true);
+      await cargarRutinas({ profesorId: sessionData.session?.user.id, esRecargaFiltros: true });
       setPaginaActual(0);
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -263,7 +319,7 @@ export default function RutinasPage() {
     }
   }, [borrandoId, cargarRutinas]);
 
-  const totalPaginas = Math.max(1, Math.ceil(totalRutinas / rutinasPorPagina));
+  const totalPaginas = Math.max(1, Math.ceil(totalRutinas / LIMITE));
   const paginaSegura = Math.min(paginaActual, totalPaginas - 1);
   const opcionesFiltro = OPCIONES_TIPO.filter((o) => !o.esPersonalizado);
 
@@ -348,7 +404,7 @@ export default function RutinasPage() {
               type="text"
               placeholder="Buscar rutina..."
               value={busqueda}
-              onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(0); }}
+              onChange={(e) => handleBusquedaChange(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-2 pl-10 pr-3 outline-none focus:border-emerald-500 text-sm"
             />
           </div>
@@ -369,7 +425,7 @@ export default function RutinasPage() {
               type="text"
               placeholder="Buscar por nombre..."
               value={busqueda}
-              onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(0); }}
+              onChange={(e) => handleBusquedaChange(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-emerald-500"
             />
           </div>

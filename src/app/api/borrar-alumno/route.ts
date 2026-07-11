@@ -197,6 +197,21 @@ export async function POST(request: Request) {
       );
     }
 
+    // ── 13.5. Desvincular rutinas creadas para el alumno ──
+    // Las rutinas pertenecen al profesor, pero pueden tener creada_para_alumno_id
+    // apuntando a este alumno. Lo seteamos en NULL para no romper la FK.
+    const { error: rutinasCreadasError } = await supabaseAdmin
+      .from("rutinas")
+      .update({ creada_para_alumno_id: null })
+      .eq("creada_para_alumno_id", alumnoId);
+
+    if (rutinasCreadasError) {
+      return NextResponse.json(
+        { error: `Error al desvincular rutinas del alumno: ${rutinasCreadasError.message}` },
+        { status: 500 }
+      );
+    }
+
     // ── 14. Borrar alumno de la tabla alumnos ──
     const { error: deleteAlumnoError } = await supabaseAdmin
       .from("alumnos")
