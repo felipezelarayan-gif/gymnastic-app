@@ -1,44 +1,49 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { mostrarToast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [cargando, setCargando] = useState(false);
 
   async function login() {
+    if (cargando) return;
+    setCargando(true);
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
+      setCargando(false);
       return;
     }
 
-    window.location.href = "/";
+    router.push("/");
   }
 
   async function recuperarPassword() {
     if (!email) {
-      alert("Primero escribí tu correo electrónico.");
+      mostrarToast("Primero escribí tu correo electrónico.", "error");
       return;
     }
 
-    const siteUrl = window.location.origin;
-
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl}/reset-password`,
-    });
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
-    alert("Te enviamos un correo para recuperar tu contraseña.");
+    mostrarToast("Te enviamos un correo para recuperar tu contraseña. Revisá tu bandeja de entrada.", "exito");
   }
 
   return (
@@ -67,9 +72,10 @@ export default function LoginPage() {
 
         <button
           onClick={login}
-          className="w-full rounded bg-white text-black p-3 font-semibold mb-4"
+          disabled={cargando}
+          className="w-full rounded bg-white text-black p-3 font-semibold mb-4 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Ingresar
+          {cargando ? "Ingresando..." : "Ingresar"}
         </button>
 
         <button

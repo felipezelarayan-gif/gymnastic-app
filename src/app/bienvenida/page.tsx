@@ -1,59 +1,82 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export default function BienvenidaPage() {
+  const router = useRouter();
+  const { mostrarToast } = useToast();
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
-    verificarInvitacion();
+    // createBrowserClient de @supabase/ssr consume automáticamente
+    // el PKCE code de la URL al inicializarse.
+    // Escuchamos SIGNED_IN o verificamos si ya hay sesión.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        verificarInvitacion(session.user.id);
+      }
+    });
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        verificarInvitacion(data.session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  async function verificarInvitacion() {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
-
+  async function verificarInvitacion(userId: string) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("invitacion_pendiente")
-      .eq("id", userData.user.id)
+      .eq("id", userId)
       .single();
 
     if (profile?.invitacion_pendiente === false) {
-      window.location.href = "/login";
-    }
-  }
-
-  async function crearPassword() {
-    if (password.length < 8) {
-      alert("La contraseña debe tener al menos 8 caracteres.");
+      router.push("/login");
       return;
     }
 
-    setLoading(true);
+    setLoading(false);
+  }
+
+  async function crearPassword() {
+    if (guardando) return;
+
+    if (password.length < 8) {
+      mostrarToast("La contraseña debe tener al menos 8 caracteres.", "error");
+      return;
+    }
+
+    setGuardando(true);
 
     const { error } = await supabase.auth.updateUser({
       password,
     });
 
-    setLoading(false);
-
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
+      setGuardando(false);
       return;
     }
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
 
     if (userError || !userData.user) {
-      alert(userError?.message || "No se pudo obtener el usuario actual.");
+      mostrarToast(userError?.message || "No se pudo obtener el usuario actual.", "error");
+      setGuardando(false);
       return;
     }
 
@@ -63,11 +86,12 @@ export default function BienvenidaPage() {
       .eq("id", userData.user.id);
 
     if (profileError) {
-      alert(profileError.message);
+      mostrarToast(profileError.message, "error");
+      setGuardando(false);
       return;
     }
 
-    window.location.href = "/alumno/perfil";
+    router.push("/alumno/perfil");
   }
 
   return (
@@ -91,10 +115,10 @@ export default function BienvenidaPage() {
 
         <button
           onClick={crearPassword}
-          disabled={loading}
+          disabled={loading || guardando}
           className="w-full rounded-xl bg-emerald-500 py-3 font-semibold text-black hover:bg-emerald-600 disabled:opacity-50"
         >
-          {loading ? "Guardando..." : "Crear contraseña"}
+          {loading ? "Verificando invitación..." : guardando ? "Guardando..." : "Crear contraseña"}
         </button>
       </div>
     </main>

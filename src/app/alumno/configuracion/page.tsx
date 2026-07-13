@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import type { FormatoFecha } from "@/lib/utils/formatearFecha";
 import InformacionCard from "@/components/ui/InformacionCard";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const ADMIN_EMAIL = "entrenamiento-app@hotmail.com";
 
@@ -31,6 +33,8 @@ const motivos = [
 ];
 
 export default function AlumnoConfiguracionPage() {
+  const router = useRouter();
+  const { mostrarToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const { formato, cambiarFormato } = useFormatoFecha();
@@ -41,9 +45,6 @@ export default function AlumnoConfiguracionPage() {
   const [passwordConfirmar, setPasswordConfirmar] = useState("");
   const [guardandoPassword, setGuardandoPassword] = useState(false);
 
-  const [mostrarEmail, setMostrarEmail] = useState(false);
-  const [nuevoEmail, setNuevoEmail] = useState("");
-
   const [motivo, setMotivo] = useState("");
   const [mensaje, setMensaje] = useState("");
 
@@ -51,7 +52,7 @@ export default function AlumnoConfiguracionPage() {
     const { data: sessionData } = await supabase.auth.getSession();
 
     if (!sessionData.session) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -60,7 +61,7 @@ export default function AlumnoConfiguracionPage() {
     const rol = await getRolCached(user.id);
 
     if (rol !== "alumno") {
-      window.location.href = "/";
+      router.push("/");
       return;
     }
 
@@ -71,13 +72,12 @@ export default function AlumnoConfiguracionPage() {
       .maybeSingle();
 
     if (error || !data) {
-      alert(error?.message || "No se pudo cargar la configuración.");
+      mostrarToast(error?.message || "No se pudo cargar la configuración.", "error");
       setLoading(false);
       return;
     }
 
     setAlumno(data);
-    setNuevoEmail(data.email || user.email || "");
     setLoading(false);
   }
 
@@ -99,22 +99,22 @@ export default function AlumnoConfiguracionPage() {
     if (guardandoPassword) return;
 
     if (!passwordActual || !passwordNueva || !passwordConfirmar) {
-      alert("Completá todos los campos.");
+      mostrarToast("Completá todos los campos.", "error");
       return;
     }
 
     if (passwordNueva !== passwordConfirmar) {
-      alert("La nueva contraseña no coincide.");
+      mostrarToast("La nueva contraseña no coincide.", "error");
       return;
     }
 
     if (passwordNueva.length < 8) {
-      alert("La nueva contraseña debe tener al menos 8 caracteres.");
+      mostrarToast("La nueva contraseña debe tener al menos 8 caracteres.", "error");
       return;
     }
 
     if (passwordActual === passwordNueva) {
-      alert("La nueva contraseña debe ser diferente a la actual.");
+      mostrarToast("La nueva contraseña debe ser diferente a la actual.", "error");
       return;
     }
 
@@ -127,8 +127,8 @@ export default function AlumnoConfiguracionPage() {
       } = await supabase.auth.getUser();
 
       if (userError || !user?.email) {
-        alert("No se pudo validar la sesión. Volvé a iniciar sesión.");
-        window.location.href = "/login";
+        mostrarToast("No se pudo validar la sesión. Volvé a iniciar sesión.", "error");
+        router.push("/login");
         return;
       }
 
@@ -138,7 +138,7 @@ export default function AlumnoConfiguracionPage() {
       });
 
       if (loginError) {
-        alert("La contraseña actual no es correcta.");
+        mostrarToast("La contraseña actual no es correcta.", "error");
         return;
       }
 
@@ -147,11 +147,11 @@ export default function AlumnoConfiguracionPage() {
       });
 
       if (error) {
-        alert(error.message);
+        mostrarToast(error.message, "error");
         return;
       }
 
-      alert("Contraseña actualizada correctamente.");
+      mostrarToast("Contraseña actualizada correctamente.", "exito");
       setPasswordActual("");
       setPasswordNueva("");
       setPasswordConfirmar("");
@@ -161,33 +161,14 @@ export default function AlumnoConfiguracionPage() {
     }
   }
 
-  async function cambiarEmail() {
-    if (!nuevoEmail.trim()) {
-      alert("Ingresá un nuevo email.");
-      return;
-    }
-
-    const { error } = await supabase.auth.updateUser({
-      email: nuevoEmail.trim(),
-    });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    alert("Se envió una confirmación al nuevo correo.");
-    setMostrarEmail(false);
-  }
-
   function enviarSoporte() {
     if (!motivo) {
-      alert("Seleccioná un motivo.");
+      mostrarToast("Seleccioná un motivo.", "error");
       return;
     }
 
     if (!mensaje.trim()) {
-      alert("Escribí tu consulta.");
+      mostrarToast("Escribí tu consulta.", "error");
       return;
     }
 
@@ -225,13 +206,18 @@ ${mensaje}
 
   async function cerrarSesion() {
     await supabase.auth.signOut();
-    window.location.replace("/login");
+    router.replace("/login");
   }
 
   if (loading || !alumno) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white p-6">
-        Cargando configuración...
+      <main className="min-h-screen bg-zinc-950 text-white p-6 animate-pulse">
+        <div className="max-w-4xl mx-auto">
+          <div className="h-5 w-20 rounded bg-zinc-800 mb-6" />
+          <div className="h-9 w-48 rounded bg-zinc-800 mb-6" />
+          <div className="h-32 rounded-2xl bg-zinc-900 border border-zinc-800 mb-4" />
+          <div className="h-32 rounded-2xl bg-zinc-900 border border-zinc-800 mb-4" />
+        </div>
       </main>
     );
   }
@@ -331,33 +317,6 @@ ${mensaje}
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={() => setMostrarEmail(!mostrarEmail)}
-              className="w-full text-left rounded-xl border border-zinc-800 p-4 hover:bg-zinc-800"
-            >
-              Cambiar correo electrónico
-            </button>
-
-            {mostrarEmail && (
-              <div className="space-y-3">
-                <input
-                  type="email"
-                  value={nuevoEmail}
-                  onChange={(e) => setNuevoEmail(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                  placeholder="Nuevo correo electrónico"
-                />
-
-                <button
-                  type="button"
-                  onClick={cambiarEmail}
-                  className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold"
-                >
-                  Solicitar cambio de email
-                </button>
-              </div>
-            )}
           </div>
         </section>
 

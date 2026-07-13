@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import {
@@ -10,13 +11,10 @@ import {
 } from "@/lib/evaluaciones/obtenerEvaluacionesAlumnoProfe";
 import { eliminarEvaluacionAlumnoProfesor } from "@/lib/evaluaciones/eliminarEvaluacionAlumnoProfesor";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
-
-type Profile = {
-  nombre: string;
-  rol: string;
-  foto_url?: string | null;
-};
+import { useProfileCheck } from "@/lib/useProfileCheck";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Alumno = {
   id: string;
@@ -28,8 +26,9 @@ type Alumno = {
 const EVALUACIONES_POR_PAGINA = 5;
 
 export default function EvaluacionesPorAlumnoPage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const { mostrarToast } = useToast();
+  const { profile, loading } = useProfileCheck({ onError: (msg) => mostrarToast(msg, "error") });
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [buscandoAlumnos, setBuscandoAlumnos] = useState(false);
   const [busquedaAlumno, setBusquedaAlumno] = useState("");
@@ -50,34 +49,12 @@ export default function EvaluacionesPorAlumnoPage() {
   const { formatearFechaCorta } = useFormatoFecha();
 
   useEffect(() => {
-    async function cargarInicial() {
+    async function cargarProfesorId() {
       const { data: sessionData } = await supabase.auth.getSession();
-
-      if (!sessionData.session) {
-        window.location.href = "/login";
-        return;
-      }
-
-      const user = sessionData.session.user;
-      setProfesorId(user.id);
-
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("nombre, rol, foto_url")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profileData?.rol === "alumno") {
-        window.location.href = "/alumno";
-        return;
-      }
-
-      if (profileData) setProfile(profileData);
-
-      setLoading(false);
+      const user = sessionData?.session?.user;
+      if (user) setProfesorId(user.id);
     }
-
-    cargarInicial();
+    cargarProfesorId();
   }, []);
 
   const totalPaginasEvaluaciones = Math.max(
@@ -233,11 +210,7 @@ export default function EvaluacionesPorAlumnoPage() {
   }
 
   if (loading) {
-    return (
-      <main className="min-h-screen bg-zinc-950 text-white p-6">
-        Cargando evaluaciones...
-      </main>
-    );
+    return <SkeletonEvaluaciones />;
   }
 
   return (

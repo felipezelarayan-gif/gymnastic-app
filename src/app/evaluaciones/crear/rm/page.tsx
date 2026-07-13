@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { obtenerRMActualAlumnoEjercicio } from "@/lib/rmActual";
 import BackButton from "@/components/BackButton";
+import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
+import TipoEvaluacionSelector from "@/components/TipoEvaluacionSelector";
 
 type Alumno = { id: string; nombre: string; profesor_id?: string | null };
 type Ejercicio = { id: string; nombre: string };
@@ -26,7 +28,7 @@ export default function CrearEvaluacionRM() {
   const [ejerciciosSeleccionados, setEjerciciosSeleccionados] = useState<
     { ejercicio_id: string; orden: number }[]
   >([]);
-  const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
+  const [fecha, setFecha] = useState("");
   const [momentoEvaluacion, setMomentoEvaluacion] = useState<"ahora" | "profesor" | "alumno">("profesor");
   const [modalEjercicioAbierto, setModalEjercicioAbierto] = useState(false);
   const [ejercicioModalId, setEjercicioModalId] = useState("");
@@ -123,6 +125,11 @@ export default function CrearEvaluacionRM() {
     } finally {
       setDraftCargado(true);
     }
+  }, []);
+
+  // Setear fecha actual después de la hidratación (solo cliente)
+  useEffect(() => {
+    if (!fecha) setFecha(new Date().toISOString().split("T")[0]);
   }, []);
 
   useEffect(() => {
@@ -343,7 +350,7 @@ export default function CrearEvaluacionRM() {
   }
 
   if (loading) {
-    return <main className="min-h-screen bg-zinc-950 text-white p-8">Cargando...</main>;
+    return <SkeletonEvaluaciones />;
   }
 
   if (exito) {
@@ -358,7 +365,7 @@ export default function CrearEvaluacionRM() {
               : "La evaluación RM quedó creada correctamente."}
           </p>
           <div className="flex gap-3 justify-center mt-6">
-            <a href="/evaluaciones/realizar/rm" className="bg-white text-zinc-950 font-semibold px-5 py-2 rounded-lg hover:bg-zinc-200 transition">
+            <a href="/evaluaciones/realizar?tipo=rm" className="bg-white text-zinc-950 font-semibold px-5 py-2 rounded-lg hover:bg-zinc-200 transition">
               Ir a realizar RM
             </a>
             <BackButton fallback="/evaluaciones" />
@@ -389,50 +396,14 @@ export default function CrearEvaluacionRM() {
 
         <div className="space-y-6">
           {/* Tipo de evaluación */}
-          <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">
-              Tipo de evaluación *
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setTipoEvaluacion("individual");
-                  setAlumnoId("");
-                  setAlumnosIds([]);
-                }}
-                className={`text-left px-4 py-4 rounded-xl border transition ${
-                  tipoEvaluacion === "individual"
-                    ? "bg-white text-zinc-950 border-white"
-                    : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-600"
-                }`}
-              >
-                <span className="block text-lg font-bold">Evaluación individual</span>
-                <span className="block text-sm opacity-70 mt-1">
-                  Crear una evaluación para un solo alumno.
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setTipoEvaluacion("grupal");
-                  setAlumnoId("");
-                  setAlumnosIds([]);
-                }}
-                className={`text-left px-4 py-4 rounded-xl border transition ${
-                  tipoEvaluacion === "grupal"
-                    ? "bg-white text-zinc-950 border-white"
-                    : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-600"
-                }`}
-              >
-                <span className="block text-lg font-bold">Evaluación grupal</span>
-                <span className="block text-sm opacity-70 mt-1">
-                  Duplicar la misma evaluación para varios alumnos.
-                </span>
-              </button>
-            </div>
-          </div>
+          <TipoEvaluacionSelector
+            value={tipoEvaluacion}
+            onChange={(tipo) => {
+              setTipoEvaluacion(tipo);
+              setAlumnoId("");
+              setAlumnosIds([]);
+            }}
+          />
 
           {/* Alumno */}
           {!tipoEvaluacion && (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
+import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
 import FMSInfoModal from "@/components/fms/FMSInfoModal";
 import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
 
@@ -342,7 +343,7 @@ export default function RealizarEvaluacionFMSDetalle() {
   }
 
   if (loading) {
-    return <main className="min-h-screen bg-zinc-950 text-white p-8">Cargando evaluacion FMS...</main>;
+    return <SkeletonEvaluaciones />;
   }
 
   if (!evaluacion) {
@@ -360,7 +361,7 @@ export default function RealizarEvaluacionFMSDetalle() {
               {total}/{puntajeMaximo} - {totalLabel(total, puntajeMaximo)}
             </p>
           )}
-          <BackButton fallback="/evaluaciones/realizar/fms" />
+          <BackButton fallback="/evaluaciones/realizar?tipo=fms" />
         </div>
       </main>
     );

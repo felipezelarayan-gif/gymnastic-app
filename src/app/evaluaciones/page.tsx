@@ -1,14 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
-
-type Profile = {
-  nombre: string;
-  rol: string;
-  foto_url?: string | null;
-};
+import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
+import { useProfileCheck } from "@/lib/useProfileCheck";
 
 type EvaluacionCard = {
   href: string;
@@ -36,14 +30,14 @@ const CREAR: EvaluacionCard[] = [
 
 const REALIZAR: EvaluacionCard[] = [
   {
-    href: "/evaluaciones/realizar/rm",
+    href: "/evaluaciones/realizar?tipo=rm",
     emoji: "⚡",
     titulo: "Test RM",
     desc: "Protocolo de aproximación progresiva. Método directo o indirecto al final.",
     badge: "Actualiza RM",
   },
   {
-    href: "/evaluaciones/realizar/fms",
+    href: "/evaluaciones/realizar?tipo=fms",
     emoji: "🎯",
     titulo: "Test FMS",
     desc: "Puntuar los 7 patrones de movimiento y registrar el resultado.",
@@ -60,30 +54,10 @@ const GESTIONAR: EvaluacionCard[] = [
 ];
 
 export default function EvaluacionesPage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function cargarPerfil() {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) { setLoading(false); return; }
-
-      const user = sessionData.session.user;
-      const { data } = await supabase
-        .from("profiles")
-        .select("nombre, rol, foto_url")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (data?.rol === "alumno") { window.location.href = "/alumno"; return; }
-      if (data) setProfile(data);
-      setLoading(false);
-    }
-    cargarPerfil();
-  }, []);
+  const { profile, loading } = useProfileCheck();
 
   if (loading)
-    return <main className="min-h-screen bg-zinc-950 text-white p-8">Cargando...</main>;
+    return <SkeletonEvaluaciones />;
 
   if (!profile)
     return (

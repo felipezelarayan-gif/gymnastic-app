@@ -105,8 +105,8 @@ export default function Navbar() {
   if (cargando) return null;
   if (!logueado) return null;
 
-  // No mostrar Navbar en la página de login
-  if (pathname === "/login") return null;
+  // No mostrar Navbar en páginas de auth
+  if (pathname === "/login" || pathname === "/reset-password" || pathname === "/bienvenida") return null;
 
   const isAlumno = rol === "alumno";
 

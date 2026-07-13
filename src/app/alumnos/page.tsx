@@ -331,7 +331,7 @@ export default function AlumnosPage() {
       <button
         type="button"
         onClick={() => setModalCrearAbierto(true)}
-        className="md:hidden fixed bottom-28 right-6 z-50 w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center text-3xl font-bold shadow-lg hover:bg-emerald-600 transition active:scale-95"
+        className="md:hidden fixed bottom-24 right-6 z-50 w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center text-3xl font-bold shadow-lg hover:bg-emerald-600 transition active:scale-95"
       >
         +
       </button>

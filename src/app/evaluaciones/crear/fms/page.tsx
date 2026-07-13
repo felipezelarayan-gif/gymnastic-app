@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
+import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
+import TipoEvaluacionSelector from "@/components/TipoEvaluacionSelector";
 
 type Alumno = { id: string; nombre: string; profesor_id?: string | null };
 type TipoEvaluacion = "individual" | "grupal" | null;
@@ -30,41 +32,44 @@ const TESTS_FMS = [
   "Estabilidad rotatoria",
 ];
 
-function leerDraft(): EvaluacionFMSDraft {
-  if (typeof window === "undefined") return {};
-
-  try {
-    const draftRaw = localStorage.getItem(DRAFT_KEY);
-    return draftRaw ? (JSON.parse(draftRaw) as EvaluacionFMSDraft) : {};
-  } catch (error) {
-    console.error("No se pudo leer el borrador de evaluacion FMS", error);
-    localStorage.removeItem(DRAFT_KEY);
-    return {};
-  }
-}
-
 export default function CrearEvaluacionFMS() {
   const router = useRouter();
-  const [draftInicial] = useState<EvaluacionFMSDraft>(() => leerDraft());
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
-  const [tipoEvaluacion, setTipoEvaluacion] = useState<TipoEvaluacion>(draftInicial.tipoEvaluacion || null);
-  const [alumnoId, setAlumnoId] = useState(draftInicial.alumnoId || "");
-  const [alumnosIds, setAlumnosIds] = useState<string[]>(
-    Array.isArray(draftInicial.alumnosIds) ? draftInicial.alumnosIds : []
-  );
-  const [fecha, setFecha] = useState(draftInicial.fecha || new Date().toISOString().split("T")[0]);
-  const [momentoEvaluacion, setMomentoEvaluacion] = useState<"ahora" | "profesor" | "alumno">(
-    draftInicial.momentoEvaluacion || "profesor"
-  );
-  const [notas, setNotas] = useState(draftInicial.notas || "");
-  const [testsSeleccionados, setTestsSeleccionados] = useState<string[]>(
-    Array.isArray(draftInicial.testsSeleccionados) && draftInicial.testsSeleccionados.length > 0
-      ? draftInicial.testsSeleccionados
-      : [...TESTS_FMS]
-  );
+  const [tipoEvaluacion, setTipoEvaluacion] = useState<TipoEvaluacion>(null);
+  const [alumnoId, setAlumnoId] = useState("");
+  const [alumnosIds, setAlumnosIds] = useState<string[]>([]);
+  const [fecha, setFecha] = useState("");
+  const [momentoEvaluacion, setMomentoEvaluacion] = useState<"ahora" | "profesor" | "alumno">("profesor");
+  const [notas, setNotas] = useState("");
+  const [testsSeleccionados, setTestsSeleccionados] = useState<string[]>([...TESTS_FMS]);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito] = useState(false);
+
+  // Restaurar borrador de localStorage después de la hidratación (solo cliente)
+  useEffect(() => {
+    const draft = (() => {
+      try {
+        const draftRaw = localStorage.getItem(DRAFT_KEY);
+        return draftRaw ? (JSON.parse(draftRaw) as EvaluacionFMSDraft) : {};
+      } catch (error) {
+        console.error("No se pudo leer el borrador de evaluacion FMS", error);
+        localStorage.removeItem(DRAFT_KEY);
+        return {};
+      }
+    })();
+
+    if (draft.tipoEvaluacion) setTipoEvaluacion(draft.tipoEvaluacion);
+    if (draft.alumnoId) setAlumnoId(draft.alumnoId);
+    if (Array.isArray(draft.alumnosIds)) setAlumnosIds(draft.alumnosIds);
+    if (draft.fecha) setFecha(draft.fecha);
+    if (draft.momentoEvaluacion) setMomentoEvaluacion(draft.momentoEvaluacion);
+    if (typeof draft.notas === "string") setNotas(draft.notas);
+    if (Array.isArray(draft.testsSeleccionados) && draft.testsSeleccionados.length > 0) {
+      setTestsSeleccionados(draft.testsSeleccionados);
+    }
+    if (!draft.fecha) setFecha(new Date().toISOString().split("T")[0]);
+  }, []);
 
   useEffect(() => {
     async function cargarDatos() {
@@ -214,7 +219,7 @@ export default function CrearEvaluacionFMS() {
   }
 
   if (loading) {
-    return <main className="min-h-screen bg-zinc-950 text-white p-8">Cargando...</main>;
+    return <SkeletonEvaluaciones />;
   }
 
   if (exito) {
@@ -229,7 +234,7 @@ export default function CrearEvaluacionFMS() {
               : "La evaluacion FMS quedo creada correctamente."}
           </p>
           <div className="flex gap-3 justify-center mt-6">
-            <Link href="/evaluaciones/realizar/fms" className="bg-white text-zinc-950 font-semibold px-5 py-2 rounded-lg hover:bg-zinc-200 transition">
+            <Link href="/evaluaciones/realizar?tipo=fms" className="bg-white text-zinc-950 font-semibold px-5 py-2 rounded-lg hover:bg-zinc-200 transition">
               Ir a realizar FMS
             </Link>
             <BackButton fallback="/evaluaciones" />
@@ -308,46 +313,14 @@ export default function CrearEvaluacionFMS() {
         </div>
 
         <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">
-              Tipo de evaluacion *
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setTipoEvaluacion("individual");
-                  setAlumnoId("");
-                  setAlumnosIds([]);
-                }}
-                className={`text-left px-4 py-4 rounded-xl border transition ${
-                  tipoEvaluacion === "individual"
-                    ? "bg-white text-zinc-950 border-white"
-                    : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-600"
-                }`}
-              >
-                <span className="block text-lg font-bold">Evaluacion individual</span>
-                <span className="block text-sm opacity-70 mt-1">Crear una evaluacion para un solo alumno.</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setTipoEvaluacion("grupal");
-                  setAlumnoId("");
-                  setAlumnosIds([]);
-                }}
-                className={`text-left px-4 py-4 rounded-xl border transition ${
-                  tipoEvaluacion === "grupal"
-                    ? "bg-white text-zinc-950 border-white"
-                    : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-600"
-                }`}
-              >
-                <span className="block text-lg font-bold">Evaluacion grupal</span>
-                <span className="block text-sm opacity-70 mt-1">Duplicar la misma evaluacion para varios alumnos.</span>
-              </button>
-            </div>
-          </div>
+          <TipoEvaluacionSelector
+            value={tipoEvaluacion}
+            onChange={(tipo) => {
+              setTipoEvaluacion(tipo);
+              setAlumnoId("");
+              setAlumnosIds([]);
+            }}
+          />
 
           {!tipoEvaluacion && (
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 text-sm text-zinc-400">

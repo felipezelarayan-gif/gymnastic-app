@@ -41,19 +41,26 @@ function guardarHomeEnCache(profile: Profile) {
 }
 
 export default function Home() {
-  const [profile, setProfile] = useState<Profile | null>(() => cargarHomeDesdeCache());
-  const [loading, setLoading] = useState(!profile);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
   const { mostrarToast } = useToast();
 
+  // Leer caché de localStorage después de la hidratación (solo cliente)
+  useEffect(() => {
+    const cached = cargarHomeDesdeCache();
+    if (cached) {
+      setProfile(cached);
+      setLoading(false);
+    }
+  }, []);
+
+  // Cargar perfil desde Supabase (solo si no se cargó desde caché)
   useEffect(() => {
     async function cargarPerfil() {
       const { data: sessionData } = await supabase.auth.getSession();
 
       if (!sessionData.session) {
-        // Si no hay sesión y teníamos caché, limpiarla y redirigir
-        if (profile) {
-          try { localStorage.removeItem(HOME_CACHE_KEY); } catch { /* ignore */ }
-        }
+        try { localStorage.removeItem(HOME_CACHE_KEY); } catch { /* ignore */ }
         window.location.href = "/login";
         return;
       }
@@ -78,26 +85,18 @@ export default function Home() {
         return;
       }
 
-      // Si es alumno, redirigir y limpiar caché
       if (data.rol === "alumno") {
         try { localStorage.removeItem(HOME_CACHE_KEY); } catch { /* ignore */ }
         window.location.href = "/alumno";
         return;
       }
 
-      // Guardar en caché y mostrar
       guardarHomeEnCache(data);
       setProfile(data);
       setLoading(false);
     }
 
-    // Si ya tenemos caché, cargamos en background sin mostrar skeleton
-    if (profile) {
-      cargarPerfil();
-    } else {
-      // Si no hay caché, mostramos skeleton mientras carga
-      cargarPerfil();
-    }
+    cargarPerfil();
   }, []);
 
   if (loading) {

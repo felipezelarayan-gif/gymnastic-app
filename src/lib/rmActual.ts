@@ -89,9 +89,13 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
     return { data: [] as RMActualCalculado[], error: historialEntrenamientosError };
   }
 
+  // Group records by ejercicio_id
   const mejoresPorEjercicio = new Map<string, RMActualCalculado>();
+  const entrenamientosPorEjercicio = new Map<string, RMHistorialEntrenamiento[]>();
+  const evaluacionesPorEjercicio = new Map<string, RMHistorialEvaluacion[]>();
 
-  ((historialEntrenamientosData || []) as RMHistorialEntrenamiento[]).forEach((registro) => {
+  // Agrupar entrenamientos
+  for (const registro of (historialEntrenamientosData || []) as RMHistorialEntrenamiento[]) {
     if (
       !registro.ejercicio_id ||
       registro.rm_calculado === null ||
@@ -99,29 +103,16 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
       !registro.fecha ||
       new Date(registro.fecha) < fechaLimite
     ) {
-      return;
+      continue;
     }
-
-    const actual = mejoresPorEjercicio.get(registro.ejercicio_id);
-
-    if (Number(registro.rm_calculado) > Number(actual?.rm_calculado || 0)) {
-      mejoresPorEjercicio.set(registro.ejercicio_id, {
-        id: `historial-entrenamiento-${registro.id}`,
-        alumno_id: registro.alumno_id,
-        ejercicio_id: registro.ejercicio_id,
-        peso_kg: registro.peso_kg,
-        repeticiones: registro.repeticiones,
-        rm_calculado: registro.rm_calculado,
-        actualizado_en: registro.fecha,
-        origen: "entrenamiento",
-        registro_entrenamiento_id: registro.registro_entrenamiento_id || null,
-        rms_historial_id: registro.id,
-        evaluacion_rm_id: null,
-      });
+    if (!entrenamientosPorEjercicio.has(registro.ejercicio_id)) {
+      entrenamientosPorEjercicio.set(registro.ejercicio_id, []);
     }
-  });
+    entrenamientosPorEjercicio.get(registro.ejercicio_id)!.push(registro);
+  }
 
-  ((evaluacionesData || []) as RMHistorialEvaluacion[]).forEach((evaluacion) => {
+  // Agrupar evaluaciones
+  for (const evaluacion of (evaluacionesData || []) as RMHistorialEvaluacion[]) {
     if (
       !evaluacion.ejercicio_id ||
       evaluacion.rm_calculado === null ||
@@ -129,30 +120,109 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
       !evaluacion.fecha ||
       new Date(evaluacion.fecha) < fechaLimite
     ) {
-      return;
+      continue;
+    }
+    if (!evaluacionesPorEjercicio.has(evaluacion.ejercicio_id)) {
+      evaluacionesPorEjercicio.set(evaluacion.ejercicio_id, []);
+    }
+    evaluacionesPorEjercicio.get(evaluacion.ejercicio_id)!.push(evaluacion);
+  }
+
+  // Unir todas las claves de ejercicios
+  const ejercicioIds = new Set([
+    ...Array.from(entrenamientosPorEjercicio.keys()),
+    ...Array.from(evaluacionesPorEjercicio.keys()),
+  ]);
+
+  for (const ejercicio_id of ejercicioIds) {
+    const entrenamientos = entrenamientosPorEjercicio.get(ejercicio_id) || [];
+    const evaluaciones = evaluacionesPorEjercicio.get(ejercicio_id) || [];
+
+    // Buscar evaluacionMasReciente
+    let evaluacionMasReciente: RMHistorialEvaluacion | null = null;
+    if (evaluaciones.length > 0) {
+      evaluacionMasReciente = evaluaciones.reduce((a, b) =>
+        new Date(a.fecha!).getTime() > new Date(b.fecha!).getTime() ? a : b
+      );
     }
 
-    const actual = mejoresPorEjercicio.get(evaluacion.ejercicio_id);
-    const fechaEvaluacion = new Date(evaluacion.fecha).getTime();
-    const fechaActual = actual?.actualizado_en
-      ? new Date(actual.actualizado_en).getTime()
-      : 0;
-
-    if (!actual || fechaEvaluacion > fechaActual) {
-      mejoresPorEjercicio.set(evaluacion.ejercicio_id, {
-        id: `evaluacion-${evaluacion.id}`,
-        alumno_id: evaluacion.alumno_id,
-        ejercicio_id: evaluacion.ejercicio_id,
-        peso_kg: evaluacion.peso_kg,
-        repeticiones: evaluacion.repeticiones,
-        rm_calculado: evaluacion.rm_calculado,
-        actualizado_en: evaluacion.fecha,
-        origen: "evaluacion_rm",
-        rms_historial_id: evaluacion.id,
-        evaluacion_rm_id: evaluacion.evaluacion_rm_id || null,
-      });
+    // Buscar mejorEntrenamiento (mayor rm_calculado)
+    let mejorEntrenamiento: RMHistorialEntrenamiento | null = null;
+    if (entrenamientos.length > 0) {
+      mejorEntrenamiento = entrenamientos.reduce((a, b) =>
+        Number(a.rm_calculado) > Number(b.rm_calculado) ? a : b
+      );
     }
-  });
+
+    // Buscar mejorEntrenamientoPosterior (fecha > evaluacionMasReciente.fecha, mayor rm_calculado)
+    let mejorEntrenamientoPosterior: RMHistorialEntrenamiento | null = null;
+    if (evaluacionMasReciente && entrenamientos.length > 0) {
+      const fechaEvaluacion = new Date(evaluacionMasReciente.fecha!).getTime();
+      mejorEntrenamientoPosterior = entrenamientos
+        .filter(e => new Date(e.fecha!).getTime() > fechaEvaluacion)
+        .reduce((a, b) =>
+          (!a || Number(b.rm_calculado) > Number(a.rm_calculado)) ? b : a
+        , null as RMHistorialEntrenamiento | null);
+    }
+
+    // Seleccionar el resultado según las reglas
+    let seleccionado: RMHistorialEntrenamiento | RMHistorialEvaluacion | null = null;
+    let origenSeleccionado: OrigenRMActual = "entrenamiento";
+
+    if (entrenamientos.length > 0 && evaluaciones.length === 0) {
+      // Solo entrenamientos
+      seleccionado = mejorEntrenamiento;
+      origenSeleccionado = "entrenamiento";
+    } else if (evaluaciones.length > 0 && entrenamientos.length === 0) {
+      // Solo evaluaciones
+      seleccionado = evaluacionMasReciente;
+      origenSeleccionado = "evaluacion_rm";
+    } else if (entrenamientos.length > 0 && evaluaciones.length > 0 && evaluacionMasReciente) {
+      // Ambos presentes
+      seleccionado = evaluacionMasReciente;
+      origenSeleccionado = "evaluacion_rm";
+      if (
+        mejorEntrenamientoPosterior &&
+        Number(mejorEntrenamientoPosterior.rm_calculado) > Number(evaluacionMasReciente.rm_calculado)
+      ) {
+        seleccionado = mejorEntrenamientoPosterior;
+        origenSeleccionado = "entrenamiento";
+      }
+    }
+
+    if (seleccionado) {
+      if (origenSeleccionado === "entrenamiento") {
+        const registro = seleccionado as RMHistorialEntrenamiento;
+        mejoresPorEjercicio.set(ejercicio_id, {
+          id: `historial-entrenamiento-${registro.id}`,
+          alumno_id: registro.alumno_id,
+          ejercicio_id: registro.ejercicio_id!,
+          peso_kg: registro.peso_kg,
+          repeticiones: registro.repeticiones,
+          rm_calculado: registro.rm_calculado,
+          actualizado_en: registro.fecha,
+          origen: "entrenamiento",
+          registro_entrenamiento_id: registro.registro_entrenamiento_id || null,
+          rms_historial_id: registro.id,
+          evaluacion_rm_id: null,
+        });
+      } else if (origenSeleccionado === "evaluacion_rm") {
+        const evaluacion = seleccionado as RMHistorialEvaluacion;
+        mejoresPorEjercicio.set(ejercicio_id, {
+          id: `evaluacion-${evaluacion.id}`,
+          alumno_id: evaluacion.alumno_id,
+          ejercicio_id: evaluacion.ejercicio_id!,
+          peso_kg: evaluacion.peso_kg,
+          repeticiones: evaluacion.repeticiones,
+          rm_calculado: evaluacion.rm_calculado,
+          actualizado_en: evaluacion.fecha,
+          origen: "evaluacion_rm",
+          rms_historial_id: evaluacion.id,
+          evaluacion_rm_id: evaluacion.evaluacion_rm_id || null,
+        });
+      }
+    }
+  }
 
   return {
     data: Array.from(mejoresPorEjercicio.values()).sort(

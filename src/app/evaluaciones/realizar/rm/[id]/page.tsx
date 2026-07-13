@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { obtenerRMsActualesAlumno } from "@/lib/rmActual";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import BackButton from "@/components/BackButton";
+import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
 import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
 
 type ModoCarga = "protocolo" | "rapida" | null;
@@ -593,7 +594,7 @@ export default function RealizarEvaluacionRMDetalle() {
   }
 
   if (loading) {
-    return <main className="min-h-screen bg-zinc-950 text-white p-8">Cargando evaluación RM...</main>;
+    return <SkeletonEvaluaciones />;
   }
 
   if (!evaluacion) {
@@ -609,7 +610,7 @@ export default function RealizarEvaluacionRMDetalle() {
           <p className="text-zinc-400 mt-2">
             Los resultados se guardaron y se recalcularon los RM actuales del alumno.
           </p>
-          <BackButton fallback="/evaluaciones/realizar/rm" />
+          <BackButton fallback="/evaluaciones/realizar?tipo=rm" />
         </div>
       </main>
     );
@@ -619,7 +620,7 @@ export default function RealizarEvaluacionRMDetalle() {
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-6">
-          <BackButton fallback="/evaluaciones/realizar/rm" />
+          <BackButton fallback="/evaluaciones/realizar?tipo=rm" />
         </div>
 
         <header className="mb-8">

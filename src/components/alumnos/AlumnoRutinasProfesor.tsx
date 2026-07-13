@@ -400,7 +400,7 @@ export default function AlumnoRutinasProfesor({
     setNuevaDescripcion("");
     setMostrarCrearRutina(false);
 
-    window.location.href = `/rutinas/${nuevaRutina.id}?alumnoId=${id}`;
+    window.location.href = `/rutinas/${nuevaRutina.id}?from=alumno&alumnoId=${id}`;
   }
 
 
@@ -609,7 +609,7 @@ export default function AlumnoRutinasProfesor({
     }
 
     if (rutina.creada_para_alumno_id === id) {
-      window.location.href = `/rutinas/${rutina.id}?alumnoId=${id}`;
+      window.location.href = `/rutinas/${rutina.id}?from=alumno&alumnoId=${id}`;
       return;
     }
 
@@ -710,7 +710,7 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
-    window.location.href = `/rutinas/${nuevaRutina.id}?alumnoId=${id}`;
+    window.location.href = `/rutinas/${nuevaRutina.id}?from=alumno&alumnoId=${id}`;
   }
 
   if (loading) {

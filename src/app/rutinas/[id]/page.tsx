@@ -16,6 +16,7 @@ import {
 } from "@/lib/ejercicios-cache";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import AsignarModal from "@/components/shared/AsignarModal";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type TipoPrescripcion = "repeticiones" | "tiempo";
 
@@ -129,6 +130,7 @@ export default function RutinaDetallePage({
   const { id } = use(params);
 
   const [loading, setLoading] = useState(true);
+  const { mostrarToast } = useToast();
   const [rutina, setRutina] = useState<Rutina | null>(null);
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
   const [rutinaEjercicios, setRutinaEjercicios] = useState<RutinaEjercicio[]>([]);
@@ -281,7 +283,7 @@ export default function RutinaDetallePage({
     const { data, error } = await query.single();
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
@@ -315,7 +317,7 @@ export default function RutinaDetallePage({
       .order("orden", { ascending: true });
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
@@ -336,7 +338,7 @@ export default function RutinaDetallePage({
       .order("orden", { ascending: true });
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
@@ -365,7 +367,7 @@ export default function RutinaDetallePage({
       .order("numero_serie", { ascending: true });
 
     if (seriesError) {
-      alert(seriesError.message);
+      mostrarToast(seriesError.message, "error");
       return;
     }
 
@@ -399,7 +401,7 @@ export default function RutinaDetallePage({
     const { data, error } = await query;
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
@@ -416,7 +418,7 @@ export default function RutinaDetallePage({
         .maybeSingle();
 
       if (rutinaPropiaError) {
-        alert(rutinaPropiaError.message);
+        mostrarToast(rutinaPropiaError.message, "error");
         return;
       }
 
@@ -442,7 +444,7 @@ export default function RutinaDetallePage({
       .order("fecha_asignacion", { ascending: false });
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
@@ -462,7 +464,7 @@ export default function RutinaDetallePage({
       return false;
     }
     if (!profesorId) {
-      alert("No se pudo validar el profesor actual.");
+      mostrarToast("No se pudo validar el profesor actual.", "error");
       return false;
     }
 
@@ -498,11 +500,11 @@ export default function RutinaDetallePage({
         cargarAsignaciones(profesorId),
       ]);
 
-      alert("Cambios guardados exitosamente");
+      mostrarToast("Cambios guardados exitosamente", "exito");
       return true;
     } catch (error) {
       console.error("Error al guardar:", error);
-      alert(`Error al guardar: ${error instanceof Error ? error.message : "Error desconocido"}`);
+      mostrarToast(`Error al guardar: ${error instanceof Error ? error.message : "Error desconocido"}`, "error");
       return false;
     } finally {
       setGuardando(false);
@@ -533,7 +535,7 @@ export default function RutinaDetallePage({
 
   function guardarEdicionRutina() {
     if (!editNombre.trim()) {
-      alert("Ingresá un nombre.");
+      mostrarToast("Ingresá un nombre.", "error");
       return;
     }
 
@@ -556,7 +558,7 @@ export default function RutinaDetallePage({
 
   async function borrarRutina() {
     if (!profesorId) {
-      alert("No se pudo validar el profesor actual.");
+      mostrarToast("No se pudo validar el profesor actual.", "error");
       return;
     }
     setAccionCargando("borrar-rutina");
@@ -577,14 +579,14 @@ export default function RutinaDetallePage({
       });
       if (!result.ok) {
         if (result.error !== "Operación cancelada por el usuario.") {
-          alert(result.error);
+          mostrarToast(result.error || "Error al borrar la rutina. Por favor, intentá de nuevo.", "error");
         }
         return;
       }
       window.location.href = "/rutinas";
     } catch (error) {
       console.error("Error general al borrar rutina:", error);
-      alert("Error al borrar la rutina. Por favor, intentá de nuevo.");
+      mostrarToast("Error al borrar la rutina. Por favor, intentá de nuevo.", "error");
     } finally {
       setAccionCargando(null);
     }
@@ -620,7 +622,7 @@ export default function RutinaDetallePage({
 
   function guardarEntradaCalor() {
     if (!entradaNombreEjercicio.trim()) {
-      alert("Ingresá o seleccioná un ejercicio.");
+      mostrarToast("Ingresá o seleccioná un ejercicio.", "error");
       return;
     }
 
@@ -840,7 +842,7 @@ export default function RutinaDetallePage({
         .order("numero_serie", { ascending: true });
 
       if (seriesError) {
-        alert(seriesError.message);
+        mostrarToast(seriesError.message, "error");
         return;
       }
 
@@ -861,7 +863,7 @@ export default function RutinaDetallePage({
 
   function guardarEjercicioPrincipal() {
     if (!ejercicioId) {
-      alert("Seleccioná un ejercicio del banco.");
+      mostrarToast("Seleccioná un ejercicio del banco.", "error");
       return;
     }
 
@@ -869,7 +871,7 @@ export default function RutinaDetallePage({
     const cantidadSeries = Number(seriesFinal || 0);
 
     if (!cantidadSeries || cantidadSeries <= 0) {
-      alert("Ingresá una cantidad de series válida.");
+      mostrarToast("Ingresá una cantidad de series válida.", "error");
       return;
     }
 
@@ -879,7 +881,7 @@ export default function RutinaDetallePage({
       );
 
       if (seriesIncompletas) {
-        alert("Completá repeticiones y peso/%RM en cada serie.");
+        mostrarToast("Completá repeticiones y peso/%RM en cada serie.", "error");
         return;
       }
     }
@@ -1014,7 +1016,7 @@ export default function RutinaDetallePage({
 
   async function asignarAlumno(alumnosSeleccionados: { id: string; nombre: string; fechaAsignacion?: string }[]) {
     if (!profesorId) {
-      alert("No se pudo validar el profesor actual.");
+      mostrarToast("No se pudo validar el profesor actual.", "error");
       return;
     }
 
@@ -1029,7 +1031,7 @@ export default function RutinaDetallePage({
         .maybeSingle();
 
       if (rutinaError || !rutinaPropia) {
-        alert("No tenés permiso para asignar esta rutina.");
+        mostrarToast("No tenés permiso para asignar esta rutina.", "error");
         return;
       }
 
@@ -1046,7 +1048,7 @@ export default function RutinaDetallePage({
         .insert(asignaciones);
 
       if (insertError) {
-        alert(insertError.message);
+        mostrarToast(insertError.message, "error");
         return;
       }
 
@@ -1062,7 +1064,7 @@ export default function RutinaDetallePage({
     if (!confirmar) return;
 
     if (!profesorId) {
-      alert("No se pudo validar el profesor actual.");
+      mostrarToast("No se pudo validar el profesor actual.", "error");
       return;
     }
 
@@ -1083,7 +1085,7 @@ export default function RutinaDetallePage({
         });
 
         if (!resultado.ok) {
-          alert(resultado.error || "Error al quitar la asignación");
+          mostrarToast(resultado.error || "Error al quitar la asignación", "error");
           return;
         }
 
@@ -1146,12 +1148,12 @@ export default function RutinaDetallePage({
     const alumnoIdUrl = new URLSearchParams(window.location.search).get("alumnoId");
 
     if (!alumnoIdUrl) {
-      alert("Abrí esta rutina desde el perfil de un alumno para ver su historial.");
+      mostrarToast("Abrí esta rutina desde el perfil de un alumno para ver su historial.", "error");
       return;
     }
 
     if (!ejercicioId) {
-      alert("Seleccioná un ejercicio primero.");
+      mostrarToast("Seleccioná un ejercicio primero.", "error");
       return;
     }
 
@@ -1172,20 +1174,60 @@ export default function RutinaDetallePage({
     if (valor !== "") setPeso("");
   }
 
-  function intentarSalir(destino: string) {
+  // Determinar la URL de "atrás" según el origen
+  function getBackUrl() {
+    const searchParams = new URLSearchParams(window.location.search);
+    const from = searchParams.get("from");
+    const alumnoId = searchParams.get("alumnoId");
+    if (from === "alumno" && alumnoId) {
+      return `/alumnos/${alumnoId}/rutinas`;
+    }
+    return "/rutinas";
+  }
+
+  function intentarSalir(destino?: string) {
+    const backUrl = destino || getBackUrl();
     if (hayCambios) {
-      setSalidaPendiente(destino);
+      setSalidaPendiente(backUrl);
       setMostrarConfirmarSalida(true);
       return;
     }
 
-    window.location.href = destino;
+    window.location.href = backUrl;
   }
 
   if (loading) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white p-6">
-        Cargando rutina...
+        <div className="max-w-6xl mx-auto animate-pulse">
+          <div className="h-5 w-20 rounded bg-zinc-800 mb-6" />
+          <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)] mt-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 min-h-[220px]">
+              <div className="h-8 w-48 rounded bg-zinc-800 mb-4" />
+              <div className="h-4 w-32 rounded bg-zinc-800 mb-3" />
+              <div className="h-4 w-64 rounded bg-zinc-800 mb-6" />
+              <div className="flex gap-2">
+                <div className="h-10 w-28 rounded-xl bg-zinc-800" />
+                <div className="h-10 w-28 rounded-xl bg-zinc-800" />
+              </div>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 min-h-[220px]">
+              <div className="h-6 w-24 rounded bg-zinc-800 mb-4" />
+              <div className="h-4 w-36 rounded bg-zinc-800 mb-4" />
+              <div className="h-16 rounded-xl bg-zinc-800" />
+            </div>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-5">
+            <div className="h-6 w-36 rounded bg-zinc-800 mb-4" />
+            <div className="h-12 rounded-xl bg-zinc-800 mb-3" />
+            <div className="h-12 rounded-xl bg-zinc-800" />
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-5">
+            <div className="h-6 w-40 rounded bg-zinc-800 mb-4" />
+            <div className="h-20 rounded-xl bg-zinc-800 mb-3" />
+            <div className="h-20 rounded-xl bg-zinc-800" />
+          </div>
+        </div>
       </main>
     );
   }
@@ -1203,7 +1245,7 @@ export default function RutinaDetallePage({
       <div className="max-w-6xl mx-auto">
         <button
           type="button"
-          onClick={() => intentarSalir("/rutinas")}
+          onClick={() => intentarSalir()}
           className="px-4 py-2 rounded-xl border border-zinc-700 hover:bg-zinc-800 transition"
         >
           ← Atrás

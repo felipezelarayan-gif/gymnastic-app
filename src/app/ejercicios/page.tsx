@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import CrearEjercicioModal from "@/components/ejercicios/CrearEjercicioModal";
 import EditarEjercicioModal from "@/components/ejercicios/EditarEjercicioModal";
 import BackButton from "@/components/BackButton";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Ejercicio = {
   id: string;
@@ -15,11 +16,13 @@ type Ejercicio = {
   peso_corporal?: boolean | null;
 };
 
-type Profile = {
-  id: string;
-  rol: string;
-  es_admin?: boolean;
+type EjerciciosCache = {
+  ejercicios: Ejercicio[];
+  savedAt: string;
 };
+
+const CACHE_KEY = "ejercicios_page_cache_v1";
+const LIMITE = 10;
 
 export default function EjerciciosPage() {
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
@@ -28,20 +31,94 @@ export default function EjerciciosPage() {
   const [mostrarEditarModal, setMostrarEditarModal] = useState(false);
   const [ejercicioEditando, setEjercicioEditando] = useState<Ejercicio | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [esAdmin, setEsAdmin] = useState(false);
 
-  async function cargarEjercicios() {
-    const { data, error } = await supabase
+  // Búsqueda, filtros y paginación
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroGrupoMuscular, setFiltroGrupoMuscular] = useState("");
+  const [filtroPesoCorporal, setFiltroPesoCorporal] = useState(false);
+  const [paginaActual, setPaginaActual] = useState(0);
+  const [totalEjercicios, setTotalEjercicios] = useState(0);
+  const [filtrosAbierto, setFiltrosAbierto] = useState(false);
+  const { mostrarToast } = useToast();
+
+  const busquedaRef = useRef(busqueda);
+  const filtroGrupoMuscularRef = useRef(filtroGrupoMuscular);
+  const filtroPesoCorporalRef = useRef(filtroPesoCorporal);
+  const paginaActualRef = useRef(paginaActual);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  busquedaRef.current = busqueda;
+  filtroGrupoMuscularRef.current = filtroGrupoMuscular;
+  filtroPesoCorporalRef.current = filtroPesoCorporal;
+  paginaActualRef.current = paginaActual;
+
+  function cargarDesdeCache(): boolean {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return false;
+      const cache = JSON.parse(raw) as EjerciciosCache;
+      if (!Array.isArray(cache.ejercicios)) return false;
+      setEjercicios(cache.ejercicios);
+      setLoading(false);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function guardarEnCache(data: Ejercicio[]) {
+    if (busquedaRef.current) return;
+    try {
+      const cache: EjerciciosCache = { ejercicios: data, savedAt: new Date().toISOString() };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    } catch {
+      // ignorar
+    }
+  }
+
+  async function cargarEjercicios(esRecargaFiltros = false) {
+    const pag = paginaActualRef.current;
+    const bq = busquedaRef.current;
+    const ft = filtroGrupoMuscularRef.current;
+    const pc = filtroPesoCorporalRef.current;
+    const desde = esRecargaFiltros ? 0 : pag * LIMITE;
+
+    let query = supabase
       .from("ejercicios")
-      .select("id,nombre,grupo_muscular,patron_movimiento,youtube_url,peso_corporal")
-      .order("nombre");
+      .select("id,nombre,grupo_muscular,patron_movimiento,youtube_url,peso_corporal", { count: "exact" })
+      .order("nombre")
+      .range(desde, desde + LIMITE - 1);
+
+    if (bq.trim()) {
+      query = query.ilike("nombre", `%${bq.trim()}%`);
+    }
+
+    if (ft) {
+      query = query.eq("grupo_muscular", ft);
+    }
+
+    if (pc) {
+      query = query.eq("peso_corporal", true);
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       setLoading(false);
       return;
     }
 
     setEjercicios(data || []);
+    if (count !== null) {
+      setTotalEjercicios(count);
+    }
+
+    if (!esRecargaFiltros && pag === 0 && !bq && !ft && !pc) {
+      guardarEnCache(data || []);
+    }
+
     setLoading(false);
   }
 
@@ -71,25 +148,17 @@ export default function EjerciciosPage() {
   }
 
   async function verificarDependencias(ejercicioId: string): Promise<{ tieneDependencias: boolean; mensaje: string }> {
-    // Verificar si está en rutinas
     const { count: rutinasCount } = await supabase
       .from("rutina_ejercicios")
       .select("*", { count: "exact", head: true })
       .eq("ejercicio_id", ejercicioId);
 
-    // Verificar si está en evaluaciones RM
     const { count: evaluacionesRMCount } = await supabase
       .from("evaluaciones_rm_resultados")
       .select("*", { count: "exact", head: true })
       .eq("ejercicio_id", ejercicioId);
 
-    // Verificar si está en evaluaciones FMS (no aplica directamente, pero por si acaso)
-    const { count: evaluacionesFMSCount } = await supabase
-      .from("evaluaciones_fms_tests")
-      .select("*", { count: "exact", head: true })
-      .eq("test_nombre", (ejercicios.find(e => e.id === ejercicioId)?.nombre || ""));
-
-    const totalDependencias = (rutinasCount || 0) + (evaluacionesRMCount || 0) + (evaluacionesFMSCount || 0);
+    const totalDependencias = (rutinasCount || 0) + (evaluacionesRMCount || 0);
 
     if (totalDependencias === 0) {
       return { tieneDependencias: false, mensaje: "" };
@@ -99,7 +168,6 @@ export default function EjerciciosPage() {
     const partes: string[] = [];
     if (rutinasCount && rutinasCount > 0) partes.push(`• ${rutinasCount} rutina(s)`);
     if (evaluacionesRMCount && evaluacionesRMCount > 0) partes.push(`• ${evaluacionesRMCount} evaluación(es) RM`);
-    if (evaluacionesFMSCount && evaluacionesFMSCount > 0) partes.push(`• ${evaluacionesFMSCount} evaluación(es) FMS`);
 
     return {
       tieneDependencias: true,
@@ -108,18 +176,14 @@ export default function EjerciciosPage() {
   }
 
   async function borrarEjercicio(id: string) {
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("es_admin")
-      .eq("id", (await supabase.auth.getSession()).data.session?.user.id)
-      .single();
-
-    const esAdmin = profileData?.es_admin || false;
-
-    if (userRole !== "profesor" && userRole !== "profe" && userRole !== "admin" && !esAdmin) {
-      alert("No tenés permisos para borrar ejercicios.");
+    if (!esAdmin) {
+      mostrarToast("No tenés permisos para borrar ejercicios.", "error");
       return;
     }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    if (!userId) return;
 
     const { tieneDependencias, mensaje } = await verificarDependencias(id);
 
@@ -134,11 +198,12 @@ export default function EjerciciosPage() {
     const { error } = await supabase.from("ejercicios").delete().eq("id", id);
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
     setEjercicios((prev) => prev.filter((e) => e.id !== id));
+    mostrarToast("Ejercicio borrado correctamente", "exito");
   }
 
   useEffect(() => {
@@ -157,97 +222,230 @@ export default function EjerciciosPage() {
 
     if (profile) {
       setUserRole(profile.rol);
+      setEsAdmin(profile.es_admin === true);
     }
 
-    await cargarEjercicios();
+    const tieneCache = cargarDesdeCache();
+    await cargarEjercicios(!tieneCache);
   }
+
+  // Obtener grupos musculares únicos de los ejercicios cargados
+  const gruposMusculares = [...new Set(
+    ejercicios
+      .map((e) => e.grupo_muscular)
+      .filter((g): g is string => !!g)
+  )].sort();
+
+  // Búsqueda con debounce
+  const handleBusquedaChange = useCallback((value: string) => {
+    setBusqueda(value);
+    setPaginaActual(0);
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      cargarEjercicios(true);
+    }, 300);
+  }, []);
+
+  const aplicarFiltros = useCallback(() => {
+    setFiltrosAbierto(false);
+    setPaginaActual(0);
+    cargarEjercicios(true);
+  }, []);
+
+  const limpiarFiltros = useCallback(() => {
+    setFiltroGrupoMuscular("");
+    setFiltroPesoCorporal(false);
+    setFiltrosAbierto(false);
+    setPaginaActual(0);
+    cargarEjercicios(true);
+  }, []);
+
+  // Recargar al cambiar de página
+  const primeraVezRef = useRef(true);
+  useEffect(() => {
+    if (primeraVezRef.current) {
+      primeraVezRef.current = false;
+      return;
+    }
+    cargarEjercicios(false);
+  }, [paginaActual]);
+
+  const totalPaginas = Math.max(1, Math.ceil(totalEjercicios / LIMITE));
+  const paginaSegura = Math.min(paginaActual, totalPaginas - 1);
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white p-6">
-        Cargando ejercicios...
+      <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
+        <div className="max-w-5xl mx-auto animate-pulse">
+          <div className="h-5 w-20 rounded bg-zinc-800 mb-6" />
+          <div className="h-9 w-36 rounded bg-zinc-800 mb-6" />
+          <div className="h-14 rounded-2xl bg-zinc-900 border border-zinc-800 mb-5" />
+          <div className="grid gap-4">
+            <div className="h-28 rounded-2xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-28 rounded-2xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-28 rounded-2xl bg-zinc-900 border border-zinc-800" />
+          </div>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6">
+    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-5xl mx-auto">
-        <div className="mb-6">
-          <BackButton fallback="/" />
-          <h1 className="text-3xl font-bold mt-4">Ejercicios</h1>
-          <p className="text-zinc-400 mt-1">
-            Banco de ejercicios y videos explicativos.
-          </p>
+        <header className="flex items-start justify-between mb-6">
+          <div>
+            <BackButton fallback="/" />
+            <h1 className="text-3xl font-bold mt-4">Ejercicios</h1>
+            <p className="text-zinc-400 mt-1">
+              {totalEjercicios > 0
+                ? `${totalEjercicios} ${totalEjercicios === 1 ? "ejercicio" : "ejercicios"}`
+                : "Banco de ejercicios y videos explicativos."
+              }
+            </p>
+          </div>
+
+          {/* Desktop: botón + en header */}
+          <button
+            type="button"
+            onClick={() => setMostrarModal(true)}
+            className="hidden md:inline-flex items-center justify-center rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition mt-4"
+          >
+            + Agregar ejercicio
+          </button>
+        </header>
+
+        {/* Buscador + filtros */}
+        <div className="flex items-center gap-2 mb-5">
+          <button
+            type="button"
+            onClick={() => setFiltrosAbierto(true)}
+            className="rounded-xl border border-zinc-700 bg-zinc-800 w-12 h-12 flex items-center justify-center text-sm hover:bg-zinc-700 transition shrink-0"
+          >
+            ⚙️
+          </button>
+          <div className="relative flex-1">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm">🔍</span>
+            <input
+              type="text"
+              placeholder="Buscar por nombre..."
+              value={busqueda}
+              onChange={(e) => handleBusquedaChange(e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-emerald-500"
+            />
+          </div>
         </div>
 
-        <div className="grid gap-3">
-          {ejercicios.map((ejercicio) => (
-            <div
-              key={ejercicio.id}
-              className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-lg font-semibold">
-                      {ejercicio.nombre}
-                    </h2>
+        {ejercicios.length === 0 ? (
+          <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
+            <h2 className="text-xl font-semibold">No se encontraron ejercicios</h2>
+            <p className="text-zinc-400 mt-2">
+              {busqueda
+                ? "Probá con otros términos de búsqueda."
+                : "Tocá el botón + para crear tu primer ejercicio."
+              }
+            </p>
+          </section>
+        ) : (
+          <>
+            <div className="grid gap-3">
+              {ejercicios.map((ejercicio) => (
+                <div
+                  key={ejercicio.id}
+                  className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-lg font-semibold">
+                          {ejercicio.nombre}
+                        </h2>
 
-                    {ejercicio.peso_corporal && (
-                      <span className="inline-block px-3 py-1 rounded-full bg-emerald-900/40 border border-emerald-700 text-emerald-300 text-xs font-medium">
-                        Peso corporal
-                      </span>
-                    )}
+                        {ejercicio.peso_corporal && (
+                          <span className="inline-block px-3 py-1 rounded-full bg-emerald-900/40 border border-emerald-700 text-emerald-300 text-xs font-medium">
+                            Peso corporal
+                          </span>
+                        )}
+                      </div>
+
+                      {ejercicio.grupo_muscular && (
+                        <p className="text-zinc-400 text-sm mt-1">
+                          {ejercicio.grupo_muscular}
+                        </p>
+                      )}
+
+                      {ejercicio.youtube_url && (
+                        <a
+                          href={ejercicio.youtube_url}
+                          target="_blank"
+                          className="text-emerald-400 text-sm mt-2 inline-block"
+                        >
+                          ▶ Ver video
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => abrirEditar(ejercicio)}
+                        className="rounded-lg border border-zinc-700 px-3 py-2 hover:bg-zinc-800 transition"
+                        title="Editar"
+                      >
+                        ✏️
+                      </button>
+
+                      {esAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => borrarEjercicio(ejercicio.id)}
+                          className="rounded-lg border border-red-800 px-3 py-2 hover:bg-red-950 transition"
+                          title="Borrar"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
                   </div>
-
-                  {ejercicio.grupo_muscular && (
-                    <p className="text-zinc-400 text-sm mt-1">
-                      {ejercicio.grupo_muscular}
-                    </p>
-                  )}
-
-                  {ejercicio.youtube_url && (
-                    <a
-                      href={ejercicio.youtube_url}
-                      target="_blank"
-                      className="text-emerald-400 text-sm mt-2 inline-block"
-                    >
-                      ▶ Ver video
-                    </a>
-                  )}
                 </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => abrirEditar(ejercicio)}
-                    className="rounded-lg border border-zinc-700 px-3 py-2 hover:bg-zinc-800"
-                    title="Editar"
-                  >
-                    ✏️
-                  </button>
-
-                  {(userRole === "profesor" || userRole === "profe" || userRole === "admin") && (
-                    <button
-                      type="button"
-                      onClick={() => borrarEjercicio(ejercicio.id)}
-                      className="rounded-lg border border-red-800 px-3 py-2 hover:bg-red-950"
-                      title="Borrar"
-                    >
-                      🗑️
-                    </button>
-                  )}
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
 
+            {totalPaginas > 1 && (
+              <div className="flex items-center justify-center gap-4 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setPaginaActual((p) => Math.max(0, p - 1))}
+                  disabled={paginaSegura === 0}
+                  className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ← Anterior
+                </button>
+                <span className="text-sm text-zinc-400">
+                  Página {paginaSegura + 1} de {totalPaginas}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPaginaActual((p) => Math.min(totalPaginas - 1, p + 1))}
+                  disabled={paginaSegura >= totalPaginas - 1}
+                  className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Mobile: botón + flotante */}
         <button
           type="button"
           onClick={() => setMostrarModal(true)}
-          className="fixed right-6 bottom-24 md:bottom-6 w-14 h-14 rounded-full bg-emerald-500 text-white text-3xl font-bold shadow-lg hover:bg-emerald-600"
+          className="md:hidden fixed bottom-24 right-6 z-50 w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center text-3xl font-bold shadow-lg hover:bg-emerald-600 transition active:scale-95"
         >
           +
         </button>
@@ -264,6 +462,72 @@ export default function EjerciciosPage() {
           onActualizado={handleEjercicioActualizado}
           ejercicio={ejercicioEditando}
         />
+        {/* Bottom sheet: filtros */}
+        {filtrosAbierto && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70">
+            <div className="w-full max-w-lg rounded-t-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold">🎯 Filtrar y ordenar</h3>
+                <button
+                  type="button"
+                  onClick={() => setFiltrosAbierto(false)}
+                  className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Grupo muscular</label>
+                  <select
+                    value={filtroGrupoMuscular}
+                    onChange={(e) => setFiltroGrupoMuscular(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
+                  >
+                    <option value="">Todos los grupos</option>
+                    {gruposMusculares.map((grupo) => (
+                      <option key={grupo} value={grupo}>
+                        {grupo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filtroPesoCorporal}
+                      onChange={(e) => setFiltroPesoCorporal(e.target.checked)}
+                      className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-black"
+                    />
+                    <span className="text-sm text-zinc-300">
+                      Solo peso corporal
+                    </span>
+                  </label>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={limpiarFiltros}
+                    className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800"
+                  >
+                    Limpiar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={aplicarFiltros}
+                    className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600"
+                  >
+                    Aplicar filtros
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

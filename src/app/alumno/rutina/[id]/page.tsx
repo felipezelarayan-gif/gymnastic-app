@@ -2,11 +2,12 @@
 
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import RutinaEntrenamientoView from "@/components/rutinas/RutinaEntrenamientoView";
 
 export default function AlumnoNuevaRutinaPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const asignacionId = Array.isArray(params?.id) ? params.id[0] : params?.id;
 
   if (!asignacionId) {
@@ -26,6 +27,7 @@ export default function AlumnoNuevaRutinaPage() {
     <RutinaEntrenamientoView
       asignacionId={asignacionId}
       modo="alumno"
+      onFinalizada={() => router.push("/alumno/rutina")}
     />
   );
 }

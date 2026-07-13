@@ -6,7 +6,7 @@ export async function middleware(request: NextRequest) {
 
   // Rutas de recovery/invitación que no deben tocar auth
   // porque el code/hash debe ser procesado exclusivamente por el cliente
-  if (pathname.startsWith("/reset-password") || pathname.startsWith("/bienvenida")) {
+  if (pathname.startsWith("/reset-password") || pathname.startsWith("/bienvenida") || pathname.startsWith("/auth")) {
     return NextResponse.next({ request });
   }
 
@@ -80,7 +80,7 @@ export const config = {
     // - _next/static, _next/image
     // - favicon.ico
     // - API routes
-    // - reset-password, bienvenida (ya tienen early return, pero mejor ni ejecutar el middleware)
-    "/((?!_next/static|_next/image|favicon.ico|api/|reset-password|bienvenida|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // - auth/confirm, reset-password, bienvenida (ya tienen early return)
+    "/((?!_next/static|_next/image|favicon.ico|api/|auth/|reset-password|bienvenida|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

@@ -393,16 +393,17 @@ export default function RutinasPage() {
               </button>
             </div>
 
-            {/* Mobile: solo botón + */}
-            <button
-              type="button"
-              onClick={() => setMostrarModal(true)}
-              className="md:hidden rounded-full w-12 h-12 bg-emerald-500 flex items-center justify-center text-2xl font-bold hover:bg-emerald-600"
-            >
-              +
-            </button>
           </div>
         </header>
+
+        {/* FAB: boton flotante para agregar rutina (solo mobile) */}
+        <button
+          type="button"
+          onClick={() => setMostrarModal(true)}
+          className="md:hidden fixed bottom-24 right-6 z-50 w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center text-3xl font-bold shadow-lg hover:bg-emerald-600 transition active:scale-95"
+        >
+          +
+        </button>
 
         {/* Mobile: ⚙️ filtros + 🔍 buscador siempre visible */}
         <div className="md:hidden flex items-center gap-2 mb-3">
