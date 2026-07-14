@@ -389,7 +389,7 @@ export default function RutinasPage() {
                 onClick={() => setMostrarModal(true)}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition"
               >
-                + Agregar rutina
+                + Crear rutina
               </button>
             </div>
 

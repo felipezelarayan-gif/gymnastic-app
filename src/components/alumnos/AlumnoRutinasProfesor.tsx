@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
@@ -8,6 +8,8 @@ import BackButton from "@/components/BackButton";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import AsignarModal from "@/components/shared/AsignarModal";
+import VerRutinaPlantillaModal from "@/components/rutinas/VerRutinaPlantillaModal";
+import CrearRutinaModal from "@/components/rutinas/CrearRutinaModal";
 
 type Alumno = {
   id: string;
@@ -39,50 +41,6 @@ type RutinaAsignada = {
   rutinas?: Rutina | Rutina[] | null;
 };
 
-type RutinaEjercicio = {
-  id: string;
-  rutina_id: string;
-  nombre_ejercicio: string;
-  series?: number | null;
-  tipo_prescripcion?: string | null;
-  repeticiones?: string | null;
-  duracion?: string | null;
-  peso?: string | null;
-  porcentaje_rm?: string | null;
-  rir?: string | null;
-  descanso?: string | null;
-  observaciones?: string | null;
-  orden?: number | null;
-};
-
-type EntradaCalor = {
-  id: string;
-  rutina_id: string;
-  nombre_ejercicio: string;
-  series?: number | null;
-  tipo_prescripcion?: string | null;
-  repeticiones?: string | null;
-  duracion?: string | null;
-  observaciones?: string | null;
-  orden?: number | null;
-};
-
-const card = "bg-zinc-900 border border-zinc-800 rounded-2xl p-5";
-const input =
-  "w-full rounded-xl border border-zinc-700 bg-zinc-800 p-3 text-white";
-
-function textoPrescripcion(item: {
-  tipo_prescripcion?: string | null;
-  repeticiones?: string | null;
-  duracion?: string | null;
-}) {
-  if (item.tipo_prescripcion === "tiempo") {
-    return `Duración: ${item.duracion || "-"}`;
-  }
-
-  return `Reps: ${item.repeticiones || "-"}`;
-}
-
 export default function AlumnoRutinasProfesor({
   params,
 }: {
@@ -97,45 +55,124 @@ export default function AlumnoRutinasProfesor({
   const [profesorId, setProfesorId] = useState<string | null>(null);
   const { formatearFechaCorta } = useFormatoFecha();
 
-  const [rutinaSeleccionada, setRutinaSeleccionada] = useState("");
-  const [mostrar, setMostrar] = useState(5);
+  // Paginación y búsqueda
+  const [busqueda, setBusqueda] = useState("");
+  const [paginaActual, setPaginaActual] = useState(0);
+  const [rutinasPorPagina] = useState(10);
+  const [totalAsignaciones, setTotalAsignaciones] = useState(0);
+  const [filtrosAbierto, setFiltrosAbierto] = useState(false);
+
   const [guardando, setGuardando] = useState(false);
   const [ordenarPor, setOrdenarPor] = useState<"fecha" | "nombre" | "estado">("fecha");
   const [orden, setOrden] = useState<"asc" | "desc">("desc");
 
-  const [mostrarCrearRutina, setMostrarCrearRutina] = useState(false);
-  const [nuevoNombre, setNuevoNombre] = useState("");
-  const [nuevoObjetivo, setNuevoObjetivo] = useState("");
-  const [nuevaDescripcion, setNuevaDescripcion] = useState("");
+  // Filtros
+  const [filtroEstado, setFiltroEstado] = useState<"todas" | "completadas" | "pendientes">("todas");
+  const [filtroFecha, setFiltroFecha] = useState<"todas" | "semana" | "mes" | "tresmeses">("todas");
 
+  const [mostrarCrearModal, setMostrarCrearModal] = useState(false);
   const [mostrarModalAsignar, setMostrarModalAsignar] = useState(false);
 
-  const [rutinaDetalleId, setRutinaDetalleId] = useState<string | null>(null);
+  const [verRutinaId, setVerRutinaId] = useState<string | null>(null);
   const [quitandoId, setQuitandoId] = useState<string | null>(null);
-  const [editandoRutina, setEditandoRutina] = useState(false);
-  const [ejerciciosPorRutina, setEjerciciosPorRutina] = useState<
-    Record<string, RutinaEjercicio[]>
-  >({});
-  const [entradaPorRutina, setEntradaPorRutina] = useState<
-    Record<string, EntradaCalor[]>
-  >({});
-  const [cargandoDetalle, setCargandoDetalle] = useState(false);
-
-  const detalleAsignacion = useMemo(() => {
-    if (!rutinaDetalleId) return null;
-
-    return (
-      asignadas.find((asignacion) => asignacion.id === rutinaDetalleId) || null
-    );
-  }, [rutinaDetalleId, asignadas]);
-
-  const detalleRutina = detalleAsignacion
-    ? normalizarRelacion<Rutina>(detalleAsignacion.rutinas)
-    : null;
 
   useEffect(() => {
     cargarTodo();
   }, [id]);
+
+  const cargarAsignaciones = useCallback(async (profesorActualId: string, esRecarga = false) => {
+    const LIMITE = rutinasPorPagina;
+    const desde = esRecarga ? 0 : paginaActual * LIMITE;
+
+    let query = supabase
+      .from("rutina_asignaciones")
+      .select(
+        `
+        id,
+        alumno_id,
+        rutina_id,
+        activa,
+        completada,
+        fecha_asignacion,
+        fecha_completada,
+        rutinas (
+          id,
+          nombre,
+          descripcion,
+          objetivo,
+          created_at,
+          creada_para_alumno_id,
+          creada_desde_perfil_alumno,
+          es_duplicado_limpio,
+          profesor_id
+        )
+      `,
+        { count: "exact" }
+      )
+      .eq("alumno_id", id);
+
+    // Filtro por estado
+    if (filtroEstado === "completadas") {
+      query = query.eq("completada", true);
+    } else if (filtroEstado === "pendientes") {
+      query = query.eq("completada", false);
+    }
+
+    // Filtro por fecha
+    if (filtroFecha !== "todas") {
+      const now = new Date();
+      let desdeFecha: Date;
+      switch (filtroFecha) {
+        case "semana":
+          desdeFecha = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "mes":
+          desdeFecha = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case "tresmeses":
+          desdeFecha = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+      }
+      query = query.gte("fecha_asignacion", desdeFecha!.toISOString());
+    }
+
+    // Ordenamiento
+    if (ordenarPor === "nombre") {
+      query = query.order("rutinas(nombre)", { ascending: orden === "asc" });
+    } else {
+      query = query.order("fecha_asignacion", { ascending: orden === "asc" });
+    }
+
+    query = query.range(desde, desde + LIMITE - 1);
+
+    if (busqueda.trim()) {
+      query = query.ilike("rutinas.nombre", `%${busqueda.trim()}%`);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    const asignadasPropias = ((data || []) as RutinaAsignada[]).filter(
+      (asignacion) => {
+        const rutina = normalizarRelacion<Rutina>(asignacion.rutinas);
+        return rutina?.profesor_id === profesorActualId;
+      }
+    );
+
+    if (count !== null) {
+      setTotalAsignaciones(count);
+    }
+
+    if (esRecarga || desde === 0) {
+      setAsignadas(asignadasPropias);
+    } else {
+      setAsignadas((prev) => [...prev, ...asignadasPropias]);
+    }
+  }, [id, paginaActual, rutinasPorPagina, busqueda, filtroEstado, filtroFecha, ordenarPor, orden]);
 
   async function cargarTodo() {
     setLoading(true);
@@ -159,7 +196,6 @@ export default function AlumnoRutinasProfesor({
     // Paso 1: Ejecutar consultas independientes en paralelo
     const [
       { data: alumnoData, error: alumnoError },
-      { data: asignadasData, error: asignadasError },
       { data: disponiblesData, error: disponiblesError },
     ] = await Promise.all([
       supabase
@@ -168,32 +204,6 @@ export default function AlumnoRutinasProfesor({
         .eq("id", id)
         .eq("profesor_id", profesorActualId)
         .single(),
-      supabase
-        .from("rutina_asignaciones")
-        .select(
-          `
-          id,
-          alumno_id,
-          rutina_id,
-          activa,
-          completada,
-          fecha_asignacion,
-          fecha_completada,
-          rutinas (
-            id,
-            nombre,
-            descripcion,
-            objetivo,
-            created_at,
-            creada_para_alumno_id,
-            creada_desde_perfil_alumno,
-            es_duplicado_limpio,
-            profesor_id
-          )
-        `
-        )
-        .eq("alumno_id", id)
-        .order("fecha_asignacion", { ascending: false }),
       supabase
         .from("rutinas")
         .select(
@@ -209,71 +219,26 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
-    if (asignadasError) {
-      alert(asignadasError.message);
-      setLoading(false);
-      return;
-    }
-
     if (disponiblesError) {
       alert(disponiblesError.message);
       setLoading(false);
       return;
     }
 
-    const asignadasPropias = ((asignadasData || []) as RutinaAsignada[]).filter(
-      (asignacion) => {
-        const rutina = normalizarRelacion<Rutina>(asignacion.rutinas);
-        return rutina?.profesor_id === profesorActualId;
-      }
-    );
-
     setAlumno(alumnoData as Alumno);
-    setAsignadas(asignadasPropias);
     setDisponibles((disponiblesData || []) as Rutina[]);
+
+    // Cargar asignaciones con paginación
+    await cargarAsignaciones(profesorActualId, true);
     setLoading(false);
   }
 
-  async function cargarEjerciciosRutina(rutinaId: string) {
-    // Si ya están cargados, no volver a consultar
-    if (ejerciciosPorRutina[rutinaId] || entradaPorRutina[rutinaId]) {
-      return;
+  // Auto-cargar cuando cambian filtros o página
+  useEffect(() => {
+    if (profesorId) {
+      cargarAsignaciones(profesorId, true);
     }
-
-    const [{ data: ejerciciosData, error: ejerciciosError }, { data: entradaData, error: entradaError }] =
-      await Promise.all([
-        supabase
-          .from("rutina_ejercicios")
-          .select("id,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
-          .eq("rutina_id", rutinaId)
-          .order("orden", { ascending: true }),
-        supabase
-          .from("rutina_entrada_calor")
-          .select("id,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,observaciones,orden")
-          .eq("rutina_id", rutinaId)
-          .order("orden", { ascending: true }),
-      ]);
-
-    if (ejerciciosError) {
-      alert(ejerciciosError.message);
-      return;
-    }
-
-    if (entradaError) {
-      alert(entradaError.message);
-      return;
-    }
-
-    setEjerciciosPorRutina((prev) => ({
-      ...prev,
-      [rutinaId]: ejerciciosData || [],
-    }));
-
-    setEntradaPorRutina((prev) => ({
-      ...prev,
-      [rutinaId]: entradaData || [],
-    }));
-  }
+  }, [cargarAsignaciones, profesorId]);
 
   async function asignarRutina(rutinasSeleccionadas: { id: string; nombre: string; fechaAsignacion?: string }[]) {
     if (!profesorId) {
@@ -324,85 +289,6 @@ export default function AlumnoRutinasProfesor({
       setGuardando(false);
     }
   }
-
-  async function crearRutinaParaAlumno() {
-    if (!nuevoNombre.trim()) {
-      alert("Ingresá el nombre de la rutina.");
-      return;
-    }
-
-    if (!profesorId) {
-      alert("No se pudo validar el profesor actual.");
-      return;
-    }
-
-    setGuardando(true);
-
-    const { data: alumnoPropio, error: alumnoError } = await supabase
-      .from("alumnos")
-      .select("id")
-      .eq("id", id)
-      .eq("profesor_id", profesorId)
-      .maybeSingle();
-
-    if (alumnoError) {
-      alert(alumnoError.message);
-      setGuardando(false);
-      return;
-    }
-
-    if (!alumnoPropio) {
-      alert("No tenés permiso para crear rutinas para este alumno.");
-      setGuardando(false);
-      return;
-    }
-
-    const { data: nuevaRutina, error: rutinaError } = await supabase
-      .from("rutinas")
-      .insert({
-        nombre: nuevoNombre.trim(),
-        objetivo: nuevoObjetivo.trim() || null,
-        descripcion: nuevaDescripcion.trim() || null,
-        creada_para_alumno_id: id,
-        creada_desde_perfil_alumno: true,
-        es_duplicado_limpio: false,
-        creada_por: profesorId,
-        profesor_id: profesorId,
-      })
-      .select("id")
-      .single();
-
-    if (rutinaError || !nuevaRutina) {
-      alert(rutinaError?.message || "No se pudo crear la rutina.");
-      setGuardando(false);
-      return;
-    }
-
-    const { error: asignacionError } = await supabase
-      .from("rutina_asignaciones")
-      .insert({
-        alumno_id: id,
-        rutina_id: nuevaRutina.id,
-        activa: true,
-        completada: false,
-        fecha_asignacion: new Date().toISOString(),
-      });
-
-    setGuardando(false);
-
-    if (asignacionError) {
-      alert(asignacionError.message);
-      return;
-    }
-
-    setNuevoNombre("");
-    setNuevoObjetivo("");
-    setNuevaDescripcion("");
-    setMostrarCrearRutina(false);
-
-    window.location.href = `/rutinas/${nuevaRutina.id}?from=alumno&alumnoId=${id}`;
-  }
-
 
   async function quitarAsignacion(asignacionId: string) {
     if (quitandoId) return;
@@ -713,10 +599,42 @@ export default function AlumnoRutinasProfesor({
     window.location.href = `/rutinas/${nuevaRutina.id}?from=alumno&alumnoId=${id}`;
   }
 
+  const handleRutinaCreada = useCallback((rutinaId: string) => {
+    setMostrarCrearModal(false);
+
+    // Asignar la rutina al alumno y redirigir
+    if (!profesorId) return;
+
+    supabase
+      .from("rutina_asignaciones")
+      .insert({
+        alumno_id: id,
+        rutina_id: rutinaId,
+        activa: true,
+        completada: false,
+        fecha_asignacion: new Date().toISOString(),
+      })
+      .then(() => {
+        window.location.href = `/rutinas/${rutinaId}?from=alumno&alumnoId=${id}`;
+      });
+  }, [id, profesorId]);
+
+  const totalPaginas = Math.max(1, Math.ceil(totalAsignaciones / rutinasPorPagina));
+  const paginaSegura = Math.min(paginaActual, totalPaginas - 1);
+
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white p-6">
-        Cargando rutinas...
+      <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
+        <div className="max-w-5xl mx-auto animate-pulse">
+          <div className="h-5 w-20 rounded bg-zinc-800 mb-6" />
+          <div className="h-9 w-36 rounded bg-zinc-800 mb-6" />
+          <div className="h-14 rounded-2xl bg-zinc-900 border border-zinc-800 mb-5" />
+          <div className="grid gap-4">
+            <div className="h-40 rounded-2xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-40 rounded-2xl bg-zinc-900 border border-zinc-800" />
+            <div className="h-40 rounded-2xl bg-zinc-900 border border-zinc-800" />
+          </div>
+        </div>
       </main>
     );
   }
@@ -734,230 +652,216 @@ export default function AlumnoRutinasProfesor({
         <BackButton fallback={`/alumnos/${id}`} />
 
         <header className="mt-6 mb-5">
-          <h1 className="text-3xl font-bold">
-            Rutinas de {alumno?.nombre} {alumno?.apellido || ""}
-          </h1>
-          <p className="text-zinc-400 mt-1">
-            Solo se muestran las rutinas asignadas a este alumno.
-          </p>
-        </header>
-
-        <section className={`${card} mb-5`}>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-            <h2 className="text-xl font-semibold">Gestión de rutinas</h2>
-
-            <button
-              type="button"
-              onClick={() => setMostrarCrearRutina(!mostrarCrearRutina)}
-              className="rounded-xl border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-400 hover:bg-emerald-950"
-            >
-              + Crear rutina nueva
-            </button>
-          </div>
-
-          {mostrarCrearRutina && (
-            <div className="mb-5 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
-              <h3 className="mb-2 text-lg font-semibold">
-                Crear rutina para este alumno
-              </h3>
-
-              <p className="mb-4 text-sm text-yellow-400">
-                Esta rutina quedará marcada como creada originalmente para{" "}
-                {alumno?.nombre} {alumno?.apellido || ""}. Luego podrás
-                duplicarla como plantilla limpia si querés usarla sin alerta.
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">
+                Rutinas de {alumno?.nombre} {alumno?.apellido || ""}
+              </h1>
+              <p className="text-zinc-400 mt-1">
+                {totalAsignaciones > 0
+                  ? `${totalAsignaciones} ${totalAsignaciones === 1 ? "rutina asignada" : "rutinas asignadas"}`
+                  : "Solo se muestran las rutinas asignadas a este alumno."
+                }
               </p>
+            </div>
 
-              <div className="space-y-3">
-                <input
-                  value={nuevoNombre}
-                  onChange={(e) => setNuevoNombre(e.target.value)}
-                  className={input}
-                  placeholder="Nombre de la rutina"
-                />
-
-                <input
-                  value={nuevoObjetivo}
-                  onChange={(e) => setNuevoObjetivo(e.target.value)}
-                  className={input}
-                  placeholder="Objetivo"
-                />
-
-                <textarea
-                  value={nuevaDescripcion}
-                  onChange={(e) => setNuevaDescripcion(e.target.value)}
-                  className={`${input} min-h-24`}
-                  placeholder="Descripción"
-                />
-
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setMostrarCrearRutina(false)}
-                    className="flex-1 rounded-xl border border-zinc-700 py-3 text-zinc-300 hover:bg-zinc-800"
-                  >
-                    Cancelar
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={crearRutinaParaAlumno}
-                    disabled={guardando}
-                    className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600 disabled:opacity-50"
-                  >
-                    {guardando ? "Creando..." : "Crear y asignar"}
-                  </button>
-                </div>
+            <div className="flex items-center gap-2 mt-4 shrink-0">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMostrarCrearModal(true)}
+                  className="hidden md:inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition text-sm"
+                >
+                  + Crear rutina
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMostrarModalAsignar(true)}
+                  disabled={guardando || disponibles.length === 0}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-700 px-5 py-3 text-sm font-semibold text-emerald-400 hover:bg-emerald-950 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Asignar rutinas
+                </button>
               </div>
             </div>
-          )}
-
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold">Asignar rutinas existentes</h3>
-            <button
-              type="button"
-              onClick={() => setMostrarModalAsignar(true)}
-              disabled={guardando || disponibles.length === 0}
-              className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              + Asignar
-            </button>
           </div>
+        </header>
 
-          {disponibles.length === 0 && (
-            <p className="text-sm text-zinc-400">
-              No hay rutinas disponibles para asignar.
-            </p>
-          )}
-        </section>
+        {/* FAB: boton flotante para crear rutina (solo mobile) */}
+        <button
+          type="button"
+          onClick={() => setMostrarCrearModal(true)}
+          className="md:hidden fixed bottom-24 right-6 z-50 w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center text-3xl font-bold shadow-lg hover:bg-emerald-600 transition active:scale-95"
+        >
+          +
+        </button>
 
-        <section className={card}>
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <h2 className="text-xl font-semibold">Rutinas asignadas</h2>
-
-            <div className="flex gap-2">
-              <select
-                value={ordenarPor}
-                onChange={(e) =>
-                  setOrdenarPor(
-                    e.target.value as "fecha" | "nombre" | "estado"
-                  )
-                }
-                className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm"
-              >
-                <option value="fecha">Antigüedad</option>
-                <option value="nombre">Nombre</option>
-                <option value="estado">Estado</option>
-              </select>
-
-              <select
-                value={orden}
-                onChange={(e) =>
-                  setOrden(e.target.value as "asc" | "desc")
-                }
-                className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm"
-              >
-                <option value="desc">Descendente</option>
-                <option value="asc">Ascendente</option>
-              </select>
-            </div>
+        {/* Buscador + ⚙️ filtros */}
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setFiltrosAbierto(true)}
+            className="rounded-xl border border-zinc-700 bg-zinc-800 w-12 h-12 flex items-center justify-center text-sm hover:bg-zinc-700 transition shrink-0"
+          >
+            ⚙️
+          </button>
+          <div className="flex-1 relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm">🔍</span>
+            <input
+              type="text"
+              placeholder="Buscar por nombre..."
+              value={busqueda}
+              onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(0); }}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-emerald-500"
+            />
           </div>
+        </div>
 
-          {asignadas.length === 0 ? (
-            <p className="text-zinc-400">
-              Este alumno no tiene rutinas asignadas.
+        {asignadas.length === 0 ? (
+          <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
+            <h2 className="text-xl font-semibold">No se encontraron rutinas</h2>
+            <p className="text-zinc-400 mt-2">
+              {busqueda
+                ? "No se encontraron rutinas con ese nombre."
+                : "Este alumno no tiene rutinas asignadas."
+              }
             </p>
-          ) : (
-            <div className="space-y-3">
-              {asignadas.slice(0, mostrar).map((asignacion) => {
+          </section>
+        ) : (
+          <>
+            <div className="grid gap-3">
+              {asignadas.map((asignacion) => {
                 const rutina = normalizarRelacion<Rutina>(asignacion.rutinas);
-
-                const estado = asignacion.completada
-                  ? "Finalizada"
-                  : asignacion.activa
-                    ? "Activa"
-                    : "Sin finalizar";
 
                 return (
                   <div
                     key={asignacion.id}
-                    className="rounded-xl border border-zinc-800 p-4"
+                    className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
                   >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <h3 className="font-semibold">
+                    {/* Mobile */}
+                    <div className="md:hidden flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold truncate text-sm">
                           {rutina?.nombre || "Rutina sin nombre"}
-                        </h3>
-
-                        {rutina?.creada_desde_perfil_alumno && (
-                            <p className="mt-2 rounded-lg border border-yellow-700 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400">
-                              Esta rutina fue creada originalmente para este
-                              alumno.
-                            </p>
+                          {rutina?.creada_desde_perfil_alumno && (
+                            <span className="ml-2 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400 align-middle">
+                              Personalizada
+                            </span>
                           )}
-
-                        <p className="text-sm text-zinc-400 mt-2">
-                          Estado: {estado}
+                        </h3>
+                        <p className="text-xs text-zinc-500 mt-1">
+                          Fecha {formatearFechaCorta(asignacion.completada ? asignacion.fecha_completada : asignacion.fecha_asignacion)} - <span className={asignacion.completada ? "text-zinc-400" : "text-emerald-400"}>{asignacion.completada ? "Completada" : "Pendiente"}</span>
                         </p>
-
-                         <p className="text-xs text-zinc-500 mt-1">
-                           Asignada: {formatearFechaCorta(asignacion.fecha_asignacion)}
-                         </p>
-
-                        {rutina?.objetivo && (
-                          <p className="text-xs text-zinc-500 mt-1">
-                            Objetivo: {rutina.objetivo}
-                          </p>
-                        )}
                       </div>
-
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 shrink-0">
                         <button
                           type="button"
-                          onClick={async () => {
-                            setCargandoDetalle(true);
-                            setRutinaDetalleId(asignacion.id);
-                            await cargarEjerciciosRutina(asignacion.rutina_id);
-                            setCargandoDetalle(false);
-                          }}
-                          className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
+                          onClick={() => setVerRutinaId(asignacion.rutina_id)}
+                          className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
                         >
-                          Ver
+                          👁️
                         </button>
-
                         <button
                           type="button"
                           onClick={() => editarRutinaParaAlumno(asignacion)}
-                          className="rounded-lg border border-amber-700 px-3 py-2 text-sm text-amber-400 hover:bg-amber-950"
+                          className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
                         >
-                          Editar
+                          ✏️
                         </button>
-
                         <button
                           type="button"
                           onClick={() => quitarAsignacion(asignacion.id)}
                           disabled={quitandoId === asignacion.id}
-                          className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50"
                         >
-                          {quitandoId === asignacion.id ? "Quitando..." : "Quitar"}
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Desktop */}
+                    <div className="hidden md:flex items-center gap-4">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold truncate">{rutina?.nombre || "Rutina sin nombre"}</h3>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-xs text-zinc-500">
+                            Fecha {formatearFechaCorta(asignacion.completada ? asignacion.fecha_completada : asignacion.fecha_asignacion)}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            asignacion.completada
+                              ? "bg-zinc-800 text-zinc-400"
+                              : "bg-emerald-900/40 text-emerald-400"
+                          }`}>
+                            {asignacion.completada ? "Completada" : "Pendiente"}
+                          </span>
+                          {rutina?.creada_desde_perfil_alumno && (
+                            <span className="ml-2 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400 align-middle">
+                              Personalizada
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setVerRutinaId(asignacion.rutina_id)}
+                          className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
+                        >
+                          Ver
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => editarRutinaParaAlumno(asignacion)}
+                          className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => quitarAsignacion(asignacion.id)}
+                          disabled={quitandoId === asignacion.id}
+                          className="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {quitandoId === asignacion.id ? "..." : "Quitar"}
                         </button>
                       </div>
                     </div>
                   </div>
                 );
               })}
+            </div>
 
-              {mostrar < asignadas.length && (
+            {totalPaginas > 1 && (
+              <div className="flex items-center justify-center gap-4 mt-6">
                 <button
                   type="button"
-                  onClick={() => setMostrar(mostrar + 5)}
-                  className="w-full rounded-xl border border-zinc-700 py-3 text-zinc-300 hover:bg-zinc-800"
+                  onClick={() => setPaginaActual((p) => Math.max(0, p - 1))}
+                  disabled={paginaSegura === 0}
+                  className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Mostrar más
+                  ← Anterior
                 </button>
-              )}
-            </div>
-          )}
-        </section>
+                <span className="text-sm text-zinc-400">
+                  Página {paginaSegura + 1} de {totalPaginas}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPaginaActual((p) => Math.min(totalPaginas - 1, p + 1))}
+                  disabled={paginaSegura >= totalPaginas - 1}
+                  className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        <CrearRutinaModal
+          open={mostrarCrearModal}
+          onClose={() => setMostrarCrearModal(false)}
+          onCreada={handleRutinaCreada}
+        />
 
         {mostrarModalAsignar && (
           <AsignarModal
@@ -968,143 +872,109 @@ export default function AlumnoRutinasProfesor({
           />
         )}
 
-        {rutinaDetalleId && detalleAsignacion && detalleRutina && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-              <div className="mb-4 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold">
-                    {detalleRutina.nombre || "Rutina sin nombre"}
-                  </h2>
-                  <p className="text-sm text-zinc-400">
-                    Detalle completo de la rutina asignada.
-                  </p>
-                </div>
+        {verRutinaId && profesorId && (
+          <VerRutinaPlantillaModal
+            open={true}
+            onClose={() => setVerRutinaId(null)}
+            rutinaId={verRutinaId}
+            profesorId={profesorId}
+          />
+        )}
 
+        {/* Bottom sheet: filtros */}
+        {filtrosAbierto && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70">
+            <div className="w-full max-w-lg rounded-t-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold">🎯 Filtrar y ordenar</h3>
                 <button
                   type="button"
-                  onClick={() => setRutinaDetalleId(null)}
-                  className="rounded-xl border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
+                  onClick={() => setFiltrosAbierto(false)}
+                  className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
                 >
-                  Cerrar
+                  ✕
                 </button>
               </div>
 
-              {cargandoDetalle && (
-                <div className="flex items-center justify-center py-8">
-                  <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                  <p className="ml-3 text-sm text-zinc-400">Cargando ejercicios...</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Estado</label>
+                  <select
+                    value={filtroEstado}
+                    onChange={(e) => setFiltroEstado(e.target.value as "todas" | "completadas" | "pendientes")}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
+                  >
+                    <option value="todas">Todos los estados</option>
+                    <option value="completadas">Completadas</option>
+                    <option value="pendientes">Pendientes</option>
+                  </select>
                 </div>
-              )}
 
-              {!cargandoDetalle && (
-                <div className="space-y-5">
-                  <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
-                    <h3 className="text-lg font-semibold">Información general</h3>
-
-                    <div className="mt-3 space-y-2 text-sm text-zinc-400">
-                      <p>Estado: {detalleAsignacion.completada ? "Finalizada" : "Activa"}</p>
-                      <p>Asignada: {formatearFechaCorta(detalleAsignacion.fecha_asignacion)}</p>
-                      {detalleAsignacion.fecha_completada && (
-                        <p>
-                          Completada: {formatearFechaCorta(detalleAsignacion.fecha_completada)}
-                        </p>
-                      )}
-                      {detalleRutina.objetivo && (
-                        <p>Objetivo: {detalleRutina.objetivo}</p>
-                      )}
-                      {detalleRutina.descripcion && (
-                        <p className="whitespace-pre-wrap">
-                          Descripción: {detalleRutina.descripcion}
-                        </p>
-                      )}
-                    </div>
-                  </section>
-
-                  <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
-                    <h3 className="text-lg font-semibold">Entrada en calor</h3>
-
-                    {(entradaPorRutina[detalleAsignacion.rutina_id] || [])
-                      .length === 0 ? (
-                      <p className="mt-3 text-sm text-zinc-500">
-                        Sin entrada en calor cargada.
-                      </p>
-                    ) : (
-                      <div className="mt-3 space-y-2">
-                        {(entradaPorRutina[detalleAsignacion.rutina_id] || []).map(
-                          (item) => (
-                            <div
-                              key={item.id}
-                              className="rounded-lg border border-zinc-800 p-3"
-                            >
-                              <p className="font-semibold">
-                                {item.nombre_ejercicio}
-                              </p>
-                              <p className="text-sm text-zinc-400">
-                                {item.series || "-"} series ·{" "}
-                                {textoPrescripcion(item)}
-                              </p>
-                              {item.observaciones && (
-                                <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-500">
-                                  {item.observaciones}
-                                </p>
-                              )}
-                            </div>
-                          )
-                        )}
-                      </div>
-                    )}
-                  </section>
-
-                  <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
-                    <h3 className="text-lg font-semibold">Ejercicios</h3>
-
-                    {(ejerciciosPorRutina[detalleAsignacion.rutina_id] || [])
-                      .length === 0 ? (
-                      <p className="mt-3 text-sm text-zinc-500">
-                        Sin ejercicios cargados.
-                      </p>
-                    ) : (
-                      <div className="mt-3 space-y-2">
-                        {(
-                          ejerciciosPorRutina[detalleAsignacion.rutina_id] || []
-                        ).map((item) => (
-                          <div
-                            key={item.id}
-                            className="rounded-lg border border-zinc-800 p-3"
-                          >
-                            <p className="font-semibold">
-                              {item.nombre_ejercicio}
-                            </p>
-
-                            <p className="text-sm text-zinc-400">
-                              {item.series || "-"} series ·{" "}
-                              {textoPrescripcion(item)}
-                            </p>
-
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-500">
-                              {item.peso && <span>Peso: {item.peso}</span>}
-                              {item.porcentaje_rm && (
-                                <span>%RM: {item.porcentaje_rm}</span>
-                              )}
-                              {item.rir && <span>RIR: {item.rir}</span>}
-                              {item.descanso && (
-                                <span>Descanso: {item.descanso}</span>
-                              )}
-                            </div>
-
-                            {item.observaciones && (
-                              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-500">
-                                {item.observaciones}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </section>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Fecha</label>
+                  <select
+                    value={filtroFecha}
+                    onChange={(e) => setFiltroFecha(e.target.value as "todas" | "semana" | "mes" | "tresmeses")}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
+                  >
+                    <option value="todas">Todas las fechas</option>
+                    <option value="semana">Última semana</option>
+                    <option value="mes">Último mes</option>
+                    <option value="tresmeses">Últimos 3 meses</option>
+                  </select>
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Ordenar por</label>
+                  <select
+                    value={ordenarPor}
+                    onChange={(e) => setOrdenarPor(e.target.value as "fecha" | "nombre" | "estado")}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
+                  >
+                    <option value="fecha">Antigüedad</option>
+                    <option value="nombre">Nombre</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Orden</label>
+                  <select
+                    value={orden}
+                    onChange={(e) => setOrden(e.target.value as "asc" | "desc")}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
+                  >
+                    <option value="desc">Descendente</option>
+                    <option value="asc">Ascendente</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiltroEstado("todas");
+                      setFiltroFecha("todas");
+                      setOrdenarPor("fecha");
+                      setOrden("desc");
+                      setFiltrosAbierto(false);
+                      setPaginaActual(0);
+                    }}
+                    className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800"
+                  >
+                    Limpiar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiltrosAbierto(false);
+                      setPaginaActual(0);
+                    }}
+                    className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600"
+                  >
+                    Aplicar filtros
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
