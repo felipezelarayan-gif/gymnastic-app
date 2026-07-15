@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getRolCached, invalidarRolCache } from "@/lib/rol-cache";
@@ -10,6 +10,7 @@ import { useUnsavedChanges } from "@/lib/unsaved-changes-context";
 type Rol = "profe" | "alumno" | null;
 
 export default function Navbar() {
+  const router = useRouter();
   const pathname = usePathname();
   const [logueado, setLogueado] = useState(false);
   const [cargando, setCargando] = useState(true);
@@ -99,7 +100,7 @@ export default function Navbar() {
   async function cerrarSesion() {
     invalidarRolCache();
     await supabase.auth.signOut();
-    window.location.replace("/login");
+    router.replace("/login");
   }
 
   if (cargando) return null;
