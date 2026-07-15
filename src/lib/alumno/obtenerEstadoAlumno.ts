@@ -12,6 +12,14 @@ export type DatosEstadoAlumno = {
   tieneHistorial: boolean;
 };
 
+function hoyKey(): string {
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const m = String(hoy.getMonth() + 1).padStart(2, "0");
+  const d = String(hoy.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export type DetalleEstadoAlumno = {
   tipo: "rutina" | "evaluacion";
   subtipo?: string;
@@ -19,6 +27,7 @@ export type DetalleEstadoAlumno = {
   fecha?: string | null;
   cantidad: number;
   puedeCargarAlumno?: boolean | null;
+  isOverdue?: boolean;
 };
 
 export type EstadoAlumnoCardData = {
@@ -49,6 +58,12 @@ export function obtenerEstadoAlumno({
   const rutinaPendiente = obtenerMasProxima(pendientes.rutinasPendientes);
   const evaluacionPendiente = obtenerMasProxima(pendientes.evaluacionesPendientes);
 
+  const hoy = hoyKey();
+  const esVencida = (fecha?: string | null) => {
+    if (!fecha) return false;
+    return fecha.split("T")[0] < hoy;
+  };
+
   const detallesRutinas = rutinaPendiente
     ? [
         {
@@ -56,6 +71,7 @@ export function obtenerEstadoAlumno({
           nombre: rutinaPendiente.nombre,
           fecha: rutinaPendiente.fecha,
           cantidad: cantidadRutinasPendientes,
+          isOverdue: esVencida(rutinaPendiente.fecha),
         },
       ]
     : [];
@@ -69,6 +85,7 @@ export function obtenerEstadoAlumno({
           fecha: evaluacionPendiente.fecha,
           cantidad: cantidadEvaluacionesPendientes,
           puedeCargarAlumno: evaluacionPendiente.puedeCargarAlumno,
+          isOverdue: esVencida(evaluacionPendiente.fecha),
         },
       ]
     : [];
@@ -85,15 +102,31 @@ export function obtenerEstadoAlumno({
 
   if (tieneRutinasPendientes && tieneEvaluacionesPendientes) {
     const descripcion = evaluacionesSoloProfesor.length > 0
-      ? "Tenés rutinas y evaluaciones esperando ser completadas. Algunas evaluaciones las completa tu profesor."
-      : "Tenés rutinas y evaluaciones esperando ser completadas.";
+      ? "Tenés actividades pendientes. Algunas evaluaciones las completa tu profesor."
+      : "Tenés actividades pendientes.";
+
+    // Mostrar solo la más cercana entre todas las pendientes
+    const masCercana = obtenerMasProxima([
+      ...pendientes.rutinasPendientes,
+      ...pendientes.evaluacionesPendientes,
+    ]);
+
+    const detalle = masCercana ? [{
+      tipo: (masCercana.tipo === "rutina" ? "rutina" : "evaluacion") as "rutina" | "evaluacion",
+      subtipo: masCercana.subtipo,
+      nombre: masCercana.nombre,
+      fecha: masCercana.fecha,
+      cantidad: masCercana.tipo === "rutina" ? cantidadRutinasPendientes : cantidadEvaluacionesPendientes,
+      puedeCargarAlumno: masCercana.tipo === "evaluacion" ? (masCercana as any).puedeCargarAlumno : undefined,
+      isOverdue: esVencida(masCercana.fecha),
+    }] : [];
 
     return {
       estado: "rutina-evaluacion",
       icono: "💪",
       titulo: "Tenés actividades pendientes",
       descripcion,
-      detalles: [...detallesRutinas, ...detallesEvaluaciones],
+      detalles: detalle,
       variante: "verde",
     };
   }

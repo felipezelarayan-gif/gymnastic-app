@@ -356,6 +356,7 @@ export default function AlumnoHomePage() {
           descripcion={estadoAlumno.descripcion}
           detalles={estadoAlumno.detalles}
           variante={estadoAlumno.variante}
+          href={estadoAlumno.estado !== "sin-pendientes" && estadoAlumno.estado !== "bienvenido" ? "/alumno/rutina" : undefined}
         />
 
         <section className="grid gap-4 md:grid-cols-3">

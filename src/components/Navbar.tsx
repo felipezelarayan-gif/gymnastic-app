@@ -9,6 +9,36 @@ import { useUnsavedChanges } from "@/lib/unsaved-changes-context";
 
 type Rol = "profe" | "alumno" | null;
 
+type MobileTabProps = {
+  href: string;
+  icon: string;
+  label: string;
+  isActive: boolean;
+  exact?: boolean;
+  onNavClick: (e: React.MouseEvent<HTMLAnchorElement>, href: string) => void;
+};
+
+function MobileTab({ href, icon, label, isActive, exact, onNavClick }: MobileTabProps) {
+  return (
+    <Link
+      href={href}
+      onClick={(e) => { onNavClick(e, href); if (isActive) e.preventDefault(); }}
+      className="flex flex-col items-center justify-center gap-0.5"
+    >
+      <span className={`flex items-center justify-center w-9 h-9 rounded-full text-xl transition ${
+        isActive ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500"
+      }`}>
+        {icon}
+      </span>
+      <span className={`text-[11px] font-medium leading-none transition ${
+        isActive ? "text-emerald-400" : "text-zinc-500"
+      }`}>
+        {label}
+      </span>
+    </Link>
+  );
+}
+
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -35,14 +65,8 @@ export default function Navbar() {
     return baseClass + " border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800";
   }
 
-  function getMobileLinkClass(href: string, exact = false): string {
-    const baseClass = "flex items-center justify-center text-2xl rounded-full transition";
-    const isCurrentPage = exact ? isExactActive(href) : isActive(href);
-    
-    if (isCurrentPage) {
-      return baseClass + " bg-emerald-500/30 text-emerald-300";
-    }
-    return baseClass + " text-white/60 hover:bg-white/10 hover:text-white/90 active:scale-95";
+  function isCurrentPage(href: string, exact = false): boolean {
+    return exact ? isExactActive(href) : isActive(href);
   }
 
   useEffect(() => {
@@ -177,19 +201,19 @@ export default function Navbar() {
         <div className="grid grid-cols-5 h-16 px-2">
           {isAlumno ? (
             <>
-              <Link href="/alumno" className={getMobileLinkClass("/alumno", true)} onClick={(e) => { handleNavClick(e, "/alumno"); if (isExactActive("/alumno")) e.preventDefault(); }}>🏠</Link>
-              <Link href="/alumno/rutina" className={getMobileLinkClass("/alumno/rutina")} onClick={(e) => { handleNavClick(e, "/alumno/rutina"); if (isActive("/alumno/rutina")) e.preventDefault(); }}>📋</Link>
-              <Link href="/alumno/progreso" className={getMobileLinkClass("/alumno/progreso")} onClick={(e) => { handleNavClick(e, "/alumno/progreso"); if (isActive("/alumno/progreso")) e.preventDefault(); }}>📈</Link>
-              <Link href="/alumno/perfil" className={getMobileLinkClass("/alumno/perfil")} onClick={(e) => { handleNavClick(e, "/alumno/perfil"); if (isActive("/alumno/perfil")) e.preventDefault(); }}>👤</Link>
-              <Link href="/alumno/configuracion" className={getMobileLinkClass("/alumno/configuracion")} onClick={(e) => { handleNavClick(e, "/alumno/configuracion"); if (isActive("/alumno/configuracion")) e.preventDefault(); }}>⚙️</Link>
+              <MobileTab href="/alumno" exact icon="🏠" label="Inicio" isActive={isCurrentPage("/alumno", true)} onNavClick={handleNavClick} />
+              <MobileTab href="/alumno/rutina" icon="📋" label="Mi rutina" isActive={isCurrentPage("/alumno/rutina")} onNavClick={handleNavClick} />
+              <MobileTab href="/alumno/progreso" icon="📈" label="Progreso" isActive={isCurrentPage("/alumno/progreso")} onNavClick={handleNavClick} />
+              <MobileTab href="/alumno/perfil" icon="👤" label="Perfil" isActive={isCurrentPage("/alumno/perfil")} onNavClick={handleNavClick} />
+              <MobileTab href="/alumno/configuracion" icon="⚙️" label="Config" isActive={isCurrentPage("/alumno/configuracion")} onNavClick={handleNavClick} />
             </>
           ) : (
             <>
-              <Link href="/" className={getMobileLinkClass("/")} onClick={(e) => { handleNavClick(e, "/"); if (isActive("/")) e.preventDefault(); }}>🏠</Link>
-              <Link href="/alumnos" className={getMobileLinkClass("/alumnos")} onClick={(e) => { handleNavClick(e, "/alumnos"); if (isActive("/alumnos")) e.preventDefault(); }}>👥</Link>
-              <Link href="/rutinas" className={getMobileLinkClass("/rutinas")} onClick={(e) => { handleNavClick(e, "/rutinas"); if (isActive("/rutinas")) e.preventDefault(); }}>📋</Link>
-              <Link href="/ejercicios" className={getMobileLinkClass("/ejercicios")} onClick={(e) => { handleNavClick(e, "/ejercicios"); if (isActive("/ejercicios")) e.preventDefault(); }}>💪</Link>
-              <Link href="/configuracion" className={getMobileLinkClass("/configuracion")} onClick={(e) => { handleNavClick(e, "/configuracion"); if (isActive("/configuracion")) e.preventDefault(); }}>⚙️</Link>
+              <MobileTab href="/" exact icon="🏠" label="Inicio" isActive={isCurrentPage("/", true)} onNavClick={handleNavClick} />
+              <MobileTab href="/alumnos" icon="👥" label="Alumnos" isActive={isCurrentPage("/alumnos")} onNavClick={handleNavClick} />
+              <MobileTab href="/rutinas" icon="📋" label="Rutinas" isActive={isCurrentPage("/rutinas")} onNavClick={handleNavClick} />
+              <MobileTab href="/ejercicios" icon="💪" label="Ejercicios" isActive={isCurrentPage("/ejercicios")} onNavClick={handleNavClick} />
+              <MobileTab href="/configuracion" icon="⚙️" label="Config" isActive={isCurrentPage("/configuracion")} onNavClick={handleNavClick} />
             </>
           )}
         </div>

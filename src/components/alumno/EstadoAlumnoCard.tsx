@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 
 type DetalleEstadoAlumnoCard = {
@@ -8,6 +9,7 @@ type DetalleEstadoAlumnoCard = {
   nombre: string;
   fecha?: string | null;
   cantidad: number;
+  isOverdue?: boolean;
 };
 
 type EstadoAlumnoCardProps = {
@@ -16,6 +18,7 @@ type EstadoAlumnoCardProps = {
   descripcion: string;
   variante?: "verde" | "neutral";
   detalles?: DetalleEstadoAlumnoCard[];
+  href?: string;
 };
 
 export default function EstadoAlumnoCard({
@@ -24,6 +27,7 @@ export default function EstadoAlumnoCard({
   descripcion,
   variante = "neutral",
   detalles,
+  href,
 }: EstadoAlumnoCardProps) {
   const estilos =
     variante === "verde"
@@ -32,13 +36,13 @@ export default function EstadoAlumnoCard({
 
   const { formatearFechaCorta } = useFormatoFecha();
 
-  return (
-    <section className={`border rounded-3xl p-6 mb-5 ${estilos}`}>
+  const contenido = (
+    <>
       <div className="flex items-center gap-3 mb-5">
         <span className="text-3xl">{icono}</span>
         <div>
-          <h2 className="text-2xl font-bold">{titulo}</h2>
-          <p className="text-zinc-400 mt-1">{descripcion}</p>
+          <h2 className="text-xl font-semibold">{titulo}</h2>
+          <p className="text-sm text-zinc-400 mt-0.5">{descripcion}</p>
         </div>
       </div>
 
@@ -59,16 +63,16 @@ export default function EstadoAlumnoCard({
 
             return (
               <div key={`${detalle.tipo}-${detalle.subtipo || "general"}-${detalle.nombre}`}>
-                <p className="text-sm font-semibold text-zinc-300 mb-1">
+                <p className="text-xs font-semibold text-zinc-400 mb-0.5">
                   {iconoTipo} {etiquetaTipo}
                 </p>
-                <p className="text-sm text-zinc-400 mb-1">
-                  {detalle.tipo === "rutina" ? "Próxima rutina" : "Próxima evaluación"}
-                </p>
-                <p className="text-2xl font-bold leading-tight">{detalle.nombre}</p>
+                <p className="text-lg font-bold leading-tight">{detalle.nombre}</p>
                 {fecha && (
-                  <p className="text-sm text-zinc-400 mt-1">
+                  <p className="text-xs text-zinc-500 mt-0.5">
                     Fecha: {fecha}
+                    {detalle.isOverdue && (
+                      <span className="text-red-400 ml-1 font-medium">Vencida</span>
+                    )}
                   </p>
                 )}
               </div>
@@ -76,6 +80,20 @@ export default function EstadoAlumnoCard({
           })}
         </div>
       )}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={`block border rounded-3xl p-6 mb-5 ${estilos} hover:bg-emerald-950/60 transition cursor-pointer`}>
+        {contenido}
+      </Link>
+    );
+  }
+
+  return (
+    <section className={`border rounded-3xl p-6 mb-5 ${estilos}`}>
+    {contenido}
     </section>
   );
 }

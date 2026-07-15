@@ -47,7 +47,7 @@ export default function MisProgresosPage() {
   // Últimas rutinas completadas
   const [rutinasRecientes, setRutinasRecientes] = useState<RutinaReciente[]>([]);
 
-  const [verTodosRM, setVerTodosRM] = useState(false);
+  const [mostrarTodosRM, setMostrarTodosRM] = useState(false);
   const [modalRutina, setModalRutina] = useState<{
     open: boolean;
     id: string;
@@ -169,7 +169,7 @@ export default function MisProgresosPage() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-  const rmsMostrados = verTodosRM ? rmsActuales : rmsActuales.slice(0, 5);
+  const rmsMostrados = rmsActuales.slice(0, 5);
 
   function nombreEjercicio(ejercicioId: string) {
     const ejercicio = ejercicios.find((item) => item.id === ejercicioId);
@@ -264,10 +264,10 @@ export default function MisProgresosPage() {
             {rmsActuales.length > 5 && (
               <button
                 type="button"
-                onClick={() => setVerTodosRM(!verTodosRM)}
+                onClick={() => setMostrarTodosRM(true)}
                 className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-800"
               >
-                {verTodosRM ? "Ver menos" : "Ver todos"}
+                Ver todos ({rmsActuales.length})
               </button>
             )}
           </div>
@@ -361,6 +361,58 @@ export default function MisProgresosPage() {
             </div>
           )}
         </section>
+
+        {/* Modal de todos los RM */}
+        {mostrarTodosRM && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h2 className="text-xl font-bold">🏆 Todas las marcas</h2>
+                <button
+                  type="button"
+                  onClick={() => setMostrarTodosRM(false)}
+                  className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="overflow-y-auto space-y-3 pr-1">
+                {rmsActuales.length === 0 ? (
+                  <p className="text-zinc-500">Todavía no hay RM registrados.</p>
+                ) : (
+                  rmsActuales.map((rm, index) => (
+                    <div
+                      key={rm.id}
+                      className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold text-lg">
+                            {index + 1}. {nombreEjercicio(rm.ejercicio_id)}
+                          </h3>
+                          <p className="text-zinc-500 text-sm">
+                            Actualizado: {formatearFechaCorta(rm.actualizado_en)}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-2xl font-bold text-emerald-400">
+                            {rm.rm_calculado || 0} kg
+                          </p>
+                          {(rm.peso_kg || rm.repeticiones) && (
+                            <p className="text-zinc-500 text-sm">
+                              {rm.peso_kg || "-"} kg x {rm.repeticiones || "-"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {modalRutina?.open && (
           <VerRutinaModal
