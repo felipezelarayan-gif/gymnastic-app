@@ -5,7 +5,8 @@ import { useRef, useState, useEffect, useCallback } from "react";
 type Props = {
   selectedDate: Date;
   onDateChange: (date: Date) => void;
-  datesWithActivity?: string[];
+  pendingDates?: string[];
+  completedDates?: string[];
 };
 
 const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -39,7 +40,8 @@ function getWeekStart(date: Date): Date {
 export default function WeeklyDatePicker({
   selectedDate,
   onDateChange,
-  datesWithActivity = [],
+  pendingDates = [],
+  completedDates = [],
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [weekStart, setWeekStart] = useState(() => getWeekStart(selectedDate));
@@ -97,7 +99,8 @@ export default function WeeklyDatePicker({
 
   const isToday = (date: Date) => formatDateKey(date) === formatDateKey(today);
   const isSelected = (date: Date) => formatDateKey(date) === formatDateKey(selectedDate);
-  const hasActivity = (date: Date) => datesWithActivity.includes(formatDateKey(date));
+  const isPending = (date: Date) => pendingDates.includes(formatDateKey(date));
+  const isCompleted = (date: Date) => completedDates.includes(formatDateKey(date));
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
@@ -140,13 +143,14 @@ export default function WeeklyDatePicker({
       {/* Días de la semana - scroll horizontal */}
       <div
         ref={scrollRef}
-        className="flex justify-between gap-1 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1"
+        className="flex justify-center gap-1 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {days.map((date) => {
           const daySelected = isSelected(date);
           const dayToday = isToday(date);
-          const dayHasActivity = hasActivity(date);
+          const dayPending = isPending(date);
+          const dayCompleted = isCompleted(date);
           const diaSemana = DIAS[date.getDay()];
           const diaNum = date.getDate();
 
@@ -156,7 +160,7 @@ export default function WeeklyDatePicker({
               data-date={formatDateKey(date)}
               type="button"
               onClick={() => onDateChange(date)}
-              className={`snap-center flex flex-col items-center flex-1 min-w-[52px] max-w-[64px] py-2 px-1 rounded-xl transition-all duration-150 ${
+              className={`snap-center flex flex-col items-center min-w-[52px] py-2 px-1 rounded-xl transition-all duration-150 ${
                 daySelected
                   ? "bg-emerald-500/20 border border-emerald-500/50"
                   : dayToday
@@ -177,9 +181,14 @@ export default function WeeklyDatePicker({
               </span>
 
               <div className="h-1.5 flex items-center justify-center">
-                {dayHasActivity && (
+                {dayPending && (
                   <span className={`block w-1.5 h-1.5 rounded-full ${
-                    daySelected ? "bg-emerald-400" : "bg-emerald-500/60"
+                    daySelected ? "bg-orange-400" : "bg-orange-500/60"
+                  }`} />
+                )}
+                {!dayPending && dayCompleted && (
+                  <span className={`block w-1.5 h-1.5 rounded-full ${
+                    daySelected ? "bg-zinc-400" : "bg-zinc-500/60"
                   }`} />
                 )}
               </div>

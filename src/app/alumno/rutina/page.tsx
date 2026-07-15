@@ -34,6 +34,7 @@ export default function NuevaRutinaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendientes, setPendientes] = useState<PendienteAlumno[]>([]);
+  const [completadas, setCompletadas] = useState<PendienteAlumno[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [modalEvaluacion, setModalEvaluacion] = useState<{
     open: boolean;
@@ -66,6 +67,69 @@ export default function NuevaRutinaPage() {
       }
       const resumenPendientes = await obtenerPendientesAlumno(supabase, alumnoRows.id);
       setPendientes(resumenPendientes.pendientes || []);
+
+      // Obtener actividades completadas
+      const [rutinasCompletadas, evaluacionesRmCompletadas, evaluacionesFmsCompletadas] = await Promise.all([
+        supabase
+          .from("rutina_asignaciones")
+          .select("id, fecha_asignacion, rutinas(nombre)")
+          .eq("alumno_id", alumnoRows.id)
+          .eq("completada", true),
+        supabase
+          .from("evaluaciones_rm")
+          .select("id, nombre, estado, fecha_asignacion, created_at")
+          .eq("alumno_id", alumnoRows.id)
+          .in("estado", ["completada", "cargado"]),
+        supabase
+          .from("evaluaciones_fms")
+          .select("id, estado, fecha_asignacion, created_at")
+          .eq("alumno_id", alumnoRows.id)
+          .in("estado", ["completada", "cargado"]),
+      ]);
+
+      const completadasArray: PendienteAlumno[] = [];
+
+      (rutinasCompletadas.data || []).forEach((r: any) => {
+        if (r.fecha_asignacion) {
+          completadasArray.push({
+            id: r.id,
+            tipo: "rutina",
+            nombre: r.rutinas?.nombre || "Rutina",
+            href: "#",
+            fecha: normalizarFecha(r.fecha_asignacion),
+          });
+        }
+      });
+
+      (evaluacionesRmCompletadas.data || []).forEach((e: any) => {
+        const fecha = normalizarFecha(e.fecha_asignacion || e.created_at);
+        if (fecha) {
+          completadasArray.push({
+            id: e.id,
+            tipo: "evaluacion",
+            subtipo: "rm",
+            nombre: e.nombre || "Evaluación RM",
+            href: "#",
+            fecha,
+          });
+        }
+      });
+
+      (evaluacionesFmsCompletadas.data || []).forEach((e: any) => {
+        const fecha = normalizarFecha(e.fecha_asignacion || e.created_at);
+        if (fecha) {
+          completadasArray.push({
+            id: e.id,
+            tipo: "evaluacion",
+            subtipo: "fms",
+            nombre: "Evaluación FMS",
+            href: "#",
+            fecha,
+          });
+        }
+      });
+
+      setCompletadas(completadasArray);
     } catch (e) {
       setError("Ocurrio un error al cargar los datos.");
     } finally {
@@ -77,8 +141,8 @@ export default function NuevaRutinaPage() {
     fetchData();
   }, []);
 
-  // Fechas que tienen actividades (para los puntitos en el calendar)
-  const datesWithActivity = useMemo(() => {
+  // Fechas con actividades pendientes (punto naranja)
+  const pendingDates = useMemo(() => {
     const dates = new Set<string>();
     pendientes.forEach((p) => {
       const fecha = normalizarFecha(p.fecha);
@@ -86,6 +150,16 @@ export default function NuevaRutinaPage() {
     });
     return Array.from(dates);
   }, [pendientes]);
+
+  // Fechas con actividades completadas (punto gris)
+  const completedDates = useMemo(() => {
+    const dates = new Set<string>();
+    completadas.forEach((c) => {
+      const fecha = normalizarFecha(c.fecha);
+      if (fecha) dates.add(fecha);
+    });
+    return Array.from(dates);
+  }, [completadas]);
 
   // Actividades filtradas por la fecha seleccionada
   const selectedDateKey = useMemo(() => {
@@ -146,7 +220,8 @@ export default function NuevaRutinaPage() {
       <WeeklyDatePicker
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
-        datesWithActivity={datesWithActivity}
+        pendingDates={pendingDates}
+        completedDates={completedDates}
       />
 
       <div className="md:grid md:grid-cols-3 md:gap-6 space-y-6 md:space-y-0">
