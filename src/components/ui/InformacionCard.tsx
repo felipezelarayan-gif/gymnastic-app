@@ -1,4 +1,4 @@
-export const APP_VERSION = "2.1.0";
+export const APP_VERSION = "2.1.1";
 export const LAST_UPDATE = "15/07/2026";
 
 export default function InformacionCard() {

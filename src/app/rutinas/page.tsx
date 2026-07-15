@@ -483,7 +483,7 @@ export default function RutinasPage() {
                         onClick={() => setVerRutinaId(rutina.id)}
                         className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
                       >
-                        👁️
+                        Ver/Asignar
                       </button>
                       <a
                         href={`/rutinas/${rutina.id}`}
