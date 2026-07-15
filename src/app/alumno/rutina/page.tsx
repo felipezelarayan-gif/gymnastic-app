@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import BackButton from "@/components/BackButton";
 import { supabase } from "@/lib/supabase";
@@ -10,7 +10,7 @@ import {
 } from "@/lib/alumno/obtenerPendientesAlumnos";
 import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
-
+import WeeklyDatePicker from "@/components/alumno/WeeklyDatePicker";
 
 function getTipoDisplay(actividad: PendienteAlumno) {
   if (actividad.tipo === "rutina") return "Rutina";
@@ -20,15 +20,21 @@ function getTipoDisplay(actividad: PendienteAlumno) {
 
 function obtenerTimestampActividad(actividad: PendienteAlumno) {
   if (!actividad.fecha) return Number.MAX_SAFE_INTEGER;
-
   const timestamp = parseFechaLocal(actividad.fecha)?.getTime() ?? Number.MAX_SAFE_INTEGER;
   return Number.isNaN(timestamp) ? Number.MAX_SAFE_INTEGER : timestamp;
+}
+
+// Normaliza cualquier fecha a YYYY-MM-DD
+function normalizarFecha(fecha?: string | null): string | null {
+  if (!fecha) return null;
+  return fecha.split("T")[0];
 }
 
 export default function NuevaRutinaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendientes, setPendientes] = useState<PendienteAlumno[]>([]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [modalEvaluacion, setModalEvaluacion] = useState<{
     open: boolean;
     id: string;
@@ -39,7 +45,6 @@ export default function NuevaRutinaPage() {
     setLoading(true);
     setError(null);
     try {
-      // Leer sesion local (sin viaje HTTP)
       const { data: sessionData } = await supabase.auth.getSession();
       const user = sessionData?.session?.user;
 
@@ -48,7 +53,6 @@ export default function NuevaRutinaPage() {
         setLoading(false);
         return;
       }
-      // Get alumno record
       const { data: alumnoRows, error: alumnoError } = await supabase
         .from("alumnos")
         .select("id")
@@ -60,7 +64,6 @@ export default function NuevaRutinaPage() {
         setLoading(false);
         return;
       }
-      // Get pendientes
       const resumenPendientes = await obtenerPendientesAlumno(supabase, alumnoRows.id);
       setPendientes(resumenPendientes.pendientes || []);
     } catch (e) {
@@ -74,19 +77,41 @@ export default function NuevaRutinaPage() {
     fetchData();
   }, []);
 
-  // Count for planificacion
+  // Fechas que tienen actividades (para los puntitos en el calendar)
+  const datesWithActivity = useMemo(() => {
+    const dates = new Set<string>();
+    pendientes.forEach((p) => {
+      const fecha = normalizarFecha(p.fecha);
+      if (fecha) dates.add(fecha);
+    });
+    return Array.from(dates);
+  }, [pendientes]);
+
+  // Actividades filtradas por la fecha seleccionada
+  const selectedDateKey = useMemo(() => {
+    const y = selectedDate.getFullYear();
+    const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
+    const d = String(selectedDate.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }, [selectedDate]);
+
+  const actividadesDelDia = useMemo(() => {
+    return pendientes.filter((p) => normalizarFecha(p.fecha) === selectedDateKey);
+  }, [pendientes, selectedDateKey]);
+
+  // Stats generales
   const pendientesOrdenados = [...pendientes].sort(
     (a, b) => obtenerTimestampActividad(a) - obtenerTimestampActividad(b)
   );
   const rutinasPendientes = pendientesOrdenados.filter(p => p.tipo === "rutina").length;
   const evaluacionesPendientes = pendientesOrdenados.filter(p => p.tipo !== "rutina").length;
-  const proximo = pendientesOrdenados.length > 0 ? pendientesOrdenados[0] : null;
+  const proximoGlobal = pendientesOrdenados.length > 0 ? pendientesOrdenados[0] : null;
 
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto py-8 px-4 space-y-8 animate-pulse">
         <div className="h-8 w-24 rounded bg-zinc-800" />
-        {/* Proximo a realizar skeleton */}
+        <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
         <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
           <div className="h-6 w-48 rounded bg-zinc-800" />
           <div className="space-y-2">
@@ -96,7 +121,6 @@ export default function NuevaRutinaPage() {
             <div className="h-10 w-40 rounded-lg bg-zinc-800 mt-4" />
           </div>
         </div>
-        {/* Planificacion skeleton */}
         <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
           <div className="h-6 w-36 rounded bg-zinc-800" />
           <div className="space-y-2">
@@ -105,7 +129,6 @@ export default function NuevaRutinaPage() {
             <div className="h-10 w-28 rounded-lg bg-zinc-800 mt-3" />
           </div>
         </div>
-        {/* Historial skeleton */}
         <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
           <div className="h-6 w-28 rounded bg-zinc-800" />
           <div className="h-4 w-72 rounded bg-zinc-800" />
@@ -116,52 +139,79 @@ export default function NuevaRutinaPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4 space-y-8">
+    <div className="max-w-2xl mx-auto py-8 px-4 space-y-6">
       <BackButton fallback="/alumno" />
-      {/* Proximo a realizar */}
+
+      {/* Weekly Date Picker */}
+      <WeeklyDatePicker
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+        datesWithActivity={datesWithActivity}
+      />
+
+      {/* Actividades del día seleccionado */}
       <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
-        <h2 className="text-xl font-semibold text-zinc-100 mb-2">Proximo a realizar</h2>
+        <h2 className="text-xl font-semibold text-zinc-100 mb-2">
+          {formatearFechaCorta(selectedDateKey) || "Hoy"}
+        </h2>
         {error ? (
           <div className="text-red-400">{error}</div>
-        ) : proximo ? (
-          <div>
-            <div className="text-zinc-300 mb-1">{getTipoDisplay(proximo)}</div>
-            <div className="text-lg font-bold text-zinc-100 mb-1">{proximo.nombre}</div>
-            {proximo.fecha && (
-              <div className="text-zinc-400 mb-3">{formatearFechaCorta(proximo.fecha)}</div>
-            )}
-                {proximo.tipo === "rutina" ? (
-                  <Link
-                    href={`/alumno/rutina/${proximo.id}`}
-                    className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition"
-                  >
-                    Comenzar rutina
-                  </Link>
-                ) : proximo.puedeCargarAlumno ? (
-                  <Link
-                    href={proximo.href}
-                    className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition"
-                  >
-                    Realizar evaluacion
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setModalEvaluacion({
-                        open: true,
-                        id: proximo.id,
-                        subtipo: (proximo.subtipo as "rm" | "fms") || "rm",
-                      })
-                    }
-                    className="inline-block px-4 py-2 rounded-lg bg-zinc-700 text-white font-semibold hover:bg-zinc-600 transition"
-                  >
-                    Ver evaluacion
-                  </button>
-                )}
+        ) : actividadesDelDia.length > 0 ? (
+          <div className="space-y-3">
+            {actividadesDelDia.map((actividad) => (
+              <div
+                key={`${actividad.tipo}-${actividad.subtipo || ""}-${actividad.id}`}
+                className="border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-zinc-500 mb-0.5">
+                      {getTipoDisplay(actividad)}
+                    </div>
+                    <div className="text-lg font-bold text-zinc-100">{actividad.nombre}</div>
+                    {actividad.fecha && (
+                      <div className="text-sm text-zinc-400 mt-1">
+                        {formatearFechaCorta(actividad.fecha)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="shrink-0">
+                    {actividad.tipo === "rutina" ? (
+                      <Link
+                        href={`/alumno/rutina/${actividad.id}`}
+                        className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-sm"
+                      >
+                        Comenzar
+                      </Link>
+                    ) : actividad.puedeCargarAlumno ? (
+                      <Link
+                        href={actividad.href}
+                        className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-sm"
+                      >
+                        Realizar
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setModalEvaluacion({
+                            open: true,
+                            id: actividad.id,
+                            subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                          })
+                        }
+                        className="inline-block px-4 py-2 rounded-lg bg-zinc-700 text-white font-semibold hover:bg-zinc-600 transition text-sm"
+                      >
+                        Ver
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
-          <div className="text-zinc-400">No tienes rutinas ni evaluaciones pendientes.</div>
+          <div className="text-zinc-500 text-sm">No hay actividades para este día.</div>
         )}
       </div>
 
