@@ -1,4 +1,3 @@
-"use client";
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
@@ -139,7 +138,7 @@ export default function NuevaRutinaPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4 space-y-6">
+    <div className="max-w-5xl mx-auto py-8 px-4 space-y-6">
       <BackButton fallback="/alumno" />
 
       {/* Weekly Date Picker */}
@@ -149,101 +148,106 @@ export default function NuevaRutinaPage() {
         datesWithActivity={datesWithActivity}
       />
 
-      {/* Actividades del día seleccionado */}
-      <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
-        <h2 className="text-xl font-semibold text-zinc-100 mb-2">
-          {formatearFechaCorta(selectedDateKey) || "Hoy"}
-        </h2>
-        {error ? (
-          <div className="text-red-400">{error}</div>
-        ) : actividadesDelDia.length > 0 ? (
-          <div className="space-y-3">
-            {actividadesDelDia.map((actividad) => (
-              <div
-                key={`${actividad.tipo}-${actividad.subtipo || ""}-${actividad.id}`}
-                className="border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs uppercase tracking-wide text-zinc-500 mb-0.5">
-                      {getTipoDisplay(actividad)}
-                    </div>
-                    <div className="text-lg font-bold text-zinc-100">{actividad.nombre}</div>
-                    {actividad.fecha && (
-                      <div className="text-sm text-zinc-400 mt-1">
-                        {formatearFechaCorta(actividad.fecha)}
+      <div className="md:grid md:grid-cols-3 md:gap-6 space-y-6 md:space-y-0">
+        {/* Columna izquierda: Actividades del día (2/3 en desktop) */}
+        <div className="md:col-span-2 space-y-6">
+          <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
+            <h2 className="text-xl font-semibold text-zinc-100 mb-2">
+              {formatearFechaCorta(selectedDateKey) || "Hoy"}
+            </h2>
+            {error ? (
+              <div className="text-red-400">{error}</div>
+            ) : actividadesDelDia.length > 0 ? (
+              <div className="space-y-3">
+                {actividadesDelDia.map((actividad) => (
+                  <div
+                    key={`${actividad.tipo}-${actividad.subtipo || ""}-${actividad.id}`}
+                    className="border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-zinc-500 mb-0.5">
+                          {getTipoDisplay(actividad)}
+                        </div>
+                        <div className="text-lg font-bold text-zinc-100">{actividad.nombre}</div>
+                        {actividad.fecha && (
+                          <div className="text-sm text-zinc-400 mt-1">
+                            {formatearFechaCorta(actividad.fecha)}
+                          </div>
+                        )}
                       </div>
-                    )}
+                      <div className="shrink-0">
+                        {actividad.tipo === "rutina" ? (
+                          <Link
+                            href={`/alumno/rutina/${actividad.id}`}
+                            className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-sm"
+                          >
+                            Comenzar
+                          </Link>
+                        ) : actividad.puedeCargarAlumno ? (
+                          <Link
+                            href={actividad.href}
+                            className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-sm"
+                          >
+                            Realizar
+                          </Link>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setModalEvaluacion({
+                                open: true,
+                                id: actividad.id,
+                                subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                              })
+                            }
+                            className="inline-block px-4 py-2 rounded-lg bg-zinc-700 text-white font-semibold hover:bg-zinc-600 transition text-sm"
+                          >
+                            Ver
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="shrink-0">
-                    {actividad.tipo === "rutina" ? (
-                      <Link
-                        href={`/alumno/rutina/${actividad.id}`}
-                        className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-sm"
-                      >
-                        Comenzar
-                      </Link>
-                    ) : actividad.puedeCargarAlumno ? (
-                      <Link
-                        href={actividad.href}
-                        className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-sm"
-                      >
-                        Realizar
-                      </Link>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setModalEvaluacion({
-                            open: true,
-                            id: actividad.id,
-                            subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
-                          })
-                        }
-                        className="inline-block px-4 py-2 rounded-lg bg-zinc-700 text-white font-semibold hover:bg-zinc-600 transition text-sm"
-                      >
-                        Ver
-                      </button>
-                    )}
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <div className="text-zinc-500 text-sm">No hay actividades para este día.</div>
+            )}
           </div>
-        ) : (
-          <div className="text-zinc-500 text-sm">No hay actividades para este día.</div>
+        </div>
+
+        {/* Columna derecha: Planificacion + Historial (1/3 en desktop) */}
+        {!error && (
+          <div className="space-y-6">
+            <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
+              <h2 className="text-xl font-semibold text-zinc-100 mb-2">Planificacion</h2>
+              <div className="flex flex-col gap-1 text-zinc-300">
+                <span>Rutinas pendientes <span className="font-semibold text-zinc-100">({rutinasPendientes})</span></span>
+                <span>Evaluaciones pendientes <span className="font-semibold text-zinc-100">({evaluacionesPendientes})</span></span>
+              </div>
+              <Link
+                href="/alumno/rutina/planificacion"
+                className="inline-block mt-3 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-200 font-semibold border border-zinc-700 hover:bg-zinc-700 transition"
+              >
+                Ver mas
+              </Link>
+            </div>
+
+            <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
+              <h2 className="text-xl font-semibold text-zinc-100 mb-2">Historial</h2>
+              <div className="text-zinc-300 mb-3">
+                Consulta aqui tu historial de rutinas y evaluaciones completadas.
+              </div>
+              <Link
+                href="/alumno/rutina/historial"
+                className="inline-block mt-3 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-200 font-semibold border border-zinc-700 hover:bg-zinc-700 transition"
+              >
+                Ver historial
+              </Link>
+            </div>
+          </div>
         )}
-      </div>
-
-      {!error && (
-        <>
-      {/* Planificacion */}
-      <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
-        <h2 className="text-xl font-semibold text-zinc-100 mb-2">Planificacion</h2>
-        <div className="flex flex-col gap-1 text-zinc-300">
-          <span>Rutinas pendientes <span className="font-semibold text-zinc-100">({rutinasPendientes})</span></span>
-          <span>Evaluaciones pendientes <span className="font-semibold text-zinc-100">({evaluacionesPendientes})</span></span>
-        </div>
-        <Link
-          href="/alumno/rutina/planificacion"
-          className="inline-block mt-3 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-200 font-semibold border border-zinc-700 hover:bg-zinc-700 transition"
-        >
-          Ver mas
-        </Link>
-      </div>
-
-      {/* Historial */}
-      <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
-        <h2 className="text-xl font-semibold text-zinc-100 mb-2">Historial</h2>
-        <div className="text-zinc-300 mb-3">
-          Consulta aqui tu historial de rutinas y evaluaciones completadas.
-        </div>
-        <Link
-          href="/alumno/rutina/historial"
-          className="inline-block mt-3 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-200 font-semibold border border-zinc-700 hover:bg-zinc-700 transition"
-        >
-          Ver historial
-        </Link>
       </div>
 
       {modalEvaluacion?.open && (
@@ -253,8 +257,6 @@ export default function NuevaRutinaPage() {
           evaluacionId={modalEvaluacion.id}
           subtipo={modalEvaluacion.subtipo}
         />
-      )}
-        </>
       )}
     </div>
   );

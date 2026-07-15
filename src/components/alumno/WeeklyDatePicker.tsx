@@ -117,7 +117,6 @@ export default function WeeklyDatePicker({
           <span className="text-sm font-semibold text-zinc-200">
             {MESES[weekStart.getMonth()]} {weekStart.getFullYear()}
           </span>
-          <span className="text-xs text-zinc-500">· Semana {weekNumber}</span>
           <button
             type="button"
             onClick={goToToday}
