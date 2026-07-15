@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/ToastProvider";
 
@@ -41,6 +42,7 @@ function guardarHomeEnCache(profile: Profile) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const { mostrarToast } = useToast();
@@ -61,7 +63,7 @@ export default function Home() {
 
       if (!sessionData.session) {
         try { localStorage.removeItem(HOME_CACHE_KEY); } catch { /* ignore */ }
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -87,7 +89,7 @@ export default function Home() {
 
       if (data.rol === "alumno") {
         try { localStorage.removeItem(HOME_CACHE_KEY); } catch { /* ignore */ }
-        window.location.href = "/alumno";
+        router.push("/alumno");
         return;
       }
 
@@ -113,14 +115,14 @@ export default function Home() {
           </div>
 
           {/* Grid de cards skeleton */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
             <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
             <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
             <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
             <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
             <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
-            <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800 md:col-span-2" />
+            <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800 md:col-span-3" />
           </div>
         </div>
       </main>
@@ -167,7 +169,7 @@ export default function Home() {
           </div>
         </header>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <a
             href="/alumnos"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
@@ -248,7 +250,7 @@ export default function Home() {
 
           <a
             href="/configuracion"
-            className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition md:col-span-2"
+            className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition md:col-span-3"
           >
             <h2 className="text-xl font-semibold">
               ⚙️ Configuración
