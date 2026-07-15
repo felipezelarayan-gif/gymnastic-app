@@ -140,7 +140,7 @@ export default function WeeklyDatePicker({
       {/* Días de la semana - scroll horizontal */}
       <div
         ref={scrollRef}
-        className="flex gap-1 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1"
+        className="flex justify-between gap-1 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {days.map((date) => {
@@ -156,7 +156,7 @@ export default function WeeklyDatePicker({
               data-date={formatDateKey(date)}
               type="button"
               onClick={() => onDateChange(date)}
-              className={`snap-center flex flex-col items-center min-w-[52px] py-2 px-1 rounded-xl transition-all duration-150 ${
+              className={`snap-center flex flex-col items-center flex-1 min-w-[52px] max-w-[64px] py-2 px-1 rounded-xl transition-all duration-150 ${
                 daySelected
                   ? "bg-emerald-500/20 border border-emerald-500/50"
                   : dayToday
