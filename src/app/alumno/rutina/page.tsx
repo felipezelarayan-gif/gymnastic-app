@@ -11,6 +11,7 @@ import {
 import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
 import WeeklyDatePicker from "@/components/alumno/WeeklyDatePicker";
+import { useToast } from "@/components/ui/ToastProvider";
 
 function getTipoDisplay(actividad: PendienteAlumno) {
   if (actividad.tipo === "rutina") return "Rutina";
@@ -30,7 +31,16 @@ function normalizarFecha(fecha?: string | null): string | null {
   return fecha.split("T")[0];
 }
 
+function hoyKey(): string {
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const m = String(hoy.getMonth() + 1).padStart(2, "0");
+  const d = String(hoy.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function NuevaRutinaPage() {
+  const { mostrarToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendientes, setPendientes] = useState<PendienteAlumno[]>([]);
@@ -141,15 +151,27 @@ export default function NuevaRutinaPage() {
     fetchData();
   }, []);
 
-  // Fechas con actividades pendientes (punto naranja)
-  const pendingDates = useMemo(() => {
+  // Fechas con actividades vencidas (punto rojo)
+  const overdueDates = useMemo(() => {
+    const hoy = hoyKey();
     const dates = new Set<string>();
     pendientes.forEach((p) => {
       const fecha = normalizarFecha(p.fecha);
-      if (fecha) dates.add(fecha);
+      if (fecha && fecha < hoy) dates.add(fecha);
     });
     return Array.from(dates);
   }, [pendientes]);
+
+  // Fechas con actividades pendientes no vencidas (punto naranja)
+  const pendingDates = useMemo(() => {
+    const overdueSet = new Set(overdueDates);
+    const dates = new Set<string>();
+    pendientes.forEach((p) => {
+      const fecha = normalizarFecha(p.fecha);
+      if (fecha && !overdueSet.has(fecha)) dates.add(fecha);
+    });
+    return Array.from(dates);
+  }, [pendientes, overdueDates]);
 
   // Fechas con actividades completadas (punto gris)
   const completedDates = useMemo(() => {
@@ -180,6 +202,15 @@ export default function NuevaRutinaPage() {
   const rutinasPendientes = pendientesOrdenados.filter(p => p.tipo === "rutina").length;
   const evaluacionesPendientes = pendientesOrdenados.filter(p => p.tipo !== "rutina").length;
   const proximoGlobal = pendientesOrdenados.length > 0 ? pendientesOrdenados[0] : null;
+
+  // Si hay vencidas, solo se pueden hacer rutinas de hoy o pasado.
+  // Si no hay vencidas, se puede hacer la siguiente rutina (aunque sea futura).
+  const hayVencidas = overdueDates.length > 0;
+  const sePuedeRealizar = (fecha: string | null | undefined): boolean => {
+    if (!fecha) return true;
+    if (!hayVencidas) return true; // todo al día, se puede hacer cualquier pendiente
+    return fecha <= hoyKey(); // hay vencidas, solo hoy y pasado
+  };
 
   if (loading) {
     return (
@@ -222,6 +253,7 @@ export default function NuevaRutinaPage() {
         onDateChange={setSelectedDate}
         pendingDates={pendingDates}
         completedDates={completedDates}
+        overdueDates={overdueDates}
       />
 
       <div className="md:grid md:grid-cols-3 md:gap-6 space-y-6 md:space-y-0">
@@ -254,12 +286,21 @@ export default function NuevaRutinaPage() {
                       </div>
                       <div className="shrink-0">
                         {actividad.tipo === "rutina" ? (
-                          <Link
-                            href={`/alumno/rutina/${actividad.id}`}
-                            className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-sm"
-                          >
-                            Comenzar
-                          </Link>
+                          sePuedeRealizar(actividad.fecha) ? (
+                            <Link
+                              href={`/alumno/rutina/${actividad.id}`}
+                              className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-sm"
+                            >
+                              Comenzar
+                            </Link>
+                          ) : (
+                            <span
+                              className="inline-block px-4 py-2 rounded-lg bg-zinc-800 text-zinc-500 text-sm cursor-pointer hover:bg-zinc-700 transition"
+                              onClick={() => mostrarToast("Completá primero las rutinas pendientes de días anteriores antes de empezar esta.", "info")}
+                            >
+                              Pendiente
+                            </span>
+                          )
                         ) : actividad.puedeCargarAlumno ? (
                           <Link
                             href={actividad.href}
@@ -295,29 +336,37 @@ export default function NuevaRutinaPage() {
 
         {/* Columna derecha: Planificacion + Historial (1/3 en desktop) */}
         {!error && (
-          <div className="space-y-6">
-            <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
-              <h2 className="text-xl font-semibold text-zinc-100 mb-2">Planificacion</h2>
-              <div className="flex flex-col gap-1 text-zinc-300">
+          <div className="space-y-4">
+            <div className="bg-zinc-900 rounded-xl p-4 shadow space-y-2">
+              <h2 className="text-lg font-semibold text-zinc-100">Planificacion</h2>
+              <div className="flex flex-col gap-0.5 text-sm text-zinc-300">
                 <span>Rutinas pendientes <span className="font-semibold text-zinc-100">({rutinasPendientes})</span></span>
                 <span>Evaluaciones pendientes <span className="font-semibold text-zinc-100">({evaluacionesPendientes})</span></span>
               </div>
+              {hayVencidas && (
+                <div className="flex items-start gap-1.5 mt-1 rounded-lg border border-red-900/50 bg-red-950/20 px-3 py-2">
+                  <span className="text-red-400 text-sm leading-none mt-0.5">❗</span>
+                  <p className="text-xs text-red-300 leading-relaxed">
+                    {overdueDates.length} rutina(s) vencida(s) — Completalas para desbloquear las siguientes.
+                  </p>
+                </div>
+              )}
               <Link
                 href="/alumno/rutina/planificacion"
-                className="inline-block mt-3 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-200 font-semibold border border-zinc-700 hover:bg-zinc-700 transition"
+                className="inline-block mt-1 px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 font-semibold border border-zinc-700 hover:bg-zinc-700 transition text-sm"
               >
                 Ver mas
               </Link>
             </div>
 
-            <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
-              <h2 className="text-xl font-semibold text-zinc-100 mb-2">Historial</h2>
-              <div className="text-zinc-300 mb-3">
+            <div className="bg-zinc-900 rounded-xl p-4 shadow space-y-2">
+              <h2 className="text-lg font-semibold text-zinc-100">Historial</h2>
+              <p className="text-xs text-zinc-400">
                 Consulta aqui tu historial de rutinas y evaluaciones completadas.
-              </div>
+              </p>
               <Link
                 href="/alumno/rutina/historial"
-                className="inline-block mt-3 px-4 py-2 rounded-lg bg-zinc-800 text-zinc-200 font-semibold border border-zinc-700 hover:bg-zinc-700 transition"
+                className="inline-block mt-1 px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 font-semibold border border-zinc-700 hover:bg-zinc-700 transition text-sm"
               >
                 Ver historial
               </Link>

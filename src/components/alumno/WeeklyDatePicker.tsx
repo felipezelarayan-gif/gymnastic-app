@@ -7,6 +7,7 @@ type Props = {
   onDateChange: (date: Date) => void;
   pendingDates?: string[];
   completedDates?: string[];
+  overdueDates?: string[];
 };
 
 const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -42,6 +43,7 @@ export default function WeeklyDatePicker({
   onDateChange,
   pendingDates = [],
   completedDates = [],
+  overdueDates = [],
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [weekStart, setWeekStart] = useState(() => getWeekStart(selectedDate));
@@ -99,6 +101,7 @@ export default function WeeklyDatePicker({
 
   const isToday = (date: Date) => formatDateKey(date) === formatDateKey(today);
   const isSelected = (date: Date) => formatDateKey(date) === formatDateKey(selectedDate);
+  const isOverdue = (date: Date) => overdueDates.includes(formatDateKey(date));
   const isPending = (date: Date) => pendingDates.includes(formatDateKey(date));
   const isCompleted = (date: Date) => completedDates.includes(formatDateKey(date));
 
@@ -149,6 +152,7 @@ export default function WeeklyDatePicker({
         {days.map((date) => {
           const daySelected = isSelected(date);
           const dayToday = isToday(date);
+          const dayOverdue = isOverdue(date);
           const dayPending = isPending(date);
           const dayCompleted = isCompleted(date);
           const diaSemana = DIAS[date.getDay()];
@@ -161,7 +165,11 @@ export default function WeeklyDatePicker({
               type="button"
               onClick={() => onDateChange(date)}
               className={`snap-center flex flex-col items-center min-w-[52px] py-2 px-1 rounded-xl transition-all duration-150 ${
-                daySelected
+                dayOverdue && daySelected
+                  ? "bg-red-500/20 border border-red-500/50"
+                  : dayOverdue
+                  ? "bg-red-500/10 border border-red-500/30"
+                  : daySelected
                   ? "bg-emerald-500/20 border border-emerald-500/50"
                   : dayToday
                   ? "bg-zinc-800/60 border border-zinc-700"
@@ -169,24 +177,40 @@ export default function WeeklyDatePicker({
               }`}
             >
               <span className={`text-[10px] font-semibold uppercase tracking-wider mb-1 ${
-                daySelected ? "text-emerald-400" : dayToday ? "text-white" : "text-zinc-500"
+                dayOverdue && daySelected
+                  ? "text-red-400"
+                  : dayOverdue
+                  ? "text-red-400"
+                  : daySelected
+                  ? "text-emerald-400"
+                  : dayToday
+                  ? "text-white"
+                  : "text-zinc-500"
               }`}>
                 {diaSemana}
               </span>
 
               <span className={`text-lg font-bold leading-none mb-1 ${
-                daySelected ? "text-emerald-300" : dayToday ? "text-white" : "text-zinc-300"
+                dayOverdue && daySelected
+                  ? "text-red-300"
+                  : dayOverdue
+                  ? "text-red-300"
+                  : daySelected
+                  ? "text-emerald-300"
+                  : dayToday
+                  ? "text-white"
+                  : "text-zinc-300"
               }`}>
                 {diaNum}
               </span>
 
               <div className="h-1.5 flex items-center justify-center">
-                {dayPending && (
+                {!dayOverdue && dayPending && (
                   <span className={`block w-1.5 h-1.5 rounded-full ${
                     daySelected ? "bg-orange-400" : "bg-orange-500/60"
                   }`} />
                 )}
-                {!dayPending && dayCompleted && (
+                {!dayOverdue && !dayPending && dayCompleted && (
                   <span className={`block w-1.5 h-1.5 rounded-full ${
                     daySelected ? "bg-zinc-400" : "bg-zinc-500/60"
                   }`} />
