@@ -95,14 +95,12 @@ export default function AlumnoHomePage() {
   const [evaluacionesCompletadas, setEvaluacionesCompletadas] = useState(0);
 
   async function cargarDatos() {
-    const { data: sessionData } = await supabase.auth.getSession();
+      const { data: { user } } = await supabase.auth.getUser();
 
-    if (!sessionData.session) {
-      window.location.href = "/login";
-      return;
-    }
-
-    const user = sessionData.session.user;
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
 
     // ── ETAPA 1: Profile + Alumno en paralelo ──
     const [perfilResult, alumnoResult] = await Promise.all([
@@ -263,6 +261,20 @@ export default function AlumnoHomePage() {
     return evaluacionesPendientes[0] || null;
   }, [evaluacionesPendientes]);
 
+  // Calcular rutinas vencidas
+  const overdueCount = useMemo(() => {
+    const hoy = new Date();
+    const y = hoy.getFullYear();
+    const m = String(hoy.getMonth() + 1).padStart(2, "0");
+    const d = String(hoy.getDate()).padStart(2, "0");
+    const hoyKey = `${y}-${m}-${d}`;
+    return resumenPendientes.pendientes.filter((p) => {
+      if (!p.fecha) return false;
+      const fecha = p.fecha.split("T")[0];
+      return fecha < hoyKey;
+    }).length;
+  }, [resumenPendientes]);
+
   const tieneHistorial =
     rutinasAsignadas.length > 0 || ejerciciosCompletados > 0;
   const estadoAlumno = obtenerEstadoAlumno({
@@ -346,12 +358,19 @@ export default function AlumnoHomePage() {
           variante={estadoAlumno.variante}
         />
 
-        <section className="grid gap-4">
+        <section className="grid gap-4 md:grid-cols-3">
           <Link
             href="/alumno/rutina"
             className="text-left bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-emerald-500 hover:bg-zinc-800 transition cursor-pointer"
           >
-            <h2 className="text-xl font-semibold">🏋️ Mi rutina</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">🏋️ Mi rutina</h2>
+              {overdueCount > 0 && (
+                <span className="text-xs font-semibold bg-red-500/15 text-red-300 border border-red-500/30 px-2 py-0.5 rounded-full">
+                  ❗ {overdueCount} vencida{overdueCount !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
             <p className="text-zinc-400 mt-2">
               Ver rutina actual, evaluaciones y completar pendientes.
             </p>
@@ -381,7 +400,7 @@ export default function AlumnoHomePage() {
         <section className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5 mt-4">
           <h2 className="text-xl font-semibold mb-4">📊 Resumen rápido</h2>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-xl bg-zinc-950/40 border border-zinc-800 p-4">
               <p className="text-zinc-400 text-sm">Rutinas completadas</p>
               <p className="text-3xl font-bold mt-1">

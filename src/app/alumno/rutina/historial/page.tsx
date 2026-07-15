@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
+import { useToast } from "@/components/ui/ToastProvider";
 import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
 import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
@@ -78,6 +79,7 @@ function agruparDetallePorEjercicio(detalle: DetalleEntrenamiento[]): DetalleEje
 }
 
 export default function NuevaRutinaHistorialPage() {
+  const { mostrarToast } = useToast();
   const [cargando, setCargando] = useState(true);
   const [historial, setHistorial] = useState<HistorialActividad[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -357,9 +359,7 @@ export default function NuevaRutinaHistorialPage() {
     if (!confirmarModificar) return;
 
     if (confirmarModificar.rutina_id === null) {
-      alert(
-        "Esta rutina fue eliminada por el profesor. Para corregir este registro, contactá al soporte."
-      );
+      mostrarToast("Esta rutina fue eliminada por el profesor. Para corregir este registro, contactá al soporte.", "error");
       setConfirmarModificar(null);
       return;
     }
@@ -385,9 +385,7 @@ export default function NuevaRutinaHistorialPage() {
     if (!confirmarDeshacer) return;
 
     if (confirmarDeshacer.rutina_id === null) {
-      alert(
-        "Esta rutina fue eliminada por el profesor. Para corregir este registro, contactá al soporte."
-      );
+      mostrarToast("Esta rutina fue eliminada por el profesor. Para corregir este registro, contactá al soporte.", "error");
       setConfirmarDeshacer(null);
       return;
     }
@@ -450,7 +448,7 @@ export default function NuevaRutinaHistorialPage() {
       setConfirmarDeshacer(null);
     } catch (error) {
       const mensaje = error instanceof Error ? error.message : "No se pudo deshacer el entrenamiento.";
-      alert(mensaje);
+      mostrarToast(mensaje, "error");
     } finally {
       setDeshaciendo(false);
     }

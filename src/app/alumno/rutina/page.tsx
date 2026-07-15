@@ -51,17 +51,16 @@ export default function NuevaRutinaPage() {
     id: string;
     subtipo: "rm" | "fms";
   } | null>(null);
+  const [mostrarVencidasModal, setMostrarVencidasModal] = useState(false);
 
   async function fetchData() {
     setLoading(true);
     setError(null);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const user = sessionData?.session?.user;
+      const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        setError("No se pudo obtener el usuario actual.");
-        setLoading(false);
+        window.location.href = "/login";
         return;
       }
       const { data: alumnoRows, error: alumnoError } = await supabase
@@ -338,22 +337,30 @@ export default function NuevaRutinaPage() {
         {!error && (
           <div className="space-y-4">
             <div className="bg-zinc-900 rounded-xl p-4 shadow space-y-2">
-              <h2 className="text-lg font-semibold text-zinc-100">Planificacion</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-zinc-100">Planificacion</h2>
+                {hayVencidas && (
+                  <button
+                    type="button"
+                    onClick={() => setMostrarVencidasModal(true)}
+                    className="text-red-400 hover:text-red-300 transition text-sm leading-none border border-red-500/50 px-2 py-0.5 rounded-lg"
+                    title="Rutinas vencidas"
+                  >
+                    ❗
+                  </button>
+                )}
+              </div>
               <div className="flex flex-col gap-0.5 text-sm text-zinc-300">
                 <span>Rutinas pendientes <span className="font-semibold text-zinc-100">({rutinasPendientes})</span></span>
                 <span>Evaluaciones pendientes <span className="font-semibold text-zinc-100">({evaluacionesPendientes})</span></span>
               </div>
-              {hayVencidas && (
-                <div className="flex items-start gap-1.5 mt-1 rounded-lg border border-red-900/50 bg-red-950/20 px-3 py-2">
-                  <span className="text-red-400 text-sm leading-none mt-0.5">❗</span>
-                  <p className="text-xs text-red-300 leading-relaxed">
-                    {overdueDates.length} rutina(s) vencida(s) — Completalas para desbloquear las siguientes.
-                  </p>
-                </div>
-              )}
               <Link
                 href="/alumno/rutina/planificacion"
-                className="inline-block mt-1 px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 font-semibold border border-zinc-700 hover:bg-zinc-700 transition text-sm"
+                className={`inline-block mt-1 px-3 py-1.5 rounded-lg font-semibold border transition text-sm ${
+                  hayVencidas
+                    ? "bg-red-950/20 text-red-300 border-red-800/60 hover:bg-red-950/40"
+                    : "bg-zinc-800 text-zinc-200 border-zinc-700 hover:bg-zinc-700"
+                }`}
               >
                 Ver mas
               </Link>
@@ -382,6 +389,37 @@ export default function NuevaRutinaPage() {
           evaluacionId={modalEvaluacion.id}
           subtipo={modalEvaluacion.subtipo}
         />
+      )}
+
+      {/* Modal de rutinas vencidas */}
+      {mostrarVencidasModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md bg-zinc-900 border border-red-800/60 rounded-2xl p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">❗</span>
+              <h2 className="text-2xl font-bold text-red-400">Rutinas vencidas</h2>
+            </div>
+
+            <p className="text-zinc-300 text-sm leading-relaxed mb-4">
+              Hay <strong className="text-red-400">{overdueDates.length} rutina(s)</strong> que no se completaron en su fecha asignada.
+            </p>
+
+            <div className="rounded-xl border border-red-900/40 bg-red-950/20 p-4 mb-5">
+              <p className="text-xs text-red-300/90 leading-relaxed">
+                Completá primero las rutinas vencidas para poder acceder a las siguientes.
+                Las rutinas con fecha futura estarán bloqueadas hasta que estés al día.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMostrarVencidasModal(false)}
+              className="w-full rounded-xl border border-red-800/60 py-3 text-sm font-semibold text-red-300 hover:bg-red-950/40 transition"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

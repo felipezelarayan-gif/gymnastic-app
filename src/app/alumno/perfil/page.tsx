@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Alumno = {
   id: string;
@@ -28,6 +30,8 @@ type Alumno = {
 };
 
 export default function AlumnoPerfilPage() {
+  const router = useRouter();
+  const { mostrarToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const { formatearFechaCorta } = useFormatoFecha();
@@ -46,7 +50,7 @@ export default function AlumnoPerfilPage() {
     const { data: sessionData } = await supabase.auth.getSession();
 
     if (!sessionData.session) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -60,13 +64,13 @@ export default function AlumnoPerfilPage() {
       .maybeSingle();
 
     if (profileError) {
-      alert(profileError.message);
+      mostrarToast(profileError.message, "error");
       setLoading(false);
       return;
     }
 
     if (!profile || profile.rol !== "alumno") {
-      window.location.href = "/";
+      router.push("/");
       return;
     }
     setMostrarOnboarding(!profile.onboarding_completo);
@@ -78,13 +82,13 @@ export default function AlumnoPerfilPage() {
       .maybeSingle();
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       setLoading(false);
       return;
     }
 
     if (!data) {
-      alert("No se encontró el perfil del alumno.");
+      mostrarToast("No se encontró el perfil del alumno.", "error");
       setLoading(false);
       return;
     }
@@ -133,7 +137,7 @@ export default function AlumnoPerfilPage() {
       .eq("id", userId);
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
@@ -144,17 +148,17 @@ export default function AlumnoPerfilPage() {
     if (!form) return;
 
     if (!form.nombre?.trim()) {
-      alert("El nombre es obligatorio.");
+      mostrarToast("El nombre es obligatorio.", "error");
       return;
     }
 
     if (!form.email?.trim()) {
-      alert("El email es obligatorio.");
+      mostrarToast("El email es obligatorio.", "error");
       return;
     }
 
     if (!form.fecha_nacimiento) {
-      alert("La fecha de nacimiento es obligatoria.");
+      mostrarToast("La fecha de nacimiento es obligatoria.", "error");
       return;
     }
 
@@ -174,7 +178,7 @@ export default function AlumnoPerfilPage() {
       .eq("id", form.id);
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
@@ -211,7 +215,7 @@ export default function AlumnoPerfilPage() {
       .eq("id", form.id);
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
@@ -220,6 +224,7 @@ export default function AlumnoPerfilPage() {
     setAlumno(actualizado);
     setForm(actualizado);
     setEditandoDatosFisicos(false);
+    mostrarToast("Datos físicos guardados.", "exito");
   }
 
   async function guardarObservacionesGenerales() {
@@ -235,7 +240,7 @@ export default function AlumnoPerfilPage() {
       .eq("id", form.id);
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
@@ -263,7 +268,7 @@ export default function AlumnoPerfilPage() {
     });
 
   if (uploadError) {
-    alert(uploadError.message);
+    mostrarToast(uploadError.message, "error");
     return;
   }
 
@@ -281,7 +286,7 @@ export default function AlumnoPerfilPage() {
     .eq("id", form.id);
 
   if (updateError) {
-    alert(updateError.message);
+    mostrarToast(updateError.message, "error");
     return;
   }
 
@@ -293,7 +298,7 @@ export default function AlumnoPerfilPage() {
   setAlumno(actualizado);
   setForm(actualizado);
 
-  alert("Foto actualizada correctamente.");
+  mostrarToast("Foto actualizada correctamente.", "exito");
 }
 
 async function eliminarFoto() {
@@ -310,7 +315,7 @@ async function eliminarFoto() {
     .eq("id", form.id);
 
   if (error) {
-    alert(error.message);
+    mostrarToast(error.message, "error");
     return;
   }
 
@@ -322,7 +327,7 @@ async function eliminarFoto() {
   setAlumno(actualizado);
   setForm(actualizado);
 
-  alert("Foto eliminada correctamente.");
+  mostrarToast("Foto eliminada correctamente.", "exito");
 }
 
   function iniciales() {
