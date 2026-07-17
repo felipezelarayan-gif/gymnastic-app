@@ -80,9 +80,9 @@ export default function AlumnoRutinasProfesor({
     cargarTodo();
   }, [id]);
 
-  const cargarAsignaciones = useCallback(async (profesorActualId: string, esRecarga = false) => {
+  const cargarAsignaciones = useCallback(async (profesorActualId: string) => {
     const LIMITE = rutinasPorPagina;
-    const desde = esRecarga ? 0 : paginaActual * LIMITE;
+    const desde = paginaActual * LIMITE;
 
     let query = supabase
       .from("rutina_asignaciones")
@@ -95,7 +95,7 @@ export default function AlumnoRutinasProfesor({
         completada,
         fecha_asignacion,
         fecha_completada,
-        rutinas (
+        rutinas!inner (
           id,
           nombre,
           descripcion,
@@ -109,7 +109,8 @@ export default function AlumnoRutinasProfesor({
       `,
         { count: "exact" }
       )
-      .eq("alumno_id", id);
+      .eq("alumno_id", id)
+      .eq("rutinas.profesor_id", profesorActualId);
 
     // Filtro por estado
     if (filtroEstado === "completadas") {
@@ -143,11 +144,11 @@ export default function AlumnoRutinasProfesor({
       query = query.order("fecha_asignacion", { ascending: orden === "asc" });
     }
 
-    query = query.range(desde, desde + LIMITE - 1);
-
     if (busqueda.trim()) {
       query = query.ilike("rutinas.nombre", `%${busqueda.trim()}%`);
     }
+
+    query = query.range(desde, desde + LIMITE - 1);
 
     const { data, error, count } = await query;
 
@@ -156,22 +157,11 @@ export default function AlumnoRutinasProfesor({
       return;
     }
 
-    const asignadasPropias = ((data || []) as RutinaAsignada[]).filter(
-      (asignacion) => {
-        const rutina = normalizarRelacion<Rutina>(asignacion.rutinas);
-        return rutina?.profesor_id === profesorActualId;
-      }
-    );
-
     if (count !== null) {
       setTotalAsignaciones(count);
     }
 
-    if (esRecarga || desde === 0) {
-      setAsignadas(asignadasPropias);
-    } else {
-      setAsignadas((prev) => [...prev, ...asignadasPropias]);
-    }
+    setAsignadas((data || []) as RutinaAsignada[]);
   }, [id, paginaActual, rutinasPorPagina, busqueda, filtroEstado, filtroFecha, ordenarPor, orden]);
 
   async function cargarTodo() {
@@ -229,14 +219,14 @@ export default function AlumnoRutinasProfesor({
     setDisponibles((disponiblesData || []) as Rutina[]);
 
     // Cargar asignaciones con paginación
-    await cargarAsignaciones(profesorActualId, true);
+    await cargarAsignaciones(profesorActualId);
     setLoading(false);
   }
 
   // Auto-cargar cuando cambian filtros o página
   useEffect(() => {
     if (profesorId) {
-      cargarAsignaciones(profesorId, true);
+      cargarAsignaciones(profesorId);
     }
   }, [cargarAsignaciones, profesorId]);
 
@@ -736,21 +726,21 @@ export default function AlumnoRutinasProfesor({
                 return (
                   <div
                     key={asignacion.id}
-                    className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
+                    className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition overflow-hidden"
                   >
                     {/* Mobile */}
                     <div className="md:hidden flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <h3 className="font-semibold truncate text-sm">
                           {rutina?.nombre || "Rutina sin nombre"}
-                          {rutina?.creada_desde_perfil_alumno && (
-                            <span className="ml-2 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400 align-middle">
-                              Personalizada
-                            </span>
-                          )}
                         </h3>
                         <p className="text-xs text-zinc-500 mt-1">
                           Fecha {formatearFechaCorta(asignacion.completada ? asignacion.fecha_completada : asignacion.fecha_asignacion)} - <span className={asignacion.completada ? "text-zinc-400" : "text-emerald-400"}>{asignacion.completada ? "Completada" : "Pendiente"}</span>
+                          {rutina?.creada_desde_perfil_alumno && (
+                            <span className="ml-1 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-1.5 py-0.5 text-[10px] text-yellow-400 align-middle font-semibold">
+                              !
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div className="flex gap-2 shrink-0">

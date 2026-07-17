@@ -1,8 +1,17 @@
+import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import SessionGuard from "@/components/SessionGuard";
 import { UnsavedChangesProvider } from "@/lib/unsaved-changes-context";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+
+export const metadata: Metadata = {
+  title: {
+    default: "Gymnastic App",
+    template: "%s | Gymnastic App",
+  },
+  description: "Aplicación de entrenamiento para profesores y alumnos",
+};
 
 export default function RootLayout({
   children,

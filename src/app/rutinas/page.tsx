@@ -463,7 +463,7 @@ export default function RutinasPage() {
               {rutinas.map((rutina) => (
                 <div
                   key={rutina.id}
-                  className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
+                  className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition overflow-hidden"
                 >
                   {/* Mobile */}
                   <div className="md:hidden flex items-center justify-between gap-2">
@@ -471,8 +471,8 @@ export default function RutinasPage() {
                       <h3 className="font-semibold truncate text-sm">
                         {rutina.nombre}
                         {rutina.creada_desde_perfil_alumno && (
-                          <span className="ml-2 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400 align-middle">
-                            Personalizada
+                          <span className="ml-1 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-1.5 py-0.5 text-[10px] text-yellow-400 align-middle font-semibold">
+                            !
                           </span>
                         )}
                       </h3>
