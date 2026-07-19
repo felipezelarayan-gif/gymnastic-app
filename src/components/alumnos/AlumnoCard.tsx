@@ -1,4 +1,5 @@
 import React from "react";
+import { obtenerEstadoAlumnoProfesor } from "@/lib/alumno/obtenerEstadoAlumnoProfesor";
 
 type Alumno = {
   id: string;
@@ -7,6 +8,7 @@ type Alumno = {
   email?: string | null;
   telefono?: string | null;
   foto_url?: string | null;
+  activo?: boolean | null;
 };
 
 type AlumnoCardProps = {
@@ -34,6 +36,10 @@ export const AlumnoCard = React.memo(function AlumnoCard({
     return `${alumno.nombre || ""} ${alumno.apellido || ""}`.trim();
   }
 
+  // Determinar estado: si tiene pendientes o finalizados, está activo
+  const tieneActividad = pendientes > 0 || finalizados > 0;
+  const estado = obtenerEstadoAlumnoProfesor(alumno.activo, tieneActividad);
+
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition">
       <div className="md:hidden flex items-center justify-between gap-2">
@@ -60,6 +66,9 @@ export const AlumnoCard = React.memo(function AlumnoCard({
             <p className="text-xs text-emerald-400 mt-0.5">
               {metricasLoading ? "..." : pendientes} pendientes
             </p>
+            <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium ${estado.colorClasses}`}>
+              {estado.icono} {estado.label}
+            </span>
           </div>
         </a>
 
@@ -91,6 +100,9 @@ export const AlumnoCard = React.memo(function AlumnoCard({
               {alumno.email && <span>{alumno.email} · </span>}
               {metricasLoading ? "..." : `${finalizados} finalizados · ${pendientes} pendientes`}
             </p>
+            <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${estado.colorClasses}`}>
+              {estado.icono} {estado.label}
+            </span>
           </div>
         </a>
 

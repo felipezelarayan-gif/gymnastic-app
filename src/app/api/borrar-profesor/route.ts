@@ -16,6 +16,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing profesorId" }, { status: 400 });
     }
 
+    // Obtener el admin que está borrando
+    const authHeader = request.headers.get("authorization");
+    let adminId: string | null = null;
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: userData } = await supabaseAdmin.auth.getUser(token);
+      if (userData?.user) adminId = userData.user.id;
+    }
+
+    // Transferir alumnos del profesor a ser borrado al admin que ejecuta la acción
+    if (adminId) {
+      const { error: transferError } = await supabaseAdmin
+        .from("alumnos")
+        .update({ profesor_id: adminId })
+        .eq("profesor_id", profesorId);
+      if (transferError) throw new Error(transferError.message);
+    }
+
     // --- RM Evaluaciones ---
     const { data: rmEvaluaciones, error: rmEvalError } = await supabaseAdmin
       .from("evaluaciones_rm")

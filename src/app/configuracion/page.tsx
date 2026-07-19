@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import InformacionCard from "@/components/ui/InformacionCard";
+import SoporteCard from "@/components/shared/SoporteCard";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { FormatoFecha } from "@/lib/utils/formatearFecha";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -15,6 +16,7 @@ type Profile = {
   rol?: string | null;
   foto_url?: string | null;
   es_admin?: boolean | null;
+  puede_crear_profesores?: boolean | null;
 };
 
 type Profe = {
@@ -117,7 +119,7 @@ export default function ConfiguracionPage() {
     // Perfil propio
     const { data: perfil, error: perfilError } = await supabase
       .from("profiles")
-      .select("id,nombre,email,rol,foto_url,es_admin")
+      .select("id,nombre,email,rol,foto_url,es_admin,puede_crear_profesores,activo")
       .eq("id", user.id)
       .single();
     if (perfilError || !perfil) {
@@ -125,7 +127,7 @@ export default function ConfiguracionPage() {
       setLoading(false);
       return;
     }
-    if (perfil.rol !== "profe") {
+    if (perfil.rol !== "profe" && !perfil.es_admin) {
       window.location.href = "/";
       return;
     }
@@ -589,7 +591,7 @@ export default function ConfiguracionPage() {
           </div>
         )}
 
-        {profile?.es_admin && (
+        {(profile?.es_admin || profile?.puede_crear_profesores) && (
           <>
             {/* ➕ Crear profesor - Card compacta */}
             <section
@@ -664,7 +666,7 @@ export default function ConfiguracionPage() {
           </>
         )}
 
-        {profile?.es_admin && (
+        {(profile?.es_admin || profile?.puede_crear_profesores) && (
           <>
             {/* 👨‍🏫 Profesores - Card compacta */}
             <section
@@ -801,6 +803,14 @@ export default function ConfiguracionPage() {
             </div>
           </div>
         )}
+
+        <SoporteCard
+          remitenteId={profile?.id || ""}
+          remitenteNombre={profile?.nombre || ""}
+          remitenteEmail={profile?.email || ""}
+          remitenteRol={profile?.rol || "profe"}
+          destinatarioRol="soporte"
+        />
 
         <InformacionCard />
 

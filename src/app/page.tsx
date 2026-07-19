@@ -9,6 +9,7 @@ type Profile = {
   nombre: string;
   rol: string;
   foto_url?: string | null;
+  es_admin?: boolean | null;
 };
 
 type HomePageCache = {
@@ -71,7 +72,7 @@ export default function Home() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("nombre, rol, foto_url")
+        .select("nombre, rol, foto_url, es_admin")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -90,6 +91,12 @@ export default function Home() {
       if (data.rol === "alumno") {
         try { localStorage.removeItem(HOME_CACHE_KEY); } catch { /* ignore */ }
         router.push("/alumno");
+        return;
+      }
+
+      if (data.rol === "admin") {
+        try { localStorage.removeItem(HOME_CACHE_KEY); } catch { /* ignore */ }
+        router.push("/soporte");
         return;
       }
 
@@ -160,7 +167,7 @@ export default function Home() {
 
           <div>
             <h1 className="text-3xl font-bold">
-              Panel del profe
+              {profile.rol === "admin" ? "Panel de Soporte" : "Panel del profe"}
             </h1>
 
             <p className="text-zinc-400 mt-1">
@@ -245,6 +252,19 @@ export default function Home() {
 
             <p className="text-zinc-400 mt-2">
               Gestionar evaluaciones RM y FMS.
+            </p>
+          </a>
+
+          <a
+            href="/mensajes"
+            className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
+          >
+            <h2 className="text-xl font-semibold">
+              💬 Mensajes
+            </h2>
+
+            <p className="text-zinc-400 mt-2">
+              Ver mensajes de tus alumnos.
             </p>
           </a>
 

@@ -18,6 +18,7 @@ type Alumno = {
   invitacion_pendiente?: boolean | null;
   user_id?: string | null;
   profesor_id?: string | null;
+  activo?: boolean | null;
 };
 
 type RutinaAsignada = {
@@ -40,7 +41,7 @@ type AlumnosPageCache = {
   savedAt: string;
 };
 
-const ALUMNOS_CACHE_PREFIX = "alumnos_page_cache_v2";
+const ALUMNOS_CACHE_PREFIX = "alumnos_page_cache_v3";
 
 function getAlumnosCacheKey(userId: string) {
   return `${ALUMNOS_CACHE_PREFIX}_${userId}`;
@@ -59,6 +60,7 @@ export default function AlumnosPage() {
   const [paginaActual, setPaginaActual] = useState(0);
   const [alumnosPorPagina, setAlumnosPorPagina] = useState(10);
   const [filtrosAbierto, setFiltrosAbierto] = useState(false);
+  const [mostrarPausados, setMostrarPausados] = useState(false);
   const [modalCrearAbierto, setModalCrearAbierto] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoApellido, setNuevoApellido] = useState("");
@@ -67,63 +69,37 @@ export default function AlumnosPage() {
   const [guardandoAlumno, setGuardandoAlumno] = useState(false);
   const { mostrarToast } = useToast();
 
-  function cargarAlumnosDesdeCache(userId: string) { /* ... cache logic ... */
+  useEffect(() => {
+    // Limpiar todo caché al montar
     try {
-      const cacheRaw = localStorage.getItem(getAlumnosCacheKey(userId));
-      if (!cacheRaw) return false;
-      const cache = JSON.parse(cacheRaw) as AlumnosPageCache;
-      if (!Array.isArray(cache.alumnos)) return false;
-      const cacheEsSeguro = cache.alumnos.every((a) => a.profesor_id === userId);
-      if (!cacheEsSeguro) { localStorage.removeItem(getAlumnosCacheKey(userId)); return false; }
-      setAlumnos(cache.alumnos); setLoading(false); setMetricasLoading(true); setActualizandoAlumnos(true);
-      return true;
-    } catch { return false; }
-  }
-
-  function guardarAlumnosEnCache(userId: string, alumnosParaGuardar: Alumno[]) {
-    try {
-      localStorage.setItem(getAlumnosCacheKey(userId), JSON.stringify({ alumnos: alumnosParaGuardar, savedAt: new Date().toISOString() }));
+      const keys = Object.keys(localStorage);
+      keys.forEach((key) => {
+        if (key.startsWith("alumnos_page_cache_")) {
+          localStorage.removeItem(key);
+        }
+      });
     } catch { /* ignore */ }
-  }
+    cargarDatos();
+  }, []);
 
-  async function actualizarAlumnosManual() {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
-    if (!userId) { window.location.href = "/login"; return; }
-    try { localStorage.removeItem(getAlumnosCacheKey(userId)); } catch { /* ignore */ }
-    await cargarDatos(userId, true);
-  }
-
-  useEffect(() => { verificarPermiso(); }, []);
-
-  async function verificarPermiso() {
+  async function cargarDatos() {
+    setLoading(true);
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session) { window.location.href = "/login"; return; }
     const user = sessionData.session.user;
     const rol = await getRolCached(user.id);
     if (rol !== "profe") { window.location.href = "/alumno"; return; }
-    const tieneCache = cargarAlumnosDesdeCache(user.id);
-    await cargarDatos(user.id, !tieneCache);
-  }
-
-  async function cargarDatos(userId?: string, mostrarLoading = true) {
-    if (mostrarLoading) setLoading(true);
-    if (!mostrarLoading) setActualizandoAlumnos(true);
-    const { data: sessionData } = await supabase.auth.getSession();
-    const cacheUserId = userId || sessionData.session?.user.id;
-    const profesorActualId = cacheUserId;
-    if (!profesorActualId) { window.location.href = "/login"; return; }
-    const { data: alumnosData, error: alumnosError } = await supabase.from("alumnos").select("id,nombre,apellido,email,telefono,foto_url,created_at,user_id,profesor_id").eq("profesor_id", profesorActualId).order("nombre", { ascending: true });
-    if (alumnosError) { mostrarToast(alumnosError.message, "error"); setActualizandoAlumnos(false); setLoading(false); return; }
-    const alumnosFiltradosPorProfesor = (alumnosData || []) as Alumno[];
-    const idsAlumnos = alumnosFiltradosPorProfesor.map((a) => a.id);
-    if (cacheUserId) guardarAlumnosEnCache(cacheUserId, alumnosFiltradosPorProfesor);
-    if (idsAlumnos.length === 0) { setAlumnos(alumnosFiltradosPorProfesor); setRutinasAsignadas([]); setMetricasLoading(false); setActualizandoAlumnos(false); setLoading(false); return; }
+    const profesorActualId = user.id;
+    const { data: alumnosData, error: alumnosError } = await supabase.from("alumnos").select("id,nombre,apellido,email,telefono,foto_url,created_at,user_id,profesor_id,activo").eq("profesor_id", profesorActualId).order("nombre", { ascending: true });
+    if (alumnosError) { mostrarToast(alumnosError.message, "error"); setLoading(false); return; }
+    const alumnosFiltrados = (alumnosData || []) as Alumno[];
+    const idsAlumnos = alumnosFiltrados.map((a) => a.id);
+    if (idsAlumnos.length === 0) { setAlumnos(alumnosFiltrados); setRutinasAsignadas([]); setLoading(false); return; }
     setMetricasLoading(true);
     const { data: rutinasData, error: rutinasError } = await supabase.from("rutina_asignaciones").select("alumno_id,completada,fecha_completada,fecha_asignacion").in("alumno_id", idsAlumnos);
-    if (rutinasError) { mostrarToast(rutinasError.message, "error"); setMetricasLoading(false); setActualizandoAlumnos(false); setLoading(false); return; }
-    setAlumnos(alumnosFiltradosPorProfesor); setRutinasAsignadas((rutinasData || []) as RutinaAsignada[]);
-    setMetricasLoading(false); setActualizandoAlumnos(false); setLoading(false);
+    if (rutinasError) { mostrarToast(rutinasError.message, "error"); setMetricasLoading(false); setLoading(false); return; }
+    setAlumnos(alumnosFiltrados); setRutinasAsignadas((rutinasData || []) as RutinaAsignada[]);
+    setMetricasLoading(false); setLoading(false);
   }
 
   function iniciales(nombre?: string | null, apellido?: string | null) { const p = nombre?.charAt(0) || ""; const s = apellido?.charAt(0) || ""; return `${p}${s}`.toUpperCase() || "A"; }
@@ -166,7 +142,16 @@ export default function AlumnosPage() {
 
   const alumnosFiltrados = useMemo(() => {
     const texto = busqueda.toLowerCase().trim();
-    let resultado = alumnos.filter((a) => [a.nombre, a.apellido, a.email, a.telefono].filter(Boolean).join(" ").toLowerCase().includes(texto));
+    let resultado = alumnos.filter((a) => {
+      // Filtro de búsqueda
+      const coincideBusqueda = [a.nombre, a.apellido, a.email, a.telefono].filter(Boolean).join(" ").toLowerCase().includes(texto);
+      if (!coincideBusqueda) return false;
+
+      // Filtro de alumnos pausados (undefined = no pausado)
+      if (!mostrarPausados && a.activo === false) return false;
+
+      return true;
+    });
     resultado = [...resultado].sort((a, b) => {
       if (ordenarPor === "nombre") { const va = nombreCompleto(a).toLowerCase(), vb = nombreCompleto(b).toLowerCase(); return orden === "asc" ? va.localeCompare(vb) : vb.localeCompare(va); }
       if (ordenarPor === "antiguedad") { const va = a.created_at || "", vb = b.created_at || ""; return orden === "asc" ? va.localeCompare(vb) : vb.localeCompare(va); }
@@ -175,7 +160,7 @@ export default function AlumnosPage() {
       return 0;
     });
     return resultado;
-  }, [alumnos, busqueda, ordenarPor, orden, pendientesPorAlumno, finalizadosPorAlumno]);
+  }, [alumnos, busqueda, ordenarPor, orden, pendientesPorAlumno, finalizadosPorAlumno, mostrarPausados]);
 
   const totalPaginas = Math.max(1, Math.ceil(alumnosFiltrados.length / alumnosPorPagina));
   const paginaSegura = Math.min(paginaActual, totalPaginas - 1);
@@ -351,6 +336,17 @@ export default function AlumnosPage() {
                 <select value={alumnosPorPagina} onChange={(e) => { setAlumnosPorPagina(Number(e.target.value)); setPaginaActual(0); }} className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3">
                   <option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="50">50</option>
                 </select>
+              </div>
+              <div>
+                <label className="flex items-center gap-3 text-sm text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={mostrarPausados}
+                    onChange={(e) => { setMostrarPausados(e.target.checked); setPaginaActual(0); }}
+                    className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 accent-emerald-500"
+                  />
+                  Mostrar alumnos pausados
+                </label>
               </div>
               <div>
                 <label className="block text-sm text-zinc-400 mb-1">Ordenar por</label>

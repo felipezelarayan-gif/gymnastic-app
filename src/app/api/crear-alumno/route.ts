@@ -46,11 +46,11 @@ export async function POST(request: Request) {
 
     const { data: perfilCreador, error: perfilError } = await supabaseAdmin
       .from("profiles")
-      .select("es_admin")
+      .select("es_admin, puede_crear_profesores")
       .eq("id", profesorCreadorId)
       .single();
 
-    if (perfilError || !perfilCreador || !perfilCreador.es_admin) {
+    if (perfilError || !perfilCreador || (!perfilCreador.es_admin && !perfilCreador.puede_crear_profesores)) {
       return NextResponse.json(
         { error: "No autorizado. Solo los administradores pueden crear profesores." },
         { status: 403 }

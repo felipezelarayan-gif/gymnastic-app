@@ -8,6 +8,7 @@ import BackButton from "@/components/BackButton";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
 import { useToast } from "@/components/ui/ToastProvider";
+import ModalAccionesAlumno from "@/components/shared/ModalAccionesAlumno";
 
 type Alumno = {
   id: string;
@@ -25,6 +26,14 @@ type Alumno = {
   lesiones?: string | null;
   sin_lesiones?: boolean | null;
   observaciones_fisicas?: string | null;
+  activo?: boolean | null;
+};
+
+type ProfeDisponible = {
+  id: string;
+  nombre: string | null;
+  email: string | null;
+  tipo: string;
 };
 
 const card = "bg-zinc-900 border border-zinc-800 rounded-2xl p-5";
@@ -45,7 +54,6 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
   const { formatearFechaCorta } = useFormatoFecha();
   const [loading, setLoading] = useState(true);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
-  const [form, setForm] = useState<Alumno | null>(null);
   const [editando, setEditando] = useState(false);
   const { mostrarToast } = useToast();
   const [rutinasCompletadas, setRutinasCompletadas] = useState(0);
@@ -66,6 +74,15 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
   const [nuevoObsGenerales, setNuevoObsGenerales] = useState("");
   const [nuevoObsFisicas, setNuevoObsFisicas] = useState("");
   const [guardando, setGuardando] = useState(false);
+
+  // Estados para acciones
+  const [mostrarAcciones, setMostrarAcciones] = useState(false);
+  const [mostrarTransferir, setMostrarTransferir] = useState(false);
+  const [mostrarConfirmarBorrar, setMostrarConfirmarBorrar] = useState(false);
+  const [profesoresDisponibles, setProfesoresDisponibles] = useState<ProfeDisponible[]>([]);
+  const [profeSeleccionado, setProfeSeleccionado] = useState("");
+  const [procesando, setProcesando] = useState(false);
+  const [errorAccion, setErrorAccion] = useState<string | null>(null);
 
   useEffect(() => {
     cargarAlumno();
@@ -143,18 +160,17 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
 
     const { data, error } = await supabase
       .from("alumnos")
-      .select("id,nombre,apellido,email,telefono,foto_url,fecha_nacimiento,sexo,observaciones,observaciones_generales,altura_cm,peso_kg,lesiones,sin_lesiones,observaciones_fisicas")
+      .select("id,nombre,apellido,email,telefono,foto_url,fecha_nacimiento,sexo,observaciones,observaciones_generales,altura_cm,peso_kg,lesiones,sin_lesiones,observaciones_fisicas,activo")
       .eq("id", id)
       .single();
 
     if (error || !data) {
-      mostrarToast(error?.message || "No se encontr\u00f3 el alumno.", "error");
+      mostrarToast(error?.message || "No se encontró el alumno.", "error");
       setLoading(false);
       return;
     }
 
     setAlumno(data);
-    setForm(data);
 
     obtenerMetricasResumen(supabase, id).then((metricas) => {
       setRutinasCompletadas(metricas.rutinasCompletadas);
@@ -173,14 +189,126 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
     return `${alumno?.nombre || ""} ${alumno?.apellido || ""}`.trim();
   }
 
-  const [borrando, setBorrando] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [errorBorrar, setErrorBorrar] = useState<string | null>(null);
+  // --- Acciones ---
+
+  async function abrirModalAcciones() {
+    setMostrarAcciones(true);
+    setErrorAccion(null);
+
+    // Cargar profesores disponibles para transferir
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData?.session) return;
+
+    const userId = sessionData.session.user.id;
+
+    const { data: profeActual } = await supabase
+      .from("profiles")
+      .select("id, creado_por")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!profeActual) return;
+
+    const disponibles: ProfeDisponible[] = [];
+
+    // 1. Soporte (rol: admin)
+    const { data: soportes } = await supabase
+      .from("profiles")
+      .select("id, nombre, email")
+      .eq("rol", "admin");
+
+    if (soportes) {
+      soportes.forEach((s) => {
+        disponibles.push({ id: s.id, nombre: s.nombre, email: s.email, tipo: "🛠️ Soporte" });
+      });
+    }
+
+    // 2. El admin que creó al profesor
+    if (profeActual.creado_por) {
+      const { data: admin } = await supabase
+        .from("profiles")
+        .select("id, nombre, email")
+        .eq("id", profeActual.creado_por)
+        .maybeSingle();
+
+      if (admin) {
+        disponibles.push({ id: admin.id, nombre: admin.nombre, email: admin.email, tipo: "👑 Mi admin" });
+      }
+
+      // 3. Otros profes con el mismo admin
+      const { data: otrosProfes } = await supabase
+        .from("profiles")
+        .select("id, nombre, email")
+        .eq("rol", "profe")
+        .eq("creado_por", profeActual.creado_por)
+        .neq("id", userId);
+
+      if (otrosProfes) {
+        otrosProfes.forEach((p) => {
+          disponibles.push({ id: p.id, nombre: p.nombre, email: p.email, tipo: "👨‍🏫 Profesor" });
+        });
+      }
+    }
+
+    setProfesoresDisponibles(disponibles);
+  }
+
+  async function transferirAlumno() {
+    if (!profeSeleccionado) {
+      mostrarToast("Seleccioná un profesor para transferir.", "error");
+      return;
+    }
+
+    setProcesando(true);
+    setErrorAccion(null);
+
+    const { error } = await supabase
+      .from("alumnos")
+      .update({ profesor_id: profeSeleccionado })
+      .eq("id", id);
+
+    setProcesando(false);
+
+    if (error) {
+      setErrorAccion(error.message);
+      return;
+    }
+
+    mostrarToast("Alumno transferido correctamente.", "exito");
+    setMostrarTransferir(false);
+    setMostrarAcciones(false);
+    await cargarAlumno();
+  }
+
+  async function pausarAlumno() {
+    setProcesando(true);
+    setErrorAccion(null);
+
+    const nuevoEstado = !alumno?.activo;
+
+    const { error } = await supabase
+      .from("alumnos")
+      .update({ activo: nuevoEstado })
+      .eq("id", id);
+
+    setProcesando(false);
+
+    if (error) {
+      setErrorAccion(error.message);
+      return;
+    }
+
+    mostrarToast(
+      nuevoEstado ? "Alumno reanudado correctamente." : "Alumno pausado correctamente.",
+      "exito"
+    );
+    setMostrarAcciones(false);
+    await cargarAlumno();
+  }
 
   async function borrarAlumno() {
-    if (borrando) return;
-    setBorrando(true);
-    setErrorBorrar(null);
+    setProcesando(true);
+    setErrorAccion(null);
 
     try {
       const res = await fetch("/api/borrar-alumno", {
@@ -198,11 +326,40 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
       window.location.href = "/alumnos";
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error al borrar el alumno.";
-      setErrorBorrar(msg);
-      setBorrando(false);
-      setShowConfirm(false);
+      setErrorAccion(msg);
+      setProcesando(false);
     }
   }
+
+  const acciones = [
+    {
+      id: "transferir",
+      icono: "🔄",
+      titulo: "Transferir",
+      descripcion: "Cambiar el alumno a otro profesor",
+      color: "blue" as const,
+      onClick: () => { setMostrarTransferir(true); setErrorAccion(null); },
+    },
+    {
+      id: "pausar",
+      icono: alumno?.activo === false ? "▶️" : "⏸️",
+      titulo: alumno?.activo === false ? "Reanudar" : "Pausar",
+      descripcion: alumno?.activo === false
+        ? "El alumno volverá a tener acceso a la app"
+        : "El alumno perderá el acceso a la app",
+      color: "yellow" as const,
+      onClick: pausarAlumno,
+      disabled: procesando,
+    },
+    {
+      id: "borrar",
+      icono: "🗑️",
+      titulo: "Borrar",
+      descripcion: "Eliminar permanentemente al alumno y todos sus datos",
+      color: "red" as const,
+      onClick: () => { setMostrarConfirmarBorrar(true); setErrorAccion(null); },
+    },
+  ];
 
   if (loading) {
     return (
@@ -263,13 +420,25 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
               <div>
                 <h1 className="text-3xl font-bold">{nombreCompleto()}</h1>
                 <p className="text-zinc-400 mt-1">Perfil del alumno</p>
+                {alumno.activo === false && (
+                  <span className="inline-block mt-1 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-400">
+                    🚫 Pausado
+                  </span>
+                )}
               </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <a href={`/alumnos/${id}/rutinas`} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold hover:bg-emerald-600">Rutina</a>
               <a href={`/alumnos/${id}/historial`} className="rounded-xl border border-zinc-700 px-4 py-3 text-sm hover:bg-zinc-800">Historial</a>
-              <button type="button" onClick={() => setShowConfirm(true)} disabled={borrando} className="rounded-xl border border-red-800 px-4 py-3 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50">{borrando ? "Borrando..." : "Borrar"}</button>
+              <button
+                type="button"
+                onClick={abrirModalAcciones}
+                className="rounded-xl border border-zinc-700 px-4 py-3 text-sm hover:bg-zinc-800 text-lg leading-none"
+                title="Acciones"
+              >
+                ⋮
+              </button>
             </div>
           </div>
         </section>
@@ -314,11 +483,86 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
         {/* Card 4: Records máximos */}
         <AlumnoRMProfesor alumnoId={id} />
 
-        {/* Modal de confirmación para borrar */}
-        {showConfirm && (
+        {/* Modal de acciones reutilizable */}
+        <ModalAccionesAlumno
+          abierto={mostrarAcciones}
+          onCerrar={() => { setMostrarAcciones(false); setErrorAccion(null); }}
+          acciones={acciones}
+          error={errorAccion}
+        />
+
+        {/* Modal: Transferir */}
+        {mostrarTransferir && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-              <h3 className="text-xl font-bold text-red-400 mb-3">Borrar alumno</h3>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-xl font-bold">🔄 Transferir alumno</h3>
+                <button
+                  type="button"
+                  onClick={() => { setMostrarTransferir(false); setErrorAccion(null); }}
+                  className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-zinc-400 text-sm mb-4">
+                Seleccioná a quién querés transferir a <strong>{nombreCompleto()}</strong>:
+              </p>
+
+              {errorAccion && (
+                <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>
+              )}
+
+              <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
+                {profesoresDisponibles.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setProfeSeleccionado(p.id)}
+                    className={`w-full flex items-center gap-3 rounded-xl border p-3 text-left transition ${
+                      profeSeleccionado === p.id
+                        ? "border-emerald-600 bg-emerald-500/10"
+                        : "border-zinc-700 bg-zinc-800 hover:bg-zinc-700"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{p.nombre || "Sin nombre"}</p>
+                      <p className="text-xs text-zinc-500 truncate">{p.tipo} {p.email ? `· ${p.email}` : ""}</p>
+                    </div>
+                    {profeSeleccionado === p.id && (
+                      <span className="text-emerald-400 text-lg">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setMostrarTransferir(false); setErrorAccion(null); }}
+                  className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={transferirAlumno}
+                  disabled={procesando || !profeSeleccionado}
+                  className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {procesando ? "Transfiriendo..." : "Transferir"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Confirmar borrar */}
+        {mostrarConfirmarBorrar && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+              <h3 className="text-xl font-bold text-red-400 mb-3">🗑️ Borrar alumno</h3>
               <p className="text-zinc-300 text-sm leading-relaxed mb-2">
                 Esta acción eliminará <strong>permanentemente</strong> a <strong>{nombreCompleto()}</strong> y todos sus datos relacionados:
               </p>
@@ -330,12 +574,26 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
                 <li>RM actuales e historial</li>
               </ul>
               <p className="text-red-400 text-sm font-semibold mb-5">Esta acción no se puede deshacer.</p>
-              {errorBorrar && (
-                <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorBorrar}</p>
+              {errorAccion && (
+                <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>
               )}
               <div className="flex gap-3">
-                <button type="button" onClick={() => { setShowConfirm(false); setErrorBorrar(null); }} disabled={borrando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">Cancelar</button>
-                <button type="button" onClick={borrarAlumno} disabled={borrando} className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50">{borrando ? "Borrando..." : "Sí, borrar alumno"}</button>
+                <button
+                  type="button"
+                  onClick={() => { setMostrarConfirmarBorrar(false); setErrorAccion(null); }}
+                  disabled={procesando}
+                  className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={borrarAlumno}
+                  disabled={procesando}
+                  className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
+                >
+                  {procesando ? "Borrando..." : "Sí, borrar alumno"}
+                </button>
               </div>
             </div>
           </div>

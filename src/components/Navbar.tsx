@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { getRolCached, invalidarRolCache } from "@/lib/rol-cache";
 import { useUnsavedChanges } from "@/lib/unsaved-changes-context";
 
-type Rol = "profe" | "alumno" | null;
+type Rol = "profe" | "alumno" | "admin" | null;
 
 type MobileTabProps = {
   href: string;
@@ -45,6 +45,7 @@ export default function Navbar() {
   const [logueado, setLogueado] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [rol, setRol] = useState<Rol>(null);
+  const [esAdmin, setEsAdmin] = useState(false);
   const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
 
   function isActive(href: string): boolean {
@@ -107,6 +108,14 @@ export default function Navbar() {
   async function cargarRol(userId: string) {
     const rol = await getRolCached(userId);
     setRol(rol as Rol);
+    
+    // También verificamos si es admin
+    const { data } = await supabase
+      .from("profiles")
+      .select("es_admin")
+      .eq("id", userId)
+      .maybeSingle();
+    setEsAdmin(data?.es_admin === true);
   }
 
   function handleNavClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
@@ -134,6 +143,7 @@ export default function Navbar() {
   if (pathname === "/login" || pathname === "/reset-password" || pathname === "/bienvenida") return null;
 
   const isAlumno = rol === "alumno";
+  const isSoporte = rol === "admin";
 
   return (
     <>
@@ -159,6 +169,28 @@ export default function Navbar() {
               </Link>
 
               <Link href="/alumno/configuracion" className={getDesktopLinkClass("/alumno/configuracion")} onClick={(e) => { handleNavClick(e, "/alumno/configuracion"); if (isActive("/alumno/configuracion")) e.preventDefault(); }}>
+                ⚙️ <span>Configuración</span>
+              </Link>
+            </>
+          ) : isSoporte ? (
+            <>
+              <Link href="/soporte" className={getDesktopLinkClass("/soporte", true)} onClick={(e) => { handleNavClick(e, "/soporte"); if (isExactActive("/soporte")) e.preventDefault(); }}>
+                🏠 <span>Home</span>
+              </Link>
+
+              <Link href="/soporte/profesores" className={getDesktopLinkClass("/soporte/profesores")} onClick={(e) => { handleNavClick(e, "/soporte/profesores"); if (isActive("/soporte/profesores")) e.preventDefault(); }}>
+                👨‍🏫 <span>Profesores</span>
+              </Link>
+
+              <Link href="/soporte/alumnos" className={getDesktopLinkClass("/soporte/alumnos")} onClick={(e) => { handleNavClick(e, "/soporte/alumnos"); if (isActive("/soporte/alumnos")) e.preventDefault(); }}>
+                👥 <span>Alumnos</span>
+              </Link>
+
+              <Link href="/soporte/administradores" className={getDesktopLinkClass("/soporte/administradores")} onClick={(e) => { handleNavClick(e, "/soporte/administradores"); if (isActive("/soporte/administradores")) e.preventDefault(); }}>
+                🔐 <span>Admins</span>
+              </Link>
+
+              <Link href="/configuracion" className={getDesktopLinkClass("/configuracion")} onClick={(e) => { handleNavClick(e, "/configuracion"); if (isActive("/configuracion")) e.preventDefault(); }}>
                 ⚙️ <span>Configuración</span>
               </Link>
             </>
@@ -206,6 +238,14 @@ export default function Navbar() {
               <MobileTab href="/alumno/progreso" icon="📈" label="Progreso" isActive={isCurrentPage("/alumno/progreso")} onNavClick={handleNavClick} />
               <MobileTab href="/alumno/perfil" icon="👤" label="Perfil" isActive={isCurrentPage("/alumno/perfil")} onNavClick={handleNavClick} />
               <MobileTab href="/alumno/configuracion" icon="⚙️" label="Config" isActive={isCurrentPage("/alumno/configuracion")} onNavClick={handleNavClick} />
+            </>
+          ) : isSoporte ? (
+            <>
+              <MobileTab href="/soporte" exact icon="🏠" label="Home" isActive={isCurrentPage("/soporte", true)} onNavClick={handleNavClick} />
+              <MobileTab href="/soporte/profesores" icon="👨‍🏫" label="Profe" isActive={isCurrentPage("/soporte/profesores")} onNavClick={handleNavClick} />
+              <MobileTab href="/soporte/alumnos" icon="👥" label="Alumnos" isActive={isCurrentPage("/soporte/alumnos")} onNavClick={handleNavClick} />
+              <MobileTab href="/soporte/administradores" icon="🔐" label="Admins" isActive={isCurrentPage("/soporte/administradores")} onNavClick={handleNavClick} />
+              <MobileTab href="/configuracion" icon="⚙️" label="Config" isActive={isCurrentPage("/configuracion")} onNavClick={handleNavClick} />
             </>
           ) : (
             <>

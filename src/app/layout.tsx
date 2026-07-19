@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import SessionGuard from "@/components/SessionGuard";
+import BotonMensajesFlotante from "@/components/shared/BotonMensajesFlotante";
 import { UnsavedChangesProvider } from "@/lib/unsaved-changes-context";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 
@@ -25,6 +26,7 @@ export default function RootLayout({
           <UnsavedChangesProvider>
             <ToastProvider>
               <Navbar />
+              <BotonMensajesFlotante />
               {children}
             </ToastProvider>
           </UnsavedChangesProvider>
