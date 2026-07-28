@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { useIdioma } from "@/lib/i18n-context";
 
 type VerEvaluacionModalProps = {
   open: boolean;

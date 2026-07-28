@@ -6,11 +6,17 @@ import CrearEjercicioModal from "@/components/ejercicios/CrearEjercicioModal";
 import EditarEjercicioModal from "@/components/ejercicios/EditarEjercicioModal";
 import BackButton from "@/components/BackButton";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
+import { campoBilingue } from "@/lib/utils/campoBilingue";
 
 type Ejercicio = {
   id: string;
   nombre: string;
+  nombre_es?: string | null;
+  nombre_en?: string | null;
   grupo_muscular?: string | null;
+  grupo_muscular_es?: string | null;
+  grupo_muscular_en?: string | null;
   patron_movimiento?: string;
   youtube_url?: string | null;
   peso_corporal?: boolean | null;
@@ -41,6 +47,7 @@ export default function EjerciciosPage() {
   const [totalEjercicios, setTotalEjercicios] = useState(0);
   const [filtrosAbierto, setFiltrosAbierto] = useState(false);
   const { mostrarToast } = useToast();
+  const { t, idioma } = useIdioma();
 
   const busquedaRef = useRef(busqueda);
   const filtroGrupoMuscularRef = useRef(filtroGrupoMuscular);
@@ -86,7 +93,7 @@ export default function EjerciciosPage() {
 
     let query = supabase
       .from("ejercicios")
-      .select("id,nombre,grupo_muscular,patron_movimiento,youtube_url,peso_corporal", { count: "exact" })
+      .select("id,nombre,nombre_es,nombre_en,grupo_muscular,grupo_muscular_es,grupo_muscular_en,patron_movimiento,youtube_url,peso_corporal", { count: "exact" })
       .order("nombre")
       .range(desde, desde + LIMITE - 1);
 
@@ -300,11 +307,11 @@ export default function EjerciciosPage() {
         <header className="flex items-start justify-between mb-6">
           <div>
             <BackButton fallback="/" />
-            <h1 className="text-3xl font-bold mt-4">Ejercicios</h1>
+            <h1 className="text-3xl font-bold mt-4">{t("ejercicios.titulo")}</h1>
             <p className="text-zinc-400 mt-1">
               {totalEjercicios > 0
-                ? `${totalEjercicios} ${totalEjercicios === 1 ? "ejercicio" : "ejercicios"}`
-                : "Banco de ejercicios y videos explicativos."
+                ? `${totalEjercicios} ${totalEjercicios === 1 ? t("ejercicios.ejercicioSingular") : t("ejercicios.ejerciciosPlural")}`
+                : t("ejercicios.descripcionLista")
               }
             </p>
           </div>
@@ -315,7 +322,7 @@ export default function EjerciciosPage() {
             onClick={() => setMostrarModal(true)}
             className="hidden md:inline-flex items-center justify-center rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition mt-4"
           >
-            + Agregar ejercicio
+            {t("ejercicios.crearEjercicio")}
           </button>
         </header>
 
@@ -332,7 +339,7 @@ export default function EjerciciosPage() {
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm">🔍</span>
             <input
               type="text"
-              placeholder="Buscar por nombre..."
+              placeholder={t("ejercicios.buscarPlaceholder")}
               value={busqueda}
               onChange={(e) => handleBusquedaChange(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-emerald-500"
@@ -342,11 +349,11 @@ export default function EjerciciosPage() {
 
         {ejercicios.length === 0 ? (
           <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
-            <h2 className="text-xl font-semibold">No se encontraron ejercicios</h2>
+            <h2 className="text-xl font-semibold">{t("ejercicios.noEncontrados")}</h2>
             <p className="text-zinc-400 mt-2">
               {busqueda
-                ? "Probá con otros términos de búsqueda."
-                : "Tocá el botón + para crear tu primer ejercicio."
+                ? t("ejercicios.noEncontradosDesc")
+                : t("ejercicios.sinEjercicios")
               }
             </p>
           </section>
@@ -362,19 +369,19 @@ export default function EjerciciosPage() {
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-lg font-semibold">
-                          {ejercicio.nombre}
+                          {campoBilingue(ejercicio, "nombre", idioma)}
                         </h2>
 
                         {ejercicio.peso_corporal && (
                           <span className="inline-block px-3 py-1 rounded-full bg-emerald-900/40 border border-emerald-700 text-emerald-300 text-xs font-medium">
-                            Peso corporal
+                            {t("ejercicios.pesoCorporalBadge")}
                           </span>
                         )}
                       </div>
 
-                      {ejercicio.grupo_muscular && (
+                      {campoBilingue(ejercicio, "grupo_muscular", idioma) && (
                         <p className="text-zinc-400 text-sm mt-1">
-                          {ejercicio.grupo_muscular}
+                          {campoBilingue(ejercicio, "grupo_muscular", idioma)}
                         </p>
                       )}
 
@@ -384,7 +391,7 @@ export default function EjerciciosPage() {
                           target="_blank"
                           className="text-emerald-400 text-sm mt-2 inline-block"
                         >
-                          ▶ Ver video
+                          {t("ejercicios.verVideo")}
                         </a>
                       )}
                     </div>
@@ -394,7 +401,7 @@ export default function EjerciciosPage() {
                         type="button"
                         onClick={() => abrirEditar(ejercicio)}
                         className="rounded-lg border border-zinc-700 px-3 py-2 hover:bg-zinc-800 transition"
-                        title="Editar"
+                        title={t("common.editar")}
                       >
                         ✏️
                       </button>
@@ -404,7 +411,7 @@ export default function EjerciciosPage() {
                           type="button"
                           onClick={() => borrarEjercicio(ejercicio.id)}
                           className="rounded-lg border border-red-800 px-3 py-2 hover:bg-red-950 transition"
-                          title="Borrar"
+                          title={t("common.borrar")}
                         >
                           🗑️
                         </button>
@@ -423,10 +430,10 @@ export default function EjerciciosPage() {
                   disabled={paginaSegura === 0}
                   className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  ← Anterior
+                  {t("common.anterior")}
                 </button>
                 <span className="text-sm text-zinc-400">
-                  Página {paginaSegura + 1} de {totalPaginas}
+                  {t("common.pagina")} {paginaSegura + 1} {t("common.de")} {totalPaginas}
                 </span>
                 <button
                   type="button"
@@ -434,7 +441,7 @@ export default function EjerciciosPage() {
                   disabled={paginaSegura >= totalPaginas - 1}
                   className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Siguiente →
+                  {t("common.siguiente")}
                 </button>
               </div>
             )}
@@ -467,7 +474,7 @@ export default function EjerciciosPage() {
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70">
             <div className="w-full max-w-lg rounded-t-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold">🎯 Filtrar y ordenar</h3>
+                <h3 className="text-lg font-bold">{t("ejercicios.filtrarYOrdenar")}</h3>
                 <button
                   type="button"
                   onClick={() => setFiltrosAbierto(false)}
@@ -479,13 +486,13 @@ export default function EjerciciosPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Grupo muscular</label>
+                  <label className="block text-sm text-zinc-400 mb-1">{t("ejercicios.grupoMuscular")}</label>
                   <select
                     value={filtroGrupoMuscular}
                     onChange={(e) => setFiltroGrupoMuscular(e.target.value)}
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
                   >
-                    <option value="">Todos los grupos</option>
+                    <option value="">{t("ejercicios.todosLosGrupos")}</option>
                     {gruposMusculares.map((grupo) => (
                       <option key={grupo} value={grupo}>
                         {grupo}
@@ -503,7 +510,7 @@ export default function EjerciciosPage() {
                       className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-black"
                     />
                     <span className="text-sm text-zinc-300">
-                      Solo peso corporal
+                      {t("ejercicios.soloPesoCorporal")}
                     </span>
                   </label>
                 </div>
@@ -514,14 +521,14 @@ export default function EjerciciosPage() {
                     onClick={limpiarFiltros}
                     className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800"
                   >
-                    Limpiar
+                    {t("ejercicios.limpiar")}
                   </button>
                   <button
                     type="button"
                     onClick={aplicarFiltros}
                     className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600"
                   >
-                    Aplicar filtros
+                    {t("ejercicios.aplicarFiltros")}
                   </button>
                 </div>
               </div>

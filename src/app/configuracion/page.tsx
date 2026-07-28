@@ -8,6 +8,7 @@ import SoporteCard from "@/components/shared/SoporteCard";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { FormatoFecha } from "@/lib/utils/formatearFecha";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Profile = {
   id: string;
@@ -64,9 +65,9 @@ export default function ConfiguracionPage() {
   const [mostrarIdiomaModal, setMostrarIdiomaModal] = useState(false);
   const [guardandoUsuario, setGuardandoUsuario] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
-  const [idioma, setIdioma] = useState("es");
   const { formato, cambiarFormato } = useFormatoFecha();
   const { mostrarToast } = useToast();
+  const { t, idioma: idiomaActual, cambiarIdioma: cambiarIdiomaHook } = useIdioma();
 
   useEffect(() => {
     cargarTodo();
@@ -102,9 +103,7 @@ export default function ConfiguracionPage() {
 
   async function cargarTodo() {
     setLoading(true);
-    // Preferencias de idioma/tema
-    const savedLanguage = localStorage.getItem("language") || "es";
-    setIdioma(savedLanguage);
+    // Preferencias de tema
     const savedTheme = localStorage.getItem("theme");
     setDarkMode(savedTheme !== "light");
 
@@ -321,10 +320,6 @@ export default function ConfiguracionPage() {
     await cargarTodo();
   }
 
-  function cambiarIdioma(nuevoIdioma: string) {
-    setIdioma(nuevoIdioma);
-    localStorage.setItem("language", nuevoIdioma);
-  }
 
   function toggleTheme() {
     const newValue = !darkMode;
@@ -823,7 +818,7 @@ export default function ConfiguracionPage() {
             <div>
               <h2 className="text-lg font-semibold">🌎 Idioma</h2>
               <p className="text-zinc-400 text-sm mt-0.5">
-                {idioma === "es" ? "Español" : "English"}
+                {idiomaActual === "es" ? "Español" : "English"}
               </p>
             </div>
             <span className="text-zinc-500 text-sm shrink-0">Cambiar →</span>
@@ -853,11 +848,11 @@ export default function ConfiguracionPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    cambiarIdioma("es");
+                    cambiarIdiomaHook("es");
                     setMostrarIdiomaModal(false);
                   }}
                   className={`flex-1 rounded-xl px-5 py-3 border ${
-                    idioma === "es"
+                    idiomaActual === "es"
                       ? "bg-emerald-500 border-emerald-500 text-white"
                       : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
                   }`}
@@ -867,11 +862,11 @@ export default function ConfiguracionPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    cambiarIdioma("en");
+                    cambiarIdiomaHook("en");
                     setMostrarIdiomaModal(false);
                   }}
                   className={`flex-1 rounded-xl px-5 py-3 border ${
-                    idioma === "en"
+                    idiomaActual === "en"
                       ? "bg-emerald-500 border-emerald-500 text-white"
                       : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
                   }`}

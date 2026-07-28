@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 
 export default function BienvenidaPage() {
   const router = useRouter();
   const { mostrarToast } = useToast();
+  const { t } = useIdioma();
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -56,7 +58,7 @@ export default function BienvenidaPage() {
     if (guardando) return;
 
     if (password.length < 8) {
-      mostrarToast("La contraseña debe tener al menos 8 caracteres.", "error");
+      mostrarToast(t("bienvenida.minLength"), "error");
       return;
     }
 
@@ -75,7 +77,7 @@ export default function BienvenidaPage() {
     const { data: userData, error: userError } = await supabase.auth.getUser();
 
     if (userError || !userData.user) {
-      mostrarToast(userError?.message || "No se pudo obtener el usuario actual.", "error");
+      mostrarToast(userError?.message || t("bienvenida.errorUsuario"), "error");
       setGuardando(false);
       return;
     }
@@ -98,18 +100,18 @@ export default function BienvenidaPage() {
     <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
         <h1 className="text-3xl font-bold mb-3">
-          ¡Bienvenido!
+          {t("bienvenida.titulo")}
         </h1>
 
         <p className="text-zinc-400 mb-6">
-          Antes de comenzar, creá tu contraseña para acceder a la aplicación.
+          {t("bienvenida.subtitulo")}
         </p>
 
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Nueva contraseña"
+          placeholder={t("bienvenida.nuevaPassword")}
           className="w-full rounded-xl border border-zinc-700 bg-zinc-800 p-3 mb-4"
         />
 
@@ -118,7 +120,7 @@ export default function BienvenidaPage() {
           disabled={loading || guardando}
           className="w-full rounded-xl bg-emerald-500 py-3 font-semibold text-black hover:bg-emerald-600 disabled:opacity-50"
         >
-          {loading ? "Verificando invitación..." : guardando ? "Guardando..." : "Crear contraseña"}
+          {loading ? t("bienvenida.verificando") : guardando ? t("bienvenida.guardando") : t("bienvenida.crearPassword")}
         </button>
       </div>
     </main>

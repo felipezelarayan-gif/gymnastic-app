@@ -11,11 +11,12 @@ import {
 import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
 import VerRutinaModal from "@/components/alumno/VerRutinaModal";
+import { useIdioma } from "@/lib/i18n-context";
 
-function obtenerEtiquetaActividad(actividad: PendienteAlumno) {
-  if (actividad.tipo === "rutina") return "Rutina";
-  if (actividad.subtipo) return `Evaluación ${actividad.subtipo.toUpperCase()}`;
-  return "Evaluación";
+function obtenerEtiquetaActividad(actividad: PendienteAlumno, t: (key: string, params?: Record<string, string | number>) => string) {
+  if (actividad.tipo === "rutina") return t("alumnos.etiquetaRutina");
+  if (actividad.subtipo) return `${t("evaluaciones.evaluacion")} ${actividad.subtipo.toUpperCase()}`;
+  return t("evaluaciones.evaluacion");
 }
 
 function obtenerIconoActividad(actividad: PendienteAlumno) {
@@ -51,6 +52,7 @@ function hoyKey(): string {
 }
 
 export default function NuevaRutinaPlanificacionPage() {
+  const { t } = useIdioma();
   const [cargando, setCargando] = useState(true);
   const [planificacion, setPlanificacion] = useState<PendienteAlumno[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export default function NuevaRutinaPlanificacionPage() {
     const user = sessionData?.session?.user;
 
     if (!user) {
-      setError("No se pudo validar tu sesi\u00f3n.");
+      setError(t("alumno.sesionInvalida"));
       setCargando(false);
       return;
     }
@@ -97,7 +99,7 @@ export default function NuevaRutinaPlanificacionPage() {
     }
 
     if (!alumnoData) {
-      setError("No encontramos un alumno vinculado a esta cuenta.");
+      setError(t("alumno.alumnoNoEncontrado"));
       setCargando(false);
       return;
     }
@@ -143,7 +145,7 @@ export default function NuevaRutinaPlanificacionPage() {
         <BackButton fallback="/alumno/rutina" />
 
         <section className="rounded-3xl border border-red-900/50 bg-red-950/20 p-6">
-            <p className="text-red-300 font-semibold">No pudimos cargar la planificación</p>
+            <p className="text-red-300 font-semibold">{t("alumno.planificacionError")}</p>
             <p className="text-zinc-400 mt-2">{error}</p>
           </section>
         </div>
@@ -166,29 +168,29 @@ export default function NuevaRutinaPlanificacionPage() {
         <BackButton fallback="/alumno/rutina" />
 
         <header>
-          <p className="text-sm text-zinc-500">Alumno</p>
-          <h1 className="text-3xl font-bold">Planificación</h1>
+          <p className="text-sm text-zinc-500">{t("alumno.alumnoLabel")}</p>
+          <h1 className="text-3xl font-bold">{t("alumno.planificacion")}</h1>
           <p className="text-zinc-400 mt-2">
-            Tus rutinas y evaluaciones pendientes ordenadas por fecha.
+            {t("alumno.planificacionDesc")}
           </p>
         </header>
 
         <section className="grid grid-cols-2 gap-3">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
-            <p className="text-sm text-zinc-400">Rutinas pendientes</p>
+            <p className="text-sm text-zinc-400">{t("alumno.rutinasPendientes")}</p>
             <p className="text-3xl font-bold mt-1">{rutinasPendientes}</p>
           </div>
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
-            <p className="text-sm text-zinc-400">Evaluaciones pendientes</p>
+            <p className="text-sm text-zinc-400">{t("alumno.evaluacionesPendientes")}</p>
             <p className="text-3xl font-bold mt-1">{evaluacionesPendientes}</p>
           </div>
         </section>
 
         {planificacion.length === 0 ? (
           <section className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-6">
-            <h2 className="text-xl font-bold">Todo al día</h2>
+            <h2 className="text-xl font-bold">{t("alumno.estadoAlDia")}</h2>
             <p className="text-zinc-400 mt-2">
-              No tenés rutinas ni evaluaciones pendientes por el momento.
+              {t("alumno.estadoAlDiaDesc")}
             </p>
           </section>
         ) : (
@@ -203,11 +205,11 @@ export default function NuevaRutinaPlanificacionPage() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm text-zinc-400">
-                          {obtenerEtiquetaActividad(actividad)}
+                          {obtenerEtiquetaActividad(actividad, t)}
                         </p>
                         {vencida && (
                           <span className="rounded-full px-2 py-0.5 text-xs font-semibold bg-red-500/15 text-red-300 border border-red-500/30">
-                            🔴 Vencida
+                            {t("alumno.vencidaLabel")}
                           </span>
                         )}
                         {!vencida && (
@@ -223,12 +225,12 @@ export default function NuevaRutinaPlanificacionPage() {
                             }`}
                           >
                             {esActividadActual && actividad.tipo === "evaluacion" && actividad.puedeCargarAlumno
-                              ? "Realizar ahora"
+                              ? t("alumno.realizarAhora")
                               : actividad.tipo === "evaluacion" && !actividad.puedeCargarAlumno
-                                ? "Solo la puede realizar el profesor"
+                                ? t("alumno.soloProfesor")
                                 : esActividadActual
-                                  ? "Realizar ahora"
-                                  : "Pendiente"}
+                                  ? t("alumno.realizarAhora")
+                                  : t("alumno.pendiente")}
                           </span>
                         )}
                       </div>
@@ -237,11 +239,11 @@ export default function NuevaRutinaPlanificacionPage() {
                         {actividad.nombre}
                       </h2>
                       <p className={`text-sm mt-1 ${vencida ? "text-red-400" : "text-zinc-500"}`}>
-                        {vencida ? "📅 Vencida el " : "Fecha: "}{formatearFechaCorta(actividad.fecha)}
+                        {vencida ? t("alumno.vencidaEl") : t("alumno.fechaLbl")}{formatearFechaCorta(actividad.fecha)}
                       </p>
                       {!esActividadActual && (
                         <p className="text-sm text-zinc-600 mt-2">
-                          Disponible después de completar la actividad anterior.
+                          {t("alumno.disponibleDespues")}
                         </p>
                       )}
                     </div>
@@ -279,7 +281,7 @@ export default function NuevaRutinaPlanificacionPage() {
                         onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
                         className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
                       >
-                        Ver detalles
+                        {t("alumno.verDetalles")}
                       </button>
                     )}
                     {esEvaluacion && (
@@ -295,7 +297,7 @@ export default function NuevaRutinaPlanificacionPage() {
                         }
                         className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
                       >
-                        Ver detalles
+                        {t("alumno.verDetalles")}
                       </button>
                     )}
                   </div>
@@ -314,7 +316,7 @@ export default function NuevaRutinaPlanificacionPage() {
                         onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
                         className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
                       >
-                        Ver detalles
+                        {t("alumno.verDetalles")}
                       </button>
                     )}
                     {esEvaluacion && (
@@ -330,7 +332,7 @@ export default function NuevaRutinaPlanificacionPage() {
                         }
                         className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
                       >
-                        Ver detalles
+                        {t("alumno.verDetalles")}
                       </button>
                     )}
                   </div>
@@ -349,7 +351,7 @@ export default function NuevaRutinaPlanificacionPage() {
                         onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
                         className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
                       >
-                        Ver detalles
+                        {t("alumno.verDetalles")}
                       </button>
                     )}
                     {esEvaluacion && (
@@ -365,7 +367,7 @@ export default function NuevaRutinaPlanificacionPage() {
                         }
                         className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
                       >
-                        Ver detalles
+                        {t("alumno.verDetalles")}
                       </button>
                     )}
                   </div>
@@ -387,7 +389,7 @@ export default function NuevaRutinaPlanificacionPage() {
                       onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
                       className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
                     >
-                      Ver detalles
+                      {t("alumno.verDetalles")}
                     </button>
                   )}
                   {esEvaluacion && (
@@ -403,7 +405,7 @@ export default function NuevaRutinaPlanificacionPage() {
                       }
                       className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
                     >
-                      Ver detalles
+                      {t("alumno.verDetalles")}
                     </button>
                   )}
                 </div>

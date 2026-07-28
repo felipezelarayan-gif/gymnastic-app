@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Mensaje = {
   id: string;
@@ -18,6 +19,7 @@ type Mensaje = {
 
 export default function MensajesPage() {
   const router = useRouter();
+  const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [filtro, setFiltro] = useState("todos");
@@ -78,20 +80,20 @@ export default function MensajesPage() {
 
         <header className="mt-6 mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">💬 Mensajes de alumnos</h1>
+            <h1 className="text-3xl font-bold">{t("mensajes.titulo")}</h1>
             <p className="text-zinc-400 mt-2">
-              {mensajes.filter((m) => !m.leido).length} no leídos · {mensajes.length} totales
+              {mensajes.filter((m) => !m.leido).length} {t("mensajes.noLeidos")} · {mensajes.length} {t("mensajes.totales")}
             </p>
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setFiltro("todos")} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtro === "todos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>Todos</button>
-            <button type="button" onClick={() => setFiltro("no-leidos")} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtro === "no-leidos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>No leídos</button>
+            <button type="button" onClick={() => setFiltro("todos")} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtro === "todos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>{t("mensajes.todos")}</button>
+            <button type="button" onClick={() => setFiltro("no-leidos")} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtro === "no-leidos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>{t("mensajes.noLeidosBtn")}</button>
           </div>
         </header>
 
         {mensajesFiltrados.length === 0 ? (
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-8 text-center">
-            <p className="text-zinc-400">{filtro === "no-leidos" ? "No hay mensajes sin leer." : "No hay mensajes de alumnos."}</p>
+            <p className="text-zinc-400">{filtro === "no-leidos" ? t("mensajes.emptyNoLeidos") : t("mensajes.empty")}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -103,8 +105,8 @@ export default function MensajesPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">{msg.remitente_nombre || "Anónimo"}</span>
-                    <span className="text-xs text-zinc-500">👤 Alumno</span>
+                    <span className="font-semibold">{msg.remitente_nombre || t("mensajes.anonimo")}</span>
+                    <span className="text-xs text-zinc-500">👤 {t("mensajes.alumno")}</span>
                     {!msg.leido && <span className="w-2 h-2 rounded-full bg-emerald-400" />}
                   </div>
                   <span className="text-xs text-zinc-500">
@@ -122,14 +124,14 @@ export default function MensajesPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
             <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold">💬 Mensaje</h3>
+                <h3 className="text-xl font-bold">{t("mensajes.mensaje")}</h3>
                 <button type="button" onClick={() => setMensajeSeleccionado(null)} className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800">✕</button>
               </div>
               <div className="space-y-3 text-sm">
-                <div><span className="text-zinc-500">De:</span> <span className="text-white">{mensajeSeleccionado.remitente_nombre || "Anónimo"}</span></div>
-                <div><span className="text-zinc-500">Email:</span> <span className="text-white">{mensajeSeleccionado.remitente_email || "—"}</span></div>
-                <div><span className="text-zinc-500">Motivo:</span> <span className="text-white">{mensajeSeleccionado.motivo || "—"}</span></div>
-                <div><span className="text-zinc-500">Fecha:</span> <span className="text-white">
+                <div><span className="text-zinc-500">{t("mensajes.de")}:</span> <span className="text-white">{mensajeSeleccionado.remitente_nombre || t("mensajes.anonimo")}</span></div>
+                <div><span className="text-zinc-500">{t("mensajes.email")}:</span> <span className="text-white">{mensajeSeleccionado.remitente_email || "—"}</span></div>
+                <div><span className="text-zinc-500">{t("mensajes.motivo")}:</span> <span className="text-white">{mensajeSeleccionado.motivo || "—"}</span></div>
+                <div><span className="text-zinc-500">{t("mensajes.fecha")}:</span> <span className="text-white">
                   {mensajeSeleccionado.created_at ? new Date(mensajeSeleccionado.created_at).toLocaleString("es-AR") : "—"}
                 </span></div>
                 <div className="pt-2 border-t border-zinc-800">

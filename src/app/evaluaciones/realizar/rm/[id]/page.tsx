@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,6 +8,7 @@ import { obtenerRMsActualesAlumno } from "@/lib/rmActual";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import BackButton from "@/components/BackButton";
 import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
+import { useIdioma } from "@/lib/i18n-context";
 import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
 
 type ModoCarga = "protocolo" | "rapida" | null;
@@ -139,6 +139,7 @@ function obtenerMejorIntento(intentos: IntentoProtocolo[]) {
 export default function RealizarEvaluacionRMDetalle() {
   const params = useParams();
   const evaluacionId = String(params.id || "");
+  const { t } = useIdioma();
 
   const [loading, setLoading] = useState(true);
   const [modoCarga, setModoCarga] = useState<ModoCarga>(null);

@@ -1,8 +1,10 @@
 "use client";
 
 import BackButton from "@/components/BackButton";
+import { useIdioma } from "@/lib/i18n-context";
 
 export default function RealizarOtrasProximamente() {
+  const { t } = useIdioma();
   return (
     <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
       <div className="max-w-md w-full text-center">

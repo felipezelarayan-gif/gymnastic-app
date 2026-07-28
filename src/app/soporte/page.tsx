@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { useIdioma } from "@/lib/i18n-context";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Metricas = {
   totalProfesores: number;
@@ -16,6 +18,7 @@ type Metricas = {
 
 export default function SoportePage() {
   const router = useRouter();
+  const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<{ nombre: string; email: string; rol: string; es_admin: boolean } | null>(null);
   const [metricas, setMetricas] = useState<Metricas>({
@@ -117,32 +120,32 @@ export default function SoportePage() {
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-5xl mx-auto">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold">🛠️ Panel de Soporte</h1>
+          <h1 className="text-3xl font-bold">{t("soporte.panelTitulo")}</h1>
           <p className="text-zinc-400 mt-2">
-            Hola, {profile?.nombre || "Admin"} — Administración general del sistema.
+            {t("soporte.panelSaludo", { nombre: profile?.nombre || "Admin" })}
           </p>
         </header>
 
         {/* Métricas globales */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-            <p className="text-sm text-zinc-400">👨‍🏫 Profesores</p>
+            <p className="text-sm text-zinc-400">{t("soporte.profesores")}</p>
             <p className="text-3xl font-bold mt-1">{metricas.totalProfesores}</p>
           </div>
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-            <p className="text-sm text-zinc-400">👥 Alumnos</p>
+            <p className="text-sm text-zinc-400">{t("soporte.alumnos")}</p>
             <p className="text-3xl font-bold mt-1">{metricas.totalAlumnos}</p>
           </div>
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-            <p className="text-sm text-zinc-400">🔐 Administradores</p>
+            <p className="text-sm text-zinc-400">{t("soporte.administradores")}</p>
             <p className="text-3xl font-bold mt-1">{metricas.totalAdmins}</p>
           </div>
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-            <p className="text-sm text-zinc-400">📋 Rutinas</p>
+            <p className="text-sm text-zinc-400">{t("soporte.rutinas")}</p>
             <p className="text-3xl font-bold mt-1">{metricas.totalRutinas}</p>
           </div>
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 md:col-span-2">
-            <p className="text-sm text-zinc-400">📏 Evaluaciones</p>
+            <p className="text-sm text-zinc-400">{t("soporte.evaluaciones")}</p>
             <p className="text-3xl font-bold mt-1">{metricas.totalEvaluacionesRM + metricas.totalEvaluacionesFMS}</p>
             <p className="text-xs text-zinc-500 mt-1">RM: {metricas.totalEvaluacionesRM} · FMS: {metricas.totalEvaluacionesFMS}</p>
           </div>
@@ -152,11 +155,11 @@ export default function SoportePage() {
         <Link href="/soporte/mensajes" className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:border-zinc-700 hover:bg-zinc-800/70 transition block mb-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold">💬 Mensajes de soporte</h2>
-              <p className="text-zinc-400 mt-2">
-                {mensajesNoLeidos > 0
-                  ? <>Tenés <strong className="text-emerald-400">{mensajesNoLeidos}</strong> mensaje{mensajesNoLeidos !== 1 ? "s" : ""} sin leer.</>
-                  : "No hay mensajes nuevos."}
+          <h2 className="text-xl font-semibold">{t("soporte.mensajesCard")}</h2>
+          <p className="text-zinc-400 mt-2">
+            {mensajesNoLeidos > 0
+              ? <>{t("soporte.mensajesNoLeidos", { count: mensajesNoLeidos, plural: mensajesNoLeidos !== 1 ? "s" : "" })} <strong className="text-emerald-400">{mensajesNoLeidos}</strong> {mensajesNoLeidos !== 1 ? t("soporte.mensajesPlural") : t("soporte.mensajesSingular")}.</>
+              : t("soporte.mensajesVacio")}
               </p>
             </div>
             {mensajesNoLeidos > 0 && (
@@ -173,9 +176,9 @@ export default function SoportePage() {
             href="/soporte/profesores"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
           >
-            <h2 className="text-xl font-semibold">👨‍🏫 Profesores</h2>
+            <h2 className="text-xl font-semibold">{t("soporte.profesoresCard")}</h2>
             <p className="text-zinc-400 mt-2">
-              Ver todos los profesores, sus métricas y gestionarlos.
+              {t("soporte.profesoresCardDesc")}
             </p>
           </a>
 
@@ -183,9 +186,9 @@ export default function SoportePage() {
             href="/soporte/alumnos"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
           >
-            <h2 className="text-xl font-semibold">👥 Alumnos</h2>
+            <h2 className="text-xl font-semibold">{t("soporte.alumnosCard")}</h2>
             <p className="text-zinc-400 mt-2">
-              Ver todos los alumnos del sistema y sus profesores asignados.
+              {t("soporte.alumnosCardDesc")}
             </p>
           </a>
 
@@ -193,9 +196,9 @@ export default function SoportePage() {
             href="/soporte/administradores"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
           >
-            <h2 className="text-xl font-semibold">🔐 Administradores</h2>
+            <h2 className="text-xl font-semibold">{t("soporte.administradoresCard")}</h2>
             <p className="text-zinc-400 mt-2">
-              Gestionar usuarios administradores del sistema.
+              {t("soporte.administradoresCardDesc")}
             </p>
           </a>
         </section>

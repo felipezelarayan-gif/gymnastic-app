@@ -1,6 +1,7 @@
 "use client";
 
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useIdioma } from "@/lib/i18n-context";
 
 export type TimerEstado = {
   seriesCompletadas: number;
@@ -222,13 +223,14 @@ const DescansoTimer = forwardRef<DescansoTimerHandle, DescansoTimerProps>(
       getEstado: () => estadoRef.current,
     }));
 
+    const { t } = useIdioma();
     const textoBoton = !descansoValido
-      ? "Sin descanso"
+      ? t("alumno.modal.sinDescanso")
       : temporizadorActivo
         ? formatearTiempo(segundosRestantes)
         : todasLasSeriesCompletadas
-          ? "Descansos completos ✓"
-          : `Iniciar descanso ${Math.min(seriesCompletadas + 1, totalSeries)}/${totalSeries}`;
+          ? t("alumno.modal.descansosCompletos")
+          : t("alumno.modal.iniciarDescanso", { serie: Math.min(seriesCompletadas + 1, totalSeries), total: totalSeries });
 
     return (
       <>
@@ -248,7 +250,7 @@ const DescansoTimer = forwardRef<DescansoTimerHandle, DescansoTimerProps>(
         </button>
 
         <p className="mt-2 text-[11px] text-zinc-500 leading-tight">
-          ⏱️ Ten en cuenta que el cronómetro está en prueba y puede no funcionar mientras escuchas música, abres otras aplicaciones o el dispositivo está bloqueado.
+          {t("alumno.modal.cronometroPrueba")}
         </p>
 
         {alarmaActiva && (
@@ -257,16 +259,16 @@ const DescansoTimer = forwardRef<DescansoTimerHandle, DescansoTimerProps>(
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10">
                 <span className="text-2xl">⏰</span>
               </div>
-              <h3 className="text-lg font-bold text-amber-300">Descanso finalizado</h3>
+              <h3 className="text-lg font-bold text-amber-300">{t("alumno.modal.descansoFinalizado")}</h3>
               <p className="mt-2 text-sm text-zinc-400">
-                La alarma seguirá sonando hasta que la detengas.
+                {t("alumno.modal.alarmaSeguirSonando")}
               </p>
               <button
                 type="button"
                 onClick={detenerAlarma}
                 className="mt-5 w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-black hover:bg-amber-400 transition-colors"
               >
-                Detener alarma
+                {t("alumno.modal.detenerAlarma")}
               </button>
             </div>
           </div>

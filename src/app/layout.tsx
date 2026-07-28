@@ -5,6 +5,7 @@ import SessionGuard from "@/components/SessionGuard";
 import BotonMensajesFlotante from "@/components/shared/BotonMensajesFlotante";
 import { UnsavedChangesProvider } from "@/lib/unsaved-changes-context";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+import { I18nProvider } from "@/lib/i18n-context";
 
 export const metadata: Metadata = {
   title: {
@@ -22,15 +23,17 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className="bg-zinc-950 text-white pb-24 md:pb-0">
-        <SessionGuard>
-          <UnsavedChangesProvider>
-            <ToastProvider>
-              <Navbar />
-              <BotonMensajesFlotante />
-              {children}
-            </ToastProvider>
-          </UnsavedChangesProvider>
-        </SessionGuard>
+        <I18nProvider>
+          <SessionGuard>
+            <UnsavedChangesProvider>
+              <ToastProvider>
+                <Navbar />
+                <BotonMensajesFlotante />
+                {children}
+              </ToastProvider>
+            </UnsavedChangesProvider>
+          </SessionGuard>
+        </I18nProvider>
       </body>
     </html>
   );

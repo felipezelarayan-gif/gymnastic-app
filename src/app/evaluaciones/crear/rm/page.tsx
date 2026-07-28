@@ -11,6 +11,7 @@ import { obtenerRMActualAlumnoEjercicio } from "@/lib/rmActual";
 import BackButton from "@/components/BackButton";
 import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
 import TipoEvaluacionSelector from "@/components/TipoEvaluacionSelector";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Alumno = { id: string; nombre: string; profesor_id?: string | null };
 type Ejercicio = { id: string; nombre: string };
@@ -19,6 +20,7 @@ const DRAFT_KEY = "evaluacion_rm_crear_draft";
 
 export default function CrearEvaluacionRM() {
   const router = useRouter();
+  const { t } = useIdioma();
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [profesorId, setProfesorId] = useState<string | null>(null);
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);

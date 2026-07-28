@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
+import { useIdioma } from "@/lib/i18n-context";
 
 type EvaluacionPendiente = {
   id: string;
@@ -26,20 +27,23 @@ export default function EvaluacionPendienteList({
   tipo,
   borrandoId,
   emptyEmoji = "✅",
-  emptyTitulo = `No hay evaluaciones ${tipo.toUpperCase()} pendientes`,
+  emptyTitulo,
   onBorrar,
 }: Props) {
+  const { t } = useIdioma();
+  const defaultEmptyTitulo = tipo === "rm" ? t("evaluaciones.noPendientesRM") : t("evaluaciones.noPendientesFMS");
+  const titulo = emptyTitulo || defaultEmptyTitulo;
   if (evaluaciones.length === 0) {
     return (
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
         <p className="text-4xl mb-4">{emptyEmoji}</p>
-        <h2 className="text-xl font-bold">{emptyTitulo}</h2>
-        <p className="text-zinc-400 mt-2">Cuando crees una evaluación {tipo.toUpperCase()}, aparecerá en esta lista.</p>
+        <h2 className="text-xl font-bold">{titulo}</h2>
+        <p className="text-zinc-400 mt-2">{t("evaluaciones.emptyDesc", { tipo: tipo.toUpperCase() })}</p>
         <Link
           href={`/evaluaciones/crear/${tipo}`}
           className="inline-block mt-6 bg-white text-zinc-950 font-semibold px-5 py-2 rounded-lg hover:bg-zinc-200 transition"
         >
-          Crear evaluación {tipo.toUpperCase()}
+          {t("evaluaciones.crearEvaluacion", { tipo: tipo.toUpperCase() })}
         </Link>
       </div>
     );
@@ -53,10 +57,10 @@ export default function EvaluacionPendienteList({
           className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         >
           <div>
-            <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">Alumno</p>
+            <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">{t("evaluaciones.alumno")}</p>
             <h2 className="text-lg font-semibold text-white">{evaluacion.alumno_nombre}</h2>
             <div className="flex flex-wrap gap-3 mt-2 text-sm text-zinc-400">
-              <span>Fecha a realizar: {formatearFechaCorta(evaluacion.fecha_asignacion) || "Sin fecha"}</span>
+              <span>{t("evaluaciones.fechaARealizar", { fecha: formatearFechaCorta(evaluacion.fecha_asignacion) || t("common.sinFecha") })}</span>
               <span>•</span>
               <span>{evaluacion.cantidad_items} {evaluacion.label_items}</span>
             </div>
@@ -70,13 +74,13 @@ export default function EvaluacionPendienteList({
               href={`/evaluaciones/realizar/${tipo}/${evaluacion.id}`}
               className="bg-white text-zinc-950 font-semibold px-5 py-3 rounded-lg hover:bg-zinc-200 transition text-center"
             >
-              Realizar evaluación
+              {t("evaluaciones.realizarEvaluacion")}
             </Link>
             <button
               type="button"
               onClick={() => onBorrar(evaluacion.id)}
               disabled={borrandoId === evaluacion.id}
-              title="Eliminar evaluación"
+              title={t("evaluaciones.eliminarEvaluacion")}
               className="border border-red-900/60 text-red-400 font-semibold px-4 py-3 rounded-lg hover:bg-red-950/40 transition text-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {borrandoId === evaluacion.id ? "⏳" : "🗑️"}

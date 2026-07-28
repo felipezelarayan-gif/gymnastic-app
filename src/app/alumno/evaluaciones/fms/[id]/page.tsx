@@ -8,6 +8,7 @@ import BackButton from "@/components/BackButton";
 import FMSInfoModal from "@/components/fms/FMSInfoModal";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 
 type EvaluacionFMS = {
   id: string;
@@ -107,6 +108,7 @@ function totalColor(total: number, maximo: number) {
 }
 
 export default function RealizarEvaluacionFMSAlumnoPage() {
+  const { t } = useIdioma();
   const params = useParams();
   const evaluacionId = String(params.id || "");
 

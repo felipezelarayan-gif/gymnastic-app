@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { useIdioma } from "@/lib/i18n-context";
 
 type VerRutinaModalProps = {
   open: boolean;
@@ -55,11 +56,11 @@ type EjercicioAgrupado = {
   series: RegistroEntrenamiento[];
 };
 
-function agruparRegistrosPorEjercicio(registros: RegistroEntrenamiento[]): EjercicioAgrupado[] {
+function agruparRegistrosPorEjercicio(registros: RegistroEntrenamiento[], ejercicioSinNombre: string = "Ejercicio"): EjercicioAgrupado[] {
   const grupos = new Map<string, RegistroEntrenamiento[]>();
 
   registros.forEach((item) => {
-    const nombre = item.nombre_ejercicio || "Ejercicio";
+    const nombre = item.nombre_ejercicio || ejercicioSinNombre;
     const seriesActuales = grupos.get(nombre) || [];
     grupos.set(nombre, [...seriesActuales, item]);
   });
@@ -76,6 +77,7 @@ export default function VerRutinaModal({
   asignacionId,
   completada,
 }: VerRutinaModalProps) {
+  const { t } = useIdioma();
   const [loading, setLoading] = useState(false);
   const { formatearFechaCorta } = useFormatoFecha();
   const [rutina, setRutina] = useState<RutinaData | null>(null);
@@ -171,7 +173,7 @@ export default function VerRutinaModal({
 
   if (!open) return null;
 
-  const registrosAgrupados = agruparRegistrosPorEjercicio(registros);
+  const registrosAgrupados = agruparRegistrosPorEjercicio(registros, t("alumnos.ejercicioSinNombre"));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
@@ -180,10 +182,10 @@ export default function VerRutinaModal({
         <div className="flex items-start justify-between gap-4 mb-4 shrink-0">
           <div>
             <p className="text-sm text-zinc-500">
-              {completada ? "Rutina completada" : "Rutina pendiente"}
+              {completada ? t("alumno.etiquetaRutinaCompletada") : t("alumno.etiquetaRutinaPendiente")}
             </p>
             <h3 className="text-xl font-bold text-zinc-100 mt-1">
-              🏋️ {rutina?.rutinas?.nombre || "Rutina"}
+              🏋️ {rutina?.rutinas?.nombre || t("alumnos.rutinaSinNombre")}
             </h3>
           </div>
           <button
@@ -209,22 +211,22 @@ export default function VerRutinaModal({
               {/* Info general */}
               <div className="space-y-2">
                 <div>
-                  <p className="text-xs text-zinc-500 mb-1">Estado</p>
+                  <p className="text-xs text-zinc-500 mb-1">{t("alumno.estadoLabel")}</p>
                   <p className="text-sm text-zinc-200">
-                    {completada ? "Completada" : "Pendiente"}
+                    {completada ? t("rutinas.completada") : t("alumno.pendiente")}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-xs text-zinc-500 mb-1">Fecha asignada</p>
+                  <p className="text-xs text-zinc-500 mb-1">{t("alumno.fechaAsignadaLabel")}</p>
                   <p className="text-sm text-zinc-200">
-                    {formatearFechaCorta(rutina.fecha_asignacion) || "Sin fecha"}
+                    {formatearFechaCorta(rutina.fecha_asignacion) || t("common.sinFecha")}
                   </p>
                 </div>
 
                 {completada && rutina.fecha_completada && (
                   <div>
-                    <p className="text-xs text-zinc-500 mb-1">Fecha completada</p>
+                    <p className="text-xs text-zinc-500 mb-1">{t("alumno.fechaCompletadaLabel")}</p>
                     <p className="text-sm text-zinc-200">
                       {formatearFechaCorta(rutina.fecha_completada)}
                     </p>
@@ -233,14 +235,14 @@ export default function VerRutinaModal({
 
                 {rutina.rutinas?.objetivo && (
                   <div>
-                    <p className="text-xs text-zinc-500 mb-1">Objetivo</p>
+                    <p className="text-xs text-zinc-500 mb-1">{t("rutinas.objetivo")}</p>
                     <p className="text-sm text-zinc-200">{rutina.rutinas.objetivo}</p>
                   </div>
                 )}
 
                 {rutina.rutinas?.estructura && (
                   <div>
-                    <p className="text-xs text-zinc-500 mb-1">Estructura</p>
+                    <p className="text-xs text-zinc-500 mb-1">{t("rutinas.estructura")}</p>
                     <p className="text-sm text-zinc-200">{rutina.rutinas.estructura}</p>
                   </div>
                 )}
@@ -249,12 +251,12 @@ export default function VerRutinaModal({
               {/* Ejercicios */}
               <div>
                 <p className="text-xs text-zinc-500 mb-2 font-semibold uppercase tracking-wide">
-                  Ejercicios
+                  {t("alumno.ejerciciosLabel")}
                 </p>
 
                 {/* Vista pendiente: muestra lo planificado */}
                 {!completada && ejercicios.length === 0 && (
-                  <p className="text-sm text-zinc-500">Sin ejercicios cargados.</p>
+                  <p className="text-sm text-zinc-500">{t("alumno.sinEjerciciosCargados")}</p>
                 )}
 
                 {!completada && ejercicios.length > 0 && (
@@ -268,14 +270,14 @@ export default function VerRutinaModal({
                           {ej.orden ? `${ej.orden}. ` : ""}{ej.nombre_ejercicio}
                         </p>
                         <div className="mt-2 flex flex-wrap gap-2 text-sm text-zinc-400">
-                          {ej.series && <span>{ej.series} series</span>}
-                          {ej.repeticiones && <span>x {ej.repeticiones} reps</span>}
+                          {ej.series && <span>{ej.series} {t("alumnos.seriesPlural")}</span>}
+                          {ej.repeticiones && <span>x {ej.repeticiones} {t("alumnos.tablaReps")}</span>}
                           {ej.peso && <span>| {ej.peso}</span>}
                           {ej.porcentaje_rm && <span>| {ej.porcentaje_rm}% RM</span>}
                           {ej.rir && <span>| RIR: {ej.rir}</span>}
                         </div>
                         {ej.descanso && (
-                          <p className="text-xs text-zinc-500 mt-1">Descanso: {ej.descanso}</p>
+                          <p className="text-xs text-zinc-500 mt-1">{t("rutinas.descansoEntreSeries")}: {ej.descanso}</p>
                         )}
                         {ej.observaciones && (
                           <p className="text-xs text-zinc-500 mt-1">{ej.observaciones}</p>
@@ -289,7 +291,7 @@ export default function VerRutinaModal({
                 {completada && registrosAgrupados.length === 0 && ejercicios.length > 0 && (
                   <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
                     <p className="text-sm text-zinc-400">
-                      Sin registros de entrenamiento guardados.
+                      {t("alumno.sinRegistrosEntrenamiento")}
                     </p>
                   </div>
                 )}
@@ -304,17 +306,17 @@ export default function VerRutinaModal({
                         <div className="flex items-center justify-between gap-3">
                           <h4 className="font-semibold text-zinc-200">{grupo.nombre}</h4>
                           <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-400">
-                            {grupo.series.length} {grupo.series.length === 1 ? "serie" : "series"}
+                            {grupo.series.length} {grupo.series.length === 1 ? t("alumnos.serieSingular") : t("alumnos.seriesPlural")}
                           </span>
                         </div>
 
                         <div className="mt-3 overflow-hidden rounded-xl border border-zinc-800">
                           <div className="grid grid-cols-5 bg-zinc-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                            <span>Serie</span>
-                            <span>Reps</span>
-                            <span>Peso</span>
-                            <span>RPE</span>
-                            <span>RIR</span>
+                            <span>{t("alumnos.tablaSerie")}</span>
+                            <span>{t("alumnos.tablaReps")}</span>
+                            <span>{t("alumnos.tablaPeso")}</span>
+                            <span>{t("alumnos.tablaRPE")}</span>
+                            <span>{t("alumnos.tablaRIR")}</span>
                           </div>
                           <div className="divide-y divide-zinc-800">
                             {grupo.series.map((serie) => (
@@ -342,7 +344,7 @@ export default function VerRutinaModal({
               </div>
             </>
           ) : (
-            <p className="text-zinc-400 text-sm">No se pudo cargar la informaci\u00f3n de la rutina.</p>
+            <p className="text-zinc-400 text-sm">{t("alumno.noSePudoCargarRutina")}</p>
           )}
         </div>
 
@@ -353,7 +355,7 @@ export default function VerRutinaModal({
             onClick={onClose}
             className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-800"
           >
-            Cerrar
+            {t("alumnos.modalCerrar")}
           </button>
         </div>
       </div>

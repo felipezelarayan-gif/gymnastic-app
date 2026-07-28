@@ -10,6 +10,7 @@ import type { FormatoFecha } from "@/lib/utils/formatearFecha";
 import InformacionCard from "@/components/ui/InformacionCard";
 import SoporteCard from "@/components/shared/SoporteCard";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Alumno = {
   id: string;
@@ -24,6 +25,7 @@ type Alumno = {
 export default function AlumnoConfiguracionPage() {
   const router = useRouter();
   const { mostrarToast } = useToast();
+  const { t, idioma, cambiarIdioma } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const { formato, cambiarFormato } = useFormatoFecha();
@@ -94,37 +96,37 @@ export default function AlumnoConfiguracionPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
       <div className="max-w-4xl mx-auto">
-        <Link href="/alumno" className="text-zinc-400 hover:text-white">← Volver al panel</Link>
+        <Link href="/alumno" className="text-zinc-400 hover:text-white">{t("common.atrasBtn")}</Link>
 
         <header className="mt-6 mb-6">
-          <h1 className="text-3xl font-bold">⚙️ Configuración</h1>
-          <p className="text-zinc-400 mt-2">Administrá tu cuenta, soporte y sesión.</p>
+          <h1 className="text-3xl font-bold">{t("configuracion.titulo")}</h1>
+          <p className="text-zinc-400 mt-2">{t("configuracion.descripcion")}</p>
         </header>
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-          <h2 className="text-xl font-semibold mb-4">👤 Perfil</h2>
+          <h2 className="text-xl font-semibold mb-4">{t("configuracion.miPerfil")}</h2>
           <div className="flex items-center gap-4">
             <div className="h-20 w-20 rounded-full bg-emerald-500/10 border border-emerald-700 flex items-center justify-center text-2xl font-bold text-emerald-400 overflow-hidden">
-              {alumno.foto_url ? <img src={alumno.foto_url} alt="Foto de perfil" className="h-full w-full object-cover" /> : iniciales()}
+              {alumno.foto_url ? <img src={alumno.foto_url} alt={t("perfil.fotoPerfil")} className="h-full w-full object-cover" /> : iniciales()}
             </div>
             <div className="flex-1">
               <h3 className="text-2xl font-bold">{alumno.nombre} {alumno.apellido || ""}</h3>
               <p className="text-zinc-400">{alumno.email || "-"}</p>
-              <Link href="/alumno/perfil" className="mt-3 inline-block rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-800">✏️ Editar perfil</Link>
+              <Link href="/alumno/perfil" className="mt-3 inline-block rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-800">{t("configuracion.verEditarPerfil")}</Link>
             </div>
           </div>
         </section>
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
-          <h2 className="text-xl font-semibold mb-4">🔒 Seguridad</h2>
+          <h2 className="text-xl font-semibold mb-4">{t("configuracion.sesion")}</h2>
           <div className="space-y-3">
-            <button type="button" onClick={() => setMostrarPassword(!mostrarPassword)} className="w-full text-left rounded-xl border border-zinc-800 p-4 hover:bg-zinc-800">Cambiar contraseña</button>
+            <button type="button" onClick={() => setMostrarPassword(!mostrarPassword)} className="w-full text-left rounded-xl border border-zinc-800 p-4 hover:bg-zinc-800">{t("common.guardarContraseña")}</button>
             {mostrarPassword && (
               <div className="space-y-3">
-                <input type="password" value={passwordActual} onChange={(e) => setPasswordActual(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3" placeholder="Contraseña actual" />
-                <input type="password" value={passwordNueva} onChange={(e) => setPasswordNueva(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3" placeholder="Nueva contraseña" />
-                <input type="password" value={passwordConfirmar} onChange={(e) => setPasswordConfirmar(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3" placeholder="Confirmar nueva contraseña" />
-                <button type="button" onClick={cambiarPassword} disabled={guardandoPassword} className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50">{guardandoPassword ? "Guardando..." : "Guardar contraseña"}</button>
+                <input type="password" value={passwordActual} onChange={(e) => setPasswordActual(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3" placeholder={t("common.contraseñaActual")} />
+                <input type="password" value={passwordNueva} onChange={(e) => setPasswordNueva(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3" placeholder={t("common.nuevaContraseña")} />
+                <input type="password" value={passwordConfirmar} onChange={(e) => setPasswordConfirmar(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3" placeholder={t("common.confirmarContraseña")} />
+                <button type="button" onClick={cambiarPassword} disabled={guardandoPassword} className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50">{guardandoPassword ? t("common.guardando") : t("common.guardarContraseña")}</button>
               </div>
             )}
           </div>
@@ -133,8 +135,8 @@ export default function AlumnoConfiguracionPage() {
         <InformacionCard />
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
-          <h2 className="text-xl font-semibold mb-3">📅 Formato de fecha</h2>
-          <p className="text-zinc-400 text-sm mb-3">Elegí cómo querés ver las fechas en toda la aplicación.</p>
+          <h2 className="text-xl font-semibold mb-3">{t("configuracion.formatoFecha")}</h2>
+          <p className="text-zinc-400 text-sm mb-3">{t("configuracion.elegirFormato")}</p>
           <select value={formato} onChange={(e) => cambiarFormato(e.target.value as FormatoFecha)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700 text-white">
             <option value="dd/mm/aa">01/12/26</option>
             <option value="dd/mm/aaaa">01/12/2026</option>
@@ -142,7 +144,16 @@ export default function AlumnoConfiguracionPage() {
             <option value="mm/dd/aaaa">12/01/2026</option>
             <option value="aaaa-mm-dd">2026-12-01</option>
           </select>
-          <p className="text-zinc-500 text-sm mt-2">Formato actual: <span className="text-zinc-300">{formato}</span></p>
+          <p className="text-zinc-500 text-sm mt-2">{t("configuracion.formatoActual", { formato })}</p>
+        </section>
+
+        <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
+          <h2 className="text-xl font-semibold mb-3">{t("configuracion.idioma")}</h2>
+          <p className="text-zinc-400 text-sm mb-3">{t("configuracion.elegirIdioma")}</p>
+          <select value={idioma} onChange={(e) => cambiarIdioma(e.target.value as "es" | "en")} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700 text-white">
+            <option value="es">Español</option>
+            <option value="en">English</option>
+          </select>
         </section>
 
         <SoporteCard
@@ -154,8 +165,8 @@ export default function AlumnoConfiguracionPage() {
         />
 
         <section className="bg-zinc-900 border border-red-900 rounded-2xl p-5 mt-4">
-          <h2 className="text-xl font-semibold mb-4">🚪 Sesión</h2>
-          <button type="button" onClick={cerrarSesion} className="w-full rounded-xl border border-red-800 px-5 py-3 text-red-400 hover:bg-red-950">Cerrar sesión</button>
+          <h2 className="text-xl font-semibold mb-4">{t("configuracion.sesion")}</h2>
+          <button type="button" onClick={cerrarSesion} className="w-full rounded-xl border border-red-800 px-5 py-3 text-red-400 hover:bg-red-950">{t("configuracion.cerrarSesionBtn")}</button>
         </section>
       </div>
     </main>

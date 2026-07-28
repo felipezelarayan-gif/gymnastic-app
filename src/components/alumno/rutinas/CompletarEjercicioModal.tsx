@@ -2,6 +2,7 @@
 import React, { useMemo, useRef } from "react";
 import DescansoTimer, { DescansoTimerHandle } from "./DescansoTimer";
 import TemporizadorSeries from "@/components/rutinas/TemporizadorSeries";
+import { useIdioma } from "@/lib/i18n-context";
 
 type CompletarEjercicioModalProps = {
   open: boolean;
@@ -190,6 +191,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
     () => obtenerDescansoSegundos(ejercicio),
     [ejercicio],
   );
+  const { t } = useIdioma();
   const timerRef = useRef<DescansoTimerHandle>(null);
   const manejarEstadoTimer = () => undefined;
   // Verificar si todas las series están completas
@@ -204,12 +206,12 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
     });
 
   const textoBotonFinalizar = !todasLasSeriesCompletas && !rpe
-    ? "Completá las series y el RPE"
+    ? t("alumno.modal.completarSeriesRPE")
     : !todasLasSeriesCompletas
-      ? "Completá todas las series"
+      ? t("alumno.modal.completarSeries")
       : !rpe
-        ? "Completá el RPE"
-        : "Finalizar ejercicio";
+        ? t("alumno.modal.completarRPE")
+        : t("alumno.modal.finalizarEjercicio");
 
 
   React.useEffect(() => {
@@ -253,33 +255,33 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
           {/* Header del modal */}
           <div className="border-b border-zinc-800 pb-4">
             <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">
-              Registrar ejercicio
+              {t("alumno.modal.registrarEjercicio")}
             </p>
             <h2 className="text-lg font-bold leading-snug text-zinc-100">
-              {ejercicio?.nombre_ejercicio || ejercicio?.nombre || "Ejercicio"}
+              {ejercicio?.nombre_ejercicio || ejercicio?.nombre || t("alumnos.ejercicioSinNombre")}
             </h2>
           </div>
           {/* Video card */}
           {videoUrl && (
             <div className="bg-zinc-800 rounded-2xl p-4">
-              <div className="font-semibold text-zinc-200 mb-3">Video</div>
+              <div className="font-semibold text-zinc-200 mb-3">{t("alumno.modal.video")}</div>
 
               <div className="flex gap-3 items-center">
                 {miniaturaVideo ? (
                   <img
                     src={miniaturaVideo}
-                    alt="Miniatura del video"
+                    alt={t("alumno.modal.miniaturaVideo")}
                     className="h-20 w-28 rounded-xl object-cover bg-zinc-900"
                   />
                 ) : (
                   <div className="h-20 w-28 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-500 text-xs">
-                    Video
+                    {t("alumno.modal.video")}
                   </div>
                 )}
 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-zinc-400 mb-3">
-                    Video de referencia del ejercicio.
+                    {t("alumno.modal.videoReferencia")}
                   </p>
                   <a
                     href={videoUrl}
@@ -287,7 +289,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
                     rel="noopener noreferrer"
                     className="inline-flex rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
                   >
-                    Ver
+                    {t("alumno.modal.ver")}
                   </a>
                 </div>
               </div>
@@ -303,7 +305,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
           {/* Resultado card */}
           <div className="bg-zinc-800 rounded-2xl p-4">
             <div className="mb-3 flex items-start justify-between gap-3">
-              <div className="font-semibold text-zinc-200">Resultado</div>
+              <div className="font-semibold text-zinc-200">{t("alumno.modal.resultado")}</div>
               {descansoInicial !== null && !esEjercicioPorTiempo && (
                 <div className="w-44 shrink-0">
                   <DescansoTimer
@@ -320,25 +322,25 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
               <div>
                 {pesoPlanificado && (
                   <p className="text-sm font-semibold text-emerald-400 mb-3">
-                    Peso: {pesoPlanificado} kg
+                    {t("alumno.modal.pesoLabel", { valor: pesoPlanificado })}
                   </p>
                 )}
 
                 <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-                  Serie por serie
+                  {t("alumno.modal.seriePorSerie")}
                 </p>
 
                 {seriesParaMostrar.length > 0 ? (
                   <div className="space-y-2">
                     <div className="grid grid-cols-[64px_1fr_1fr_40px] gap-2 items-center">
                       <span className="text-sm text-zinc-500 font-medium">
-                        Serie
+                        {t("alumno.modal.serieLabel")}
                       </span>
                       <p className="text-xs text-zinc-500 mb-1 font-medium">
-                        Repeticiones
+                        {t("alumno.modal.repeticiones")}
                       </p>
                       <p className="text-xs text-zinc-500 mb-1 font-medium">
-                        Peso (kg)
+                        {t("alumno.modal.pesoKg")}
                       </p>
                       <div />
                     </div>
@@ -350,12 +352,12 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
                           className="grid grid-cols-[64px_1fr_1fr_40px] gap-2 items-center"
                         >
                           <span className="text-sm text-zinc-500 font-medium">
-                            Serie {serie.numero_serie}
+                            {t("alumno.modal.serieNumeroLabel", { numero: serie.numero_serie })}
                           </span>
                           <div>
                             {serie.repeticiones && (
                               <p className="text-[11px] text-zinc-600 mb-1">
-                                Objetivo: {serie.repeticiones} reps
+                                {t("alumno.modal.objetivo")} {serie.repeticiones} {t("alumno.modal.reps")}
                               </p>
                             )}
                             <input
@@ -376,7 +378,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
                           <div>
                             {formatearObjetivoPesoSerie(serie) && (
                               <p className="text-[11px] text-zinc-600 mb-1">
-                                Objetivo: {formatearObjetivoPesoSerie(serie)}
+                                {t("alumno.modal.objetivo")} {formatearObjetivoPesoSerie(serie)}
                               </p>
                             )}
                             <input
@@ -395,7 +397,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
                             />
                           </div>
                           <div
-                            aria-label={serieCompletada ? "Serie completa" : "Serie incompleta"}
+                            aria-label={serieCompletada ? t("alumno.modal.serieCompleta") : t("alumno.modal.serieIncompleta")}
                             className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
                               serieCompletada
                                 ? "bg-emerald-500 text-white"
@@ -410,7 +412,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
                   </div>
                 ) : (
                   <p className="text-sm text-zinc-500">
-                    No hay series avanzadas cargadas para este ejercicio.
+                    {t("alumno.modal.noSeriesAvanzadas")}
                   </p>
                 )}
               </div>
@@ -418,11 +420,11 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
               <div className="space-y-3">
                 {(pesoPlanificado || ejercicio?.repeticiones || esEjercicioPorTiempo) && (
                   <div className="flex flex-wrap gap-2 text-sm font-semibold text-emerald-400">
-                    {pesoPlanificado && <span>Peso: {pesoPlanificado} kg</span>}
+                    {pesoPlanificado && <span>{t("alumno.modal.pesoLabel", { valor: pesoPlanificado })}</span>}
                     {esEjercicioPorTiempo ? (
-                      <span>Tiempo: {ejercicio?.duracion} por serie</span>
+                      <span>{t("alumno.modal.tiempoLabel", { duracion: ejercicio?.duracion })}</span>
                     ) : ejercicio?.repeticiones ? (
-                      <span>Repeticiones: {ejercicio.repeticiones}</span>
+                      <span>{t("alumno.modal.repeticionesLabel", { valor: ejercicio.repeticiones })}</span>
                     ) : null}
                   </div>
                 )}
@@ -434,12 +436,12 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
                     return (
                       <div key={numSerie} className="flex items-center gap-3">
                         <span className="text-sm font-semibold text-zinc-400 w-20 shrink-0">
-                          Serie {numSerie}:
+                          {t("alumno.modal.serieNumeroLabel", { numero: numSerie })}
                         </span>
                         {!esEjercicioPorTiempo && (
                           <div className="flex-1">
                             <p className="text-xs text-zinc-500 mb-1 font-medium">
-                              Repeticiones
+                              {t("alumno.modal.repeticiones")}
                             </p>
                             <input
                               type="number"
@@ -459,7 +461,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
                         )}
                         <div className="flex-1">
                           <p className="text-xs text-zinc-500 mb-1 font-medium">
-                            Peso (kg)
+                            {t("alumno.modal.pesoKg")}
                           </p>
                           <input
                             type="number"
@@ -477,7 +479,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
                           />
                         </div>
                         <div
-                          aria-label={serieCompletada ? "Serie completa" : "Serie incompleta"}
+                          aria-label={serieCompletada ? t("alumno.modal.serieCompleta") : t("alumno.modal.serieIncompleta")}
                           className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
                             serieCompletada
                               ? "bg-emerald-500 text-white"
@@ -495,7 +497,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
             <div className={`${ocultarCargaSeriesPorTiempoPesoCorporal ? "grid grid-cols-1" : "grid grid-cols-2"} gap-3 mt-4`}>
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
-                  RPE *
+                  {t("alumno.modal.rpeLabel")}
                 </label>
                 <select
                   value={rpe}
@@ -515,7 +517,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
               {!ocultarCargaSeriesPorTiempoPesoCorporal && (
                 <div>
                   <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
-                    RIR <span className="text-zinc-600 normal-case font-normal">(opcional)</span>
+                    {t("alumno.modal.rirLabel")}
                   </label>
                   <select
                     value={rirReal}
@@ -542,7 +544,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
               className="flex-1 px-4 py-2 rounded-xl bg-zinc-700 text-zinc-200 hover:bg-zinc-600 transition"
               onClick={onClose}
             >
-              Cancelar
+              {t("alumno.modal.cancelarBtn")}
             </button>
             <button
               type="button"
@@ -562,7 +564,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
               {guardandoEjercicio && (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               )}
-              {guardandoEjercicio ? "Guardando..." : textoBotonFinalizar}
+              {guardandoEjercicio ? t("alumno.modal.guardando") : textoBotonFinalizar}
             </button>
           </div>
         </div>

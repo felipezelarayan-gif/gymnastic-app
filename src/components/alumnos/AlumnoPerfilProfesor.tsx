@@ -9,6 +9,7 @@ import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
 import { useToast } from "@/components/ui/ToastProvider";
 import ModalAccionesAlumno from "@/components/shared/ModalAccionesAlumno";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Alumno = {
   id: string;
@@ -50,6 +51,7 @@ function calcularEdad(fecha?: string | null) {
 }
 
 export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id: string }> }) {
+  const { t } = useIdioma();
   const { id } = use(params);
   const { formatearFechaCorta } = useFormatoFecha();
   const [loading, setLoading] = useState(true);
@@ -107,7 +109,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
 
   async function guardarCambios() {
     if (!nuevoNombre.trim()) {
-      mostrarToast("El nombre es obligatorio.", "info");
+      mostrarToast(t("perfil.nombreRequerido"), "info");
       return;
     }
 
@@ -137,7 +139,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
       return;
     }
 
-    mostrarToast("Datos actualizados correctamente.", "exito");
+    mostrarToast(t("alumnos.datosActualizados"), "exito");
     setEditando(false);
     await cargarAlumno();
   }
@@ -165,7 +167,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
       .single();
 
     if (error || !data) {
-      mostrarToast(error?.message || "No se encontró el alumno.", "error");
+      mostrarToast(error?.message || t("alumnos.noEncontrado"), "error");
       setLoading(false);
       return;
     }
@@ -195,7 +197,6 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
     setMostrarAcciones(true);
     setErrorAccion(null);
 
-    // Cargar profesores disponibles para transferir
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData?.session) return;
 
@@ -210,8 +211,8 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
     if (!profeActual) return;
 
     const disponibles: ProfeDisponible[] = [];
+    const idsVistos = new Set<string>();
 
-    // 1. Soporte (rol: admin)
     const { data: soportes } = await supabase
       .from("profiles")
       .select("id, nombre, email")
@@ -219,11 +220,13 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
 
     if (soportes) {
       soportes.forEach((s) => {
-        disponibles.push({ id: s.id, nombre: s.nombre, email: s.email, tipo: "🛠️ Soporte" });
+        if (!idsVistos.has(s.id)) {
+          idsVistos.add(s.id);
+          disponibles.push({ id: s.id, nombre: s.nombre, email: s.email, tipo: "🛠️ Soporte" });
+        }
       });
     }
 
-    // 2. El admin que creó al profesor
     if (profeActual.creado_por) {
       const { data: admin } = await supabase
         .from("profiles")
@@ -231,11 +234,11 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
         .eq("id", profeActual.creado_por)
         .maybeSingle();
 
-      if (admin) {
+      if (admin && !idsVistos.has(admin.id)) {
+        idsVistos.add(admin.id);
         disponibles.push({ id: admin.id, nombre: admin.nombre, email: admin.email, tipo: "👑 Mi admin" });
       }
 
-      // 3. Otros profes con el mismo admin
       const { data: otrosProfes } = await supabase
         .from("profiles")
         .select("id, nombre, email")
@@ -245,7 +248,10 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
 
       if (otrosProfes) {
         otrosProfes.forEach((p) => {
-          disponibles.push({ id: p.id, nombre: p.nombre, email: p.email, tipo: "👨‍🏫 Profesor" });
+          if (!idsVistos.has(p.id)) {
+            idsVistos.add(p.id);
+            disponibles.push({ id: p.id, nombre: p.nombre, email: p.email, tipo: "👨‍🏫 Profesor" });
+          }
         });
       }
     }
@@ -255,7 +261,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
 
   async function transferirAlumno() {
     if (!profeSeleccionado) {
-      mostrarToast("Seleccioná un profesor para transferir.", "error");
+      mostrarToast(t("alumnos.seleccionarProfe"), "error");
       return;
     }
 
@@ -274,7 +280,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
       return;
     }
 
-    mostrarToast("Alumno transferido correctamente.", "exito");
+    mostrarToast(t("alumnos.alumnoTransferido"), "exito");
     setMostrarTransferir(false);
     setMostrarAcciones(false);
     await cargarAlumno();
@@ -299,7 +305,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
     }
 
     mostrarToast(
-      nuevoEstado ? "Alumno reanudado correctamente." : "Alumno pausado correctamente.",
+      nuevoEstado ? t("alumnos.alumnoReanudado") : t("alumnos.alumnoPausado"),
       "exito"
     );
     setMostrarAcciones(false);
@@ -335,18 +341,18 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
     {
       id: "transferir",
       icono: "🔄",
-      titulo: "Transferir",
-      descripcion: "Cambiar el alumno a otro profesor",
+      titulo: t("alumnos.transferir"),
+      descripcion: t("alumnos.transferirDesc"),
       color: "blue" as const,
       onClick: () => { setMostrarTransferir(true); setErrorAccion(null); },
     },
     {
       id: "pausar",
       icono: alumno?.activo === false ? "▶️" : "⏸️",
-      titulo: alumno?.activo === false ? "Reanudar" : "Pausar",
+      titulo: alumno?.activo === false ? t("alumnos.reanudar") : t("alumnos.pausar"),
       descripcion: alumno?.activo === false
-        ? "El alumno volverá a tener acceso a la app"
-        : "El alumno perderá el acceso a la app",
+        ? t("alumnos.reanudarDesc")
+        : t("alumnos.pausarDesc"),
       color: "yellow" as const,
       onClick: pausarAlumno,
       disabled: procesando,
@@ -354,8 +360,8 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
     {
       id: "borrar",
       icono: "🗑️",
-      titulo: "Borrar",
-      descripcion: "Eliminar permanentemente al alumno y todos sus datos",
+      titulo: t("alumnos.borrarAlumno"),
+      descripcion: t("alumnos.borrarAlumnoDesc"),
       color: "red" as const,
       onClick: () => { setMostrarConfirmarBorrar(true); setErrorAccion(null); },
     },
@@ -403,7 +409,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
       </main>
     );
   }
-  if (!alumno) return <main className="min-h-screen bg-zinc-950 text-white p-6">Alumno no encontrado.</main>;
+  if (!alumno) return <main className="min-h-screen bg-zinc-950 text-white p-6">{t("alumnos.noEncontrado")}</main>;
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
@@ -419,18 +425,18 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
               </div>
               <div>
                 <h1 className="text-3xl font-bold">{nombreCompleto()}</h1>
-                <p className="text-zinc-400 mt-1">Perfil del alumno</p>
+                <p className="text-zinc-400 mt-1">{t("alumnos.perfilTitulo")}</p>
                 {alumno.activo === false && (
                   <span className="inline-block mt-1 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-400">
-                    🚫 Pausado
+                    {t("alumnos.pausado")}
                   </span>
                 )}
               </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <a href={`/alumnos/${id}/rutinas`} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold hover:bg-emerald-600">Rutina</a>
-              <a href={`/alumnos/${id}/historial`} className="rounded-xl border border-zinc-700 px-4 py-3 text-sm hover:bg-zinc-800">Historial</a>
+              <a href={`/alumnos/${id}/rutinas`} className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold hover:bg-emerald-600">{t("alumnos.rutina")}</a>
+              <a href={`/alumnos/${id}/historial`} className="rounded-xl border border-zinc-700 px-4 py-3 text-sm hover:bg-zinc-800">{t("alumnos.historial")}</a>
               <button
                 type="button"
                 onClick={abrirModalAcciones}
@@ -446,36 +452,36 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
         {/* Card 2: Datos del alumno */}
         <section className={`${card} mt-5`}>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Datos del alumno</h2>
-            <button onClick={abrirModalEditar} className="text-sm text-zinc-400 hover:text-white flex items-center gap-1">✏️ Editar</button>
+            <h2 className="text-xl font-semibold">{t("alumnos.datosAlumno")}</h2>
+            <button onClick={abrirModalEditar} className="text-sm text-zinc-400 hover:text-white flex items-center gap-1">✏️ {t("perfil.editar")}</button>
           </div>
 
           <div className="grid md:grid-cols-2 gap-3 text-zinc-300">
-            {alumno.email && <p>Email: {alumno.email}</p>}
-            {alumno.telefono && <p>Teléfono: {alumno.telefono}</p>}
-            {alumno.fecha_nacimiento && <p>Fecha de nacimiento: {formatearFechaCorta(alumno.fecha_nacimiento)}</p>}
-            {alumno.fecha_nacimiento && <p>Edad: {calcularEdad(alumno.fecha_nacimiento)} años</p>}
-            {alumno.sexo && <p>Sexo: {alumno.sexo}</p>}
-            {alumno.altura_cm && <p>Altura: {alumno.altura_cm} cm</p>}
-            {alumno.peso_kg && <p>Peso: {alumno.peso_kg} kg</p>}
-            <p>Lesiones: {alumno.sin_lesiones ? "Sin lesiones registradas" : alumno.lesiones || "Sin lesiones registradas"}</p>
-            {(alumno.observaciones_generales || alumno.observaciones) && <p className="md:col-span-2 whitespace-pre-wrap">Observaciones: {alumno.observaciones_generales || alumno.observaciones}</p>}
-            {alumno.observaciones_fisicas && <p className="md:col-span-2 whitespace-pre-wrap">Observaciones físicas: {alumno.observaciones_fisicas}</p>}
+            {alumno.email && <p>{t("common.email")}: {alumno.email}</p>}
+            {alumno.telefono && <p>{t("common.telefono")}: {alumno.telefono}</p>}
+            {alumno.fecha_nacimiento && <p>{t("alumnos.fechaNacimientoLabel")} {formatearFechaCorta(alumno.fecha_nacimiento)}</p>}
+            {alumno.fecha_nacimiento && <p>{t("alumnos.edadLabel")} {calcularEdad(alumno.fecha_nacimiento)} {t("alumnos.anios")}</p>}
+            {alumno.sexo && <p>{t("alumnos.sexoLabel")} {alumno.sexo}</p>}
+            {alumno.altura_cm && <p>{t("alumnos.alturaLabel")} {alumno.altura_cm} {t("alumnos.cm")}</p>}
+            {alumno.peso_kg && <p>{t("alumnos.pesoLabel")} {alumno.peso_kg} {t("alumnos.kg")}</p>}
+            <p>{t("alumnos.lesionesLabel")} {alumno.sin_lesiones ? t("alumnos.sinLesionesRegistradas") : alumno.lesiones || t("alumnos.sinLesionesRegistradas")}</p>
+            {(alumno.observaciones_generales || alumno.observaciones) && <p className="md:col-span-2 whitespace-pre-wrap">{t("alumnos.observacionesLabel")} {alumno.observaciones_generales || alumno.observaciones}</p>}
+            {alumno.observaciones_fisicas && <p className="md:col-span-2 whitespace-pre-wrap">{t("alumnos.observacionesFisicasLabel")} {alumno.observaciones_fisicas}</p>}
           </div>
         </section>
 
         {/* Card 3: Estadísticas */}
         <section className="grid grid-cols-3 gap-3 mt-5">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-            <p className="text-xs text-zinc-400">Rutinas completadas</p>
+            <p className="text-xs text-zinc-400">{t("alumnos.rutinasCompletadas")}</p>
             <p className="text-2xl font-bold mt-1">{rutinasCompletadas}</p>
           </div>
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-            <p className="text-xs text-zinc-400">Evaluaciones</p>
+            <p className="text-xs text-zinc-400">{t("alumnos.evaluaciones")}</p>
             <p className="text-2xl font-bold mt-1">{evaluacionesCompletadas}</p>
           </div>
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-            <p className="text-xs text-zinc-400">Ejercicios</p>
+            <p className="text-xs text-zinc-400">{t("alumnos.ejercicios")}</p>
             <p className="text-2xl font-bold mt-1">{ejerciciosCompletados}</p>
           </div>
         </section>
@@ -496,7 +502,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-xl font-bold">🔄 Transferir alumno</h3>
+                <h3 className="text-xl font-bold">{t("alumnos.transferirTitulo")}</h3>
                 <button
                   type="button"
                   onClick={() => { setMostrarTransferir(false); setErrorAccion(null); }}
@@ -506,9 +512,9 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
                 </button>
               </div>
 
-              <p className="text-zinc-400 text-sm mb-4">
-                Seleccioná a quién querés transferir a <strong>{nombreCompleto()}</strong>:
-              </p>
+              <p className="text-zinc-400 text-sm mb-4" dangerouslySetInnerHTML={{
+                __html: t("alumnos.transferirDescripcion", { nombre: nombreCompleto() }) + ":"
+              }} />
 
               {errorAccion && (
                 <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>
@@ -527,7 +533,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
                     }`}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{p.nombre || "Sin nombre"}</p>
+                      <p className="text-sm font-medium truncate">{p.nombre || t("configuracion.sinNombre")}</p>
                       <p className="text-xs text-zinc-500 truncate">{p.tipo} {p.email ? `· ${p.email}` : ""}</p>
                     </div>
                     {profeSeleccionado === p.id && (
@@ -543,7 +549,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
                   onClick={() => { setMostrarTransferir(false); setErrorAccion(null); }}
                   className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800"
                 >
-                  Cancelar
+                  {t("alumnos.cancelar")}
                 </button>
                 <button
                   type="button"
@@ -551,7 +557,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
                   disabled={procesando || !profeSeleccionado}
                   className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {procesando ? "Transfiriendo..." : "Transferir"}
+                  {procesando ? t("alumnos.transfiriendo") : t("alumnos.transferirBtn")}
                 </button>
               </div>
             </div>
@@ -562,18 +568,18 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
         {mostrarConfirmarBorrar && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-              <h3 className="text-xl font-bold text-red-400 mb-3">🗑️ Borrar alumno</h3>
+              <h3 className="text-xl font-bold text-red-400 mb-3">{t("alumnos.borrarTitulo")}</h3>
               <p className="text-zinc-300 text-sm leading-relaxed mb-2">
-                Esta acción eliminará <strong>permanentemente</strong> a <strong>{nombreCompleto()}</strong> y todos sus datos relacionados:
+                {t("alumnos.borrarConfirmacion", { nombre: nombreCompleto() })}
               </p>
               <ul className="text-zinc-400 text-sm list-disc list-inside mb-4 space-y-1">
-                <li>Rutinas asignadas</li>
-                <li>Entrenamientos registrados</li>
-                <li>Evaluaciones RM y resultados</li>
-                <li>Evaluaciones FMS y tests</li>
-                <li>RM actuales e historial</li>
+                <li>{t("alumnos.borrarItem1")}</li>
+                <li>{t("alumnos.borrarItem2")}</li>
+                <li>{t("alumnos.borrarItem3")}</li>
+                <li>{t("alumnos.borrarItem4")}</li>
+                <li>{t("alumnos.borrarItem5")}</li>
               </ul>
-              <p className="text-red-400 text-sm font-semibold mb-5">Esta acción no se puede deshacer.</p>
+              <p className="text-red-400 text-sm font-semibold mb-5">{t("alumnos.borrarNoDeshacer")}</p>
               {errorAccion && (
                 <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>
               )}
@@ -584,7 +590,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
                   disabled={procesando}
                   className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50"
                 >
-                  Cancelar
+                  {t("alumnos.cancelar")}
                 </button>
                 <button
                   type="button"
@@ -592,7 +598,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
                   disabled={procesando}
                   className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
                 >
-                  {procesando ? "Borrando..." : "Sí, borrar alumno"}
+                  {procesando ? t("alumnos.guardando") : t("alumnos.siBorrarAlumno")}
                 </button>
               </div>
             </div>
@@ -604,39 +610,39 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
             <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl max-h-[85vh] flex flex-col">
               <div className="flex items-center justify-between mb-4 shrink-0">
-                <h3 className="text-xl font-bold">✏️ Editar alumno</h3>
+                <h3 className="text-xl font-bold">{t("alumnos.editarTitulo")}</h3>
                 <button type="button" onClick={() => setEditando(false)} className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800">✕</button>
               </div>
 
               <div className="overflow-y-auto flex-1 pr-1 space-y-3">
-                <input className={input} value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} placeholder="Nombre *" />
-                <input className={input} value={nuevoApellido} onChange={(e) => setNuevoApellido(e.target.value)} placeholder="Apellido" />
-                <input className={input} value={nuevoEmail} onChange={(e) => setNuevoEmail(e.target.value)} placeholder="Email" />
-                <input className={input} value={nuevoTelefono} onChange={(e) => setNuevoTelefono(e.target.value)} placeholder="Teléfono" />
+                <input className={input} value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} placeholder={t("perfil.nombrePlaceholder")} />
+                <input className={input} value={nuevoApellido} onChange={(e) => setNuevoApellido(e.target.value)} placeholder={t("perfil.apellidoPlaceholder")} />
+                <input className={input} value={nuevoEmail} onChange={(e) => setNuevoEmail(e.target.value)} placeholder={t("perfil.emailPlaceholder")} />
+                <input className={input} value={nuevoTelefono} onChange={(e) => setNuevoTelefono(e.target.value)} placeholder={t("perfil.telefonoPlaceholder")} />
                 <input type="date" className={input} value={nuevoFechaNac} onChange={(e) => setNuevoFechaNac(e.target.value)} />
                 <select className={input} value={nuevoSexo} onChange={(e) => setNuevoSexo(e.target.value)}>
-                  <option value="">Sexo</option>
-                  <option value="Masculino">Masculino</option>
-                  <option value="Femenino">Femenino</option>
-                  <option value="Prefiero no decirlo">Prefiero no decirlo</option>
+                  <option value="">{t("perfil.sexo")}</option>
+                  <option value="Masculino">{t("perfil.masculino")}</option>
+                  <option value="Femenino">{t("perfil.femenino")}</option>
+                  <option value="Prefiero no decirlo">{t("perfil.prefieroNoDecir")}</option>
                 </select>
                 <div className="grid grid-cols-2 gap-3">
-                  <input className={input} value={nuevoAltura} onChange={(e) => setNuevoAltura(e.target.value)} placeholder="Altura en cm" />
-                  <input className={input} value={nuevoPeso} onChange={(e) => setNuevoPeso(e.target.value)} placeholder="Peso en kg" />
+                  <input className={input} value={nuevoAltura} onChange={(e) => setNuevoAltura(e.target.value)} placeholder={t("perfil.alturaPlaceholder")} />
+                  <input className={input} value={nuevoPeso} onChange={(e) => setNuevoPeso(e.target.value)} placeholder={t("perfil.pesoPlaceholder")} />
                 </div>
-                <textarea className={`${input} min-h-24`} disabled={nuevoSinLesiones} value={nuevoLesiones} onChange={(e) => setNuevoLesiones(e.target.value)} placeholder="Lesiones" />
+                <textarea className={`${input} min-h-24`} disabled={nuevoSinLesiones} value={nuevoLesiones} onChange={(e) => setNuevoLesiones(e.target.value)} placeholder={t("perfil.lesionesPlaceholder")} />
                 <label className="flex items-center gap-2 text-zinc-300 text-sm">
                   <input type="checkbox" checked={nuevoSinLesiones} onChange={(e) => setNuevoSinLesiones(e.target.checked)} />
-                  Sin lesiones
+                  {t("alumnos.sinLesiones")}
                 </label>
-                <textarea className={`${input} min-h-24`} value={nuevoObsGenerales} onChange={(e) => setNuevoObsGenerales(e.target.value)} placeholder="Observaciones" />
-                <textarea className={`${input} min-h-24`} value={nuevoObsFisicas} onChange={(e) => setNuevoObsFisicas(e.target.value)} placeholder="Observaciones físicas" />
+                <textarea className={`${input} min-h-24`} value={nuevoObsGenerales} onChange={(e) => setNuevoObsGenerales(e.target.value)} placeholder={t("perfil.observacionesPlaceholder")} />
+                <textarea className={`${input} min-h-24`} value={nuevoObsFisicas} onChange={(e) => setNuevoObsFisicas(e.target.value)} placeholder={t("perfil.observacionesFisicasPlaceholder")} />
               </div>
 
               <div className="flex gap-3 mt-4 shrink-0 border-t border-zinc-800 pt-4">
-                <button type="button" onClick={() => setEditando(false)} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800">Cancelar</button>
+                <button type="button" onClick={() => setEditando(false)} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800">{t("alumnos.cancelar")}</button>
                 <button type="button" onClick={guardarCambios} disabled={guardando} className="flex-1 rounded-xl bg-emerald-500 py-3 text-sm font-semibold hover:bg-emerald-600 disabled:opacity-50">
-                  {guardando ? "Guardando..." : "Guardar cambios"}
+                  {guardando ? t("alumnos.guardando") : t("alumnos.guardarCambios")}
                 </button>
               </div>
             </div>

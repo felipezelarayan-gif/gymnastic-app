@@ -3,16 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/ToastProvider";
-
-const motivos = [
-  "Problema con mi rutina",
-  "Problema con un ejercicio",
-  "Problema con mi profesor",
-  "Problema con la aplicación",
-  "Error técnico",
-  "Sugerencia",
-  "Otro",
-];
+import { useIdioma } from "@/lib/i18n-context";
 
 type SoporteCardProps = {
   remitenteId: string;
@@ -30,10 +21,21 @@ export default function SoporteCard({
   destinatarioRol: initialDestinatario = "soporte",
 }: SoporteCardProps) {
   const { mostrarToast } = useToast();
+  const { t } = useIdioma();
   const [motivo, setMotivo] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [destinatarioRol, setDestinatarioRol] = useState(initialDestinatario);
+  
+  const motivos = [
+    t("soporte.motivos.rutina"),
+    t("soporte.motivos.ejercicio"),
+    t("soporte.motivos.profesor"),
+    t("soporte.motivos.app"),
+    t("soporte.motivos.error"),
+    t("soporte.motivos.sugerencia"),
+    t("soporte.motivos.otro"),
+  ];
 
   // Si es alumno: puede elegir entre "Profesor" o "Soporte Técnico"
   // Si es profesor: puede elegir entre "Administrador" o "Soporte Técnico"
@@ -45,11 +47,11 @@ export default function SoporteCard({
   async function enviarMensaje() {
     if (enviando) return;
     if (!motivo) {
-      mostrarToast("Seleccioná un motivo.", "error");
+      mostrarToast(t("soporte.motivoRequerido"), "error");
       return;
     }
     if (!mensaje.trim()) {
-      mostrarToast("Escribí tu consulta.", "error");
+      mostrarToast(t("soporte.mensajeRequerido"), "error");
       return;
     }
 
@@ -92,7 +94,7 @@ export default function SoporteCard({
         console.error("Error al enviar email:", emailErr);
       }
 
-      mostrarToast("Mensaje enviado correctamente.", "exito");
+      mostrarToast(t("soporte.mensajeEnviado"), "exito");
       setMotivo("");
       setMensaje("");
     } catch (err: any) {
@@ -103,7 +105,7 @@ export default function SoporteCard({
 
   return (
     <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4">
-      <h2 className="text-xl font-semibold mb-4">📞 Soporte</h2>
+      <h2 className="text-xl font-semibold mb-4">{t("soporte.titulo")}</h2>
 
       <div className="space-y-3">
         {mostrarSelector && (
@@ -114,13 +116,13 @@ export default function SoporteCard({
           >
             {esAlumno ? (
               <>
-                <option value="profe">👨‍🏫 Profesor</option>
-                <option value="soporte">🛠️ Soporte Técnico</option>
+                <option value="profe">{t("soporte.profesor")}</option>
+                <option value="soporte">{t("soporte.soporteTecnico")}</option>
               </>
             ) : (
               <>
-                <option value="admin">👑 Administrador</option>
-                <option value="soporte">🛠️ Soporte Técnico</option>
+                <option value="admin">{t("soporte.administrador")}</option>
+                <option value="soporte">{t("soporte.soporteTecnico")}</option>
               </>
             )}
           </select>
@@ -131,7 +133,7 @@ export default function SoporteCard({
           onChange={(e) => setMotivo(e.target.value)}
           className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700 text-white"
         >
-          <option value="">Motivo de la consulta</option>
+          <option value="">{t("soporte.motivoPlaceholder")}</option>
           {motivos.map((item) => (
             <option key={item} value={item}>
               {item}
@@ -143,7 +145,7 @@ export default function SoporteCard({
           value={mensaje}
           onChange={(e) => setMensaje(e.target.value)}
           className="w-full bg-zinc-800 rounded-xl p-3 min-h-32 border border-zinc-700 text-white"
-          placeholder="Describe tu consulta..."
+          placeholder={t("soporte.mensajePlaceholder")}
         />
 
         <button
@@ -152,7 +154,7 @@ export default function SoporteCard({
           disabled={enviando}
           className="w-full rounded-xl bg-emerald-500 px-5 py-3 font-semibold hover:bg-emerald-600 disabled:opacity-50"
         >
-          {enviando ? "Enviando..." : "📨 Enviar"}
+          {enviando ? t("soporte.enviando") : t("soporte.enviar")}
         </button>
       </div>
     </section>

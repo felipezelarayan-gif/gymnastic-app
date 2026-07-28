@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { obtenerRMsActualesAlumno, type RMActualCalculado } from "@/lib/rmActual";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { useIdioma } from "@/lib/i18n-context";
 
 type RMHistorial = {
   id: string;
@@ -33,6 +34,7 @@ function numero(valor?: number | string | null) {
 }
 
 export default function AlumnoRMProfesor({ alumnoId }: Props) {
+  const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [rmsActuales, setRmsActuales] = useState<RMActualCalculado[]>([]);
   const [historial, setHistorial] = useState<RMHistorial[]>([]);
@@ -118,23 +120,22 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
 
   function nombreEjercicio(ejercicioId: string) {
     const encontrado = nombres.find((item) => item.ejercicio_id === ejercicioId);
-    return encontrado?.nombre_ejercicio || "Ejercicio sin nombre";
+    return encontrado?.nombre_ejercicio || t("alumnos.rmEjercicioSinNombre");
   }
 
   function historialPorEjercicio(ejercicioId: string) {
-  return historial
-    .filter((item) => item.ejercicio_id === ejercicioId)
-    .sort((a, b) => {
-      const fechaA = a.fecha || a.created_at || "";
-      const fechaB = b.fecha || b.created_at || "";
-
-      return fechaB.localeCompare(fechaA);
-    })
-    .slice(0, 10);
-}
+    return historial
+      .filter((item) => item.ejercicio_id === ejercicioId)
+      .sort((a, b) => {
+        const fechaA = a.fecha || a.created_at || "";
+        const fechaB = b.fecha || b.created_at || "";
+        return fechaB.localeCompare(fechaA);
+      })
+      .slice(0, 10);
+  }
 
   async function borrarRegistro(historialItem: RMHistorial) {
-    const confirmar = confirm("¿Querés borrar este registro de RM?");
+    const confirmar = confirm(t("alumnos.rmConfirmarBorrar"));
     if (!confirmar) return;
 
     const { error } = await supabase
@@ -164,7 +165,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
   if (loading) {
     return (
       <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-5">
-        <p className="text-zinc-400">Cargando RM...</p>
+        <p className="text-zinc-400">{t("alumnos.rmCargando")}</p>
       </section>
     );
   }
@@ -173,16 +174,16 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
     <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-5">
       <div className="flex items-center justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-xl font-semibold">🏆 Récords Máximos (RM)</h2>
+          <h2 className="text-xl font-semibold">{t("alumnos.rmTitulo")}</h2>
           <p className="text-zinc-500 text-sm mt-1">
-            Se muestran los RM vigentes calculados por la regla central del sistema.
+            {t("alumnos.rmDescripcion")}
           </p>
         </div>
       </div>
 
       {rmsActuales.length === 0 ? (
         <p className="text-zinc-400">
-          Este alumno todavía no tiene marcas registradas.
+          {t("alumnos.rmSinMarcas")}
         </p>
       ) : (
         <div className="space-y-3">
@@ -201,12 +202,12 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
                       {nombreEjercicio(rm.ejercicio_id)}
                     </h3>
 
-                     <p className="text-sm text-zinc-400 mt-1">
-                       Último registro: {formatearFechaCorta(rm.actualizado_en)}
-                     </p>
+                    <p className="text-sm text-zinc-400 mt-1">
+                      {t("alumnos.rmUltimoRegistro")} {formatearFechaCorta(rm.actualizado_en)}
+                    </p>
 
                     <p className="text-sm text-zinc-500">
-                      {numero(rm.peso_kg)} kg x {numero(rm.repeticiones)} reps
+                      {numero(rm.peso_kg)} kg x {numero(rm.repeticiones)} {t("alumnos.rmReps")}
                     </p>
                   </div>
 
@@ -226,7 +227,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
                         }
                         className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800"
                       >
-                        {abierto ? "Ocultar evolución" : "Ver evolución"}
+                        {abierto ? t("alumnos.rmOcultarEvolucion") : t("alumnos.rmVerEvolucion")}
                       </button>
                     </div>
                   </div>
@@ -236,7 +237,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
                   <div className="mt-4 border-t border-zinc-800 pt-4">
                     {historialEjercicio.length === 0 ? (
                       <p className="text-zinc-500 text-sm">
-                        Sin registros históricos.
+                        {t("alumnos.rmSinHistorial")}
                       </p>
                     ) : (
                       <div className="space-y-2">
@@ -249,12 +250,12 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
                               <p className="text-sm font-semibold">
                                 {numero(item.rm_calculado)} kg
                               </p>
-                               <p className="text-xs text-zinc-500">
-                                 {formatearFechaCorta(item.fecha || item.created_at)} ·{" "}
-                                 {numero(item.peso_kg)} kg x{" "}
-                                 {numero(item.repeticiones)} reps ·{" "}
-                                 {item.origen || "entrenamiento"}
-                               </p>
+                              <p className="text-xs text-zinc-500">
+                                {formatearFechaCorta(item.fecha || item.created_at)} ·{" "}
+                                {numero(item.peso_kg)} kg x{" "}
+                                {numero(item.repeticiones)} {t("alumnos.rmReps")} ·{" "}
+                                {item.origen || "entrenamiento"}
+                              </p>
                             </div>
 
                             <button
@@ -262,7 +263,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
                               onClick={() => borrarRegistro(item)}
                               className="rounded-lg border border-red-800 px-3 py-2 text-xs text-red-400 hover:bg-red-950"
                             >
-                              Borrar
+                              {t("alumnos.rmBorrar")}
                             </button>
                           </div>
                         ))}
@@ -280,7 +281,7 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
               onClick={() => setMostrarCantidad(mostrarCantidad + 5)}
               className="w-full rounded-xl border border-zinc-700 py-3 text-zinc-300 hover:bg-zinc-800"
             >
-              Mostrar más
+              {t("alumnos.rmMostrarMas")}
             </button>
           )}
         </div>

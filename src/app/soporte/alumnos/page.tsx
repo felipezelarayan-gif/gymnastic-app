@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 import { obtenerEstadoAlumnoProfesor } from "@/lib/alumno/obtenerEstadoAlumnoProfesor";
 import ModalAccionesAdmin from "@/components/shared/ModalAccionesAdmin";
 
@@ -30,6 +31,7 @@ type Profesor = {
 export default function SoporteAlumnosPage() {
   const router = useRouter();
   const { mostrarToast } = useToast();
+  const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [alumnos, setAlumnos] = useState<AlumnoConProfesor[]>([]);
   const [profesores, setProfesores] = useState<Profesor[]>([]);
@@ -54,7 +56,6 @@ export default function SoporteAlumnosPage() {
     const { data: perfilActual } = await supabase.from("profiles").select("rol").eq("id", sessionData.session.user.id).maybeSingle();
     setCurrentUserRol(perfilActual?.rol || null);
 
-    // Solo soporte (rol=admin) puede acceder
     if (perfilActual?.rol !== "admin") {
       router.push("/soporte");
       return;
@@ -87,7 +88,7 @@ export default function SoporteAlumnosPage() {
     try {
       const nuevoEstado = alumnoSeleccionado.pausado ? true : false;
       await supabase.from("alumnos").update({ activo: nuevoEstado }).eq("id", alumnoSeleccionado.id);
-      mostrarToast(`Alumno ${alumnoSeleccionado.pausado ? "reanudado" : "pausado"} correctamente.`, "exito");
+      mostrarToast(t("soporte.alumnosPage." + (alumnoSeleccionado.pausado ? "reanudado" : "pausado")), "exito");
       setMostrarAcciones(false); setMostrarConfirmarPausar(false); await cargarAlumnos();
     } catch (err) { setErrorAccion("Error al cambiar el estado."); }
     setProcesando(false);
@@ -133,31 +134,31 @@ export default function SoporteAlumnosPage() {
       <div className="max-w-5xl mx-auto">
         <BackButton fallback="/soporte" />
         <header className="mt-6 mb-6">
-          <h1 className="text-3xl font-bold">👥 Alumnos</h1>
-          <p className="text-zinc-400 mt-2">{alumnos.length} {alumnos.length === 1 ? "alumno registrado" : "alumnos registrados"} en el sistema</p>
+          <h1 className="text-3xl font-bold">{t("soporte.alumnos")}</h1>
+          <p className="text-zinc-400 mt-2">{alumnos.length} {alumnos.length === 1 ? t("alumnos.registrado") : t("alumnos.registrados")} en el sistema</p>
         </header>
 
         <div className="mb-6 space-y-3">
           <div className="flex gap-2">
-            <button type="button" onClick={() => setFiltrosAbierto(!filtrosAbierto)} className={`shrink-0 rounded-xl border px-4 py-2 text-sm transition ${filtroEstado !== "todos" || filtroProfesor !== "todos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"}`}><span className="hidden sm:inline">Filtros</span><span className="sm:hidden">⚙️</span></button>
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre, email o profesor..." className="flex-1 bg-zinc-900 rounded-xl p-4 border border-zinc-700 text-white placeholder-zinc-500" />
+            <button type="button" onClick={() => setFiltrosAbierto(!filtrosAbierto)} className={`shrink-0 rounded-xl border px-4 py-2 text-sm transition ${filtroEstado !== "todos" || filtroProfesor !== "todos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"}`}><span className="hidden sm:inline">{t("common.filtrar")}</span><span className="sm:hidden">⚙️</span></button>
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("soporte.alumnosPage.buscarPlaceholder")} className="flex-1 bg-zinc-900 rounded-xl p-4 border border-zinc-700 text-white placeholder-zinc-500" />
           </div>
           {filtrosAbierto && (
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4">
               <div>
-                <p className="text-sm text-zinc-400 mb-3">Filtrar por estado</p>
+                <p className="text-sm text-zinc-400 mb-3">{t("soporte.alumnosPage.filtrarEstado")}</p>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setFiltroEstado("todos")} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroEstado === "todos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>Todos</button>
-                  <button type="button" onClick={() => setFiltroEstado("activo")} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroEstado === "activo" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>✅ Activos</button>
-                  <button type="button" onClick={() => setFiltroEstado("inactivo")} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroEstado === "inactivo" ? "border-red-600 bg-red-500/20 text-red-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>❌ Inactivos</button>
+                  <button type="button" onClick={() => setFiltroEstado("todos")} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroEstado === "todos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>{t("common.todos")}</button>
+                  <button type="button" onClick={() => setFiltroEstado("activo")} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroEstado === "activo" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>✅ {t("soporte.alumnosPage.activos")}</button>
+                  <button type="button" onClick={() => setFiltroEstado("inactivo")} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroEstado === "inactivo" ? "border-red-600 bg-red-500/20 text-red-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>❌ {t("soporte.alumnosPage.inactivos")}</button>
                 </div>
               </div>
               <div>
-                <p className="text-sm text-zinc-400 mb-3">Filtrar por profesor</p>
+                <p className="text-sm text-zinc-400 mb-3">{t("soporte.alumnosPage.filtrarProfesor")}</p>
                 <select value={filtroProfesor} onChange={(e) => setFiltroProfesor(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700 text-white">
-                  <option value="todos">Todos los profesores</option>
-                  {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre || "Sin nombre"} {p.email ? `(${p.email})` : ""}</option>)}
-                  <option value="sin">Sin profesor asignado</option>
+                  <option value="todos">{t("soporte.alumnosPage.todosProfesores")}</option>
+                  {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre || t("common.sinNombre")} {p.email ? `(${p.email})` : ""}</option>)}
+                  <option value="sin">{t("soporte.alumnosPage.sinProfesor")}</option>
                 </select>
               </div>
             </div>
@@ -165,20 +166,20 @@ export default function SoporteAlumnosPage() {
         </div>
 
         {alumnosFiltrados.length === 0 ? (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-8 text-center"><p className="text-zinc-400">{search ? "No se encontraron alumnos con ese criterio." : "No hay alumnos registrados."}</p></div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-8 text-center"><p className="text-zinc-400">{search ? t("soporte.alumnosPage.noEncontrados") : t("soporte.alumnosPage.noRegistrados")}</p></div>
         ) : (
           <div className="space-y-2">
             {alumnosFiltrados.map((alumno) => (
               <a key={alumno.id} href={`/soporte/perfil/${alumno.user_id || alumno.id}`} className="flex items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 hover:border-zinc-700 hover:bg-zinc-800/50 transition cursor-pointer">
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold truncate">{alumno.nombre || "Sin nombre"} {alumno.apellido || ""}</p>
+                  <p className="font-semibold truncate">{alumno.nombre || t("common.sinNombre")} {alumno.apellido || ""}</p>
                   {alumno.email && <p className="text-zinc-500 text-sm truncate">{alumno.email}</p>}
                 </div>
                 <div className="flex items-center gap-3 text-sm shrink-0">
-                  {alumno.profesorNombre ? <span className="text-zinc-400">👨‍🏫 {alumno.profesorNombre}</span> : <span className="text-zinc-600">Sin profesor</span>}
+                  {alumno.profesorNombre ? <span className="text-zinc-400">👨‍🏫 {alumno.profesorNombre}</span> : <span className="text-zinc-600">{t("soporte.alumnosPage.sinProfesor")}</span>}
                   {(() => { const e = obtenerEstadoAlumnoProfesor(alumno.pausado ? false : true, alumno.activo && !alumno.pausado); return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${e.colorClasses}`}>{e.icono} {e.label}</span>; })()}
                   {currentUserRol === "admin" && (
-                    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); abrirAccionesAlumno(alumno); }} className="rounded-lg border border-zinc-700 px-2 py-1 text-sm hover:bg-zinc-800 text-lg leading-none" title="Acciones">⋮</button>
+                    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); abrirAccionesAlumno(alumno); }} className="rounded-lg border border-zinc-700 px-2 py-1 text-sm hover:bg-zinc-800 text-lg leading-none" title={t("common.acciones")}>⋮</button>
                   )}
                 </div>
               </a>
@@ -188,10 +189,10 @@ export default function SoporteAlumnosPage() {
       </div>
 
       {alumnoSeleccionado && (
-        <ModalAccionesAdmin abierto={mostrarAcciones} onCerrar={() => { setMostrarAcciones(false); setErrorAccion(null); }} titulo={`⚙️ Acciones - ${alumnoSeleccionado.nombre || "Sin nombre"}`} error={errorAccion}
+        <ModalAccionesAdmin abierto={mostrarAcciones} onCerrar={() => { setMostrarAcciones(false); setErrorAccion(null); }} titulo={t("common.accionesTitulo", { nombre: alumnoSeleccionado.nombre || t("common.sinNombre") })} error={errorAccion}
           acciones={[
-            { id: "pausar", icono: alumnoSeleccionado.pausado ? "▶️" : "⏸️", titulo: alumnoSeleccionado.pausado ? "Reanudar alumno" : "Pausar alumno", descripcion: alumnoSeleccionado.pausado ? "El alumno volverá a tener acceso a la app." : "El alumno perderá el acceso a la app.", color: "yellow", onClick: () => setMostrarConfirmarPausar(true) },
-            { id: "borrar", icono: "🗑️", titulo: "Borrar alumno", descripcion: "Eliminar permanentemente al alumno y todos sus datos.", color: "red", onClick: () => setMostrarConfirmarBorrar(true) },
+            { id: "pausar", icono: alumnoSeleccionado.pausado ? "▶️" : "⏸️", titulo: alumnoSeleccionado.pausado ? t("common.reanudarUsuario") : t("common.pausarUsuario"), descripcion: alumnoSeleccionado.pausado ? t("soporte.alumnosPage.reanudarDesc") : t("soporte.alumnosPage.pausarDesc"), color: "yellow", onClick: () => setMostrarConfirmarPausar(true) },
+            { id: "borrar", icono: "🗑️", titulo: t("common.eliminarUsuario"), descripcion: t("soporte.alumnosPage.borrarDesc"), color: "red", onClick: () => setMostrarConfirmarBorrar(true) },
           ]}
         />
       )}
@@ -200,15 +201,15 @@ export default function SoporteAlumnosPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
             {alumnoSeleccionado?.pausado ? (
-              <><h3 className="text-xl font-bold text-emerald-400 mb-3">▶️ Reanudar alumno</h3><p className="text-zinc-300 text-sm mb-4">Se reanudará a <strong>{alumnoSeleccionado?.nombre}</strong>.</p><p className="text-zinc-500 text-sm mb-5">Volverá a tener acceso a la app.</p>
+              <><h3 className="text-xl font-bold text-emerald-400 mb-3">▶️ {t("common.reanudarUsuario")}</h3><p className="text-zinc-300 text-sm mb-4">{t("soporte.alumnosPage.confirmarReanudar", { nombre: alumnoSeleccionado?.nombre })}</p><p className="text-zinc-500 text-sm mb-5">{t("soporte.alumnosPage.reanudarDesc")}</p>
                 {errorAccion && <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>}
-                <div className="flex gap-3"><button type="button" onClick={() => { setMostrarConfirmarPausar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">Cancelar</button>
-                <button type="button" onClick={togglePausarAlumno} disabled={procesando} className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">{procesando ? "Reanudando..." : "Sí, reanudar"}</button></div></>
+                <div className="flex gap-3"><button type="button" onClick={() => { setMostrarConfirmarPausar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">{t("common.cancelarBtn")}</button>
+                <button type="button" onClick={togglePausarAlumno} disabled={procesando} className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">{procesando ? t("common.reanudando") : t("common.siReanudar")}</button></div></>
             ) : (
-              <><h3 className="text-xl font-bold text-yellow-400 mb-3">⏸️ Pausar alumno</h3><p className="text-zinc-300 text-sm mb-4">Se pausará a <strong>{alumnoSeleccionado?.nombre}</strong>.</p><p className="text-zinc-500 text-sm mb-5">Esta acción es reversible.</p>
+              <><h3 className="text-xl font-bold text-yellow-400 mb-3">⏸️ {t("common.pausarUsuario")}</h3><p className="text-zinc-300 text-sm mb-4">{t("soporte.alumnosPage.confirmarPausar", { nombre: alumnoSeleccionado?.nombre })}</p><p className="text-zinc-500 text-sm mb-5">{t("soporte.alumnosPage.pausarInfo")}</p>
                 {errorAccion && <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>}
-                <div className="flex gap-3"><button type="button" onClick={() => { setMostrarConfirmarPausar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">Cancelar</button>
-                <button type="button" onClick={togglePausarAlumno} disabled={procesando} className="flex-1 rounded-xl bg-yellow-600 py-3 text-sm font-semibold hover:bg-yellow-700 disabled:opacity-50">{procesando ? "Pausando..." : "Sí, pausar"}</button></div></>
+                <div className="flex gap-3"><button type="button" onClick={() => { setMostrarConfirmarPausar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">{t("common.cancelarBtn")}</button>
+                <button type="button" onClick={togglePausarAlumno} disabled={procesando} className="flex-1 rounded-xl bg-yellow-600 py-3 text-sm font-semibold hover:bg-yellow-700 disabled:opacity-50">{procesando ? t("common.pausando") : t("common.siPausar")}</button></div></>
             )}
           </div>
         </div>
@@ -217,13 +218,13 @@ export default function SoporteAlumnosPage() {
       {mostrarConfirmarBorrar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <h3 className="text-xl font-bold text-red-400 mb-3">🗑️ Borrar alumno</h3>
-            <p className="text-zinc-300 text-sm mb-4">Se eliminará permanentemente a <strong>{alumnoSeleccionado?.nombre}</strong> y todos sus datos.</p>
-            <p className="text-red-400 text-sm font-semibold mb-5">Esta acción no se puede deshacer.</p>
+            <h3 className="text-xl font-bold text-red-400 mb-3">🗑️ {t("common.eliminarUsuario")}</h3>
+            <p className="text-zinc-300 text-sm mb-4">{t("soporte.alumnosPage.confirmarBorrar", { nombre: alumnoSeleccionado?.nombre })}</p>
+            <p className="text-red-400 text-sm font-semibold mb-5">{t("soporte.alumnosPage.borrarNoDeshacer")}</p>
             {errorAccion && <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>}
             <div className="flex gap-3">
-              <button type="button" onClick={() => { setMostrarConfirmarBorrar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">Cancelar</button>
-              <button type="button" onClick={borrarAlumno} disabled={procesando} className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50">{procesando ? "Borrando..." : "Sí, borrar"}</button>
+              <button type="button" onClick={() => { setMostrarConfirmarBorrar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">{t("common.cancelarBtn")}</button>
+              <button type="button" onClick={borrarAlumno} disabled={procesando} className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50">{procesando ? t("common.eliminando") : t("common.siEliminar")}</button>
             </div>
           </div>
         </div>

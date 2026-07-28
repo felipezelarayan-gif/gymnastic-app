@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
 import TipoEvaluacionSelector from "@/components/TipoEvaluacionSelector";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Alumno = { id: string; nombre: string; profesor_id?: string | null };
 type TipoEvaluacion = "individual" | "grupal" | null;
@@ -34,6 +35,7 @@ const TESTS_FMS = [
 
 export default function CrearEvaluacionFMS() {
   const router = useRouter();
+  const { t } = useIdioma();
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [tipoEvaluacion, setTipoEvaluacion] = useState<TipoEvaluacion>(null);
   const [alumnoId, setAlumnoId] = useState("");

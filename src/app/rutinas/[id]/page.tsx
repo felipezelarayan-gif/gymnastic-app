@@ -17,6 +17,7 @@ import {
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import AsignarModal from "@/components/shared/AsignarModal";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 
 type TipoPrescripcion = "repeticiones" | "tiempo";
 
@@ -115,11 +116,11 @@ function textoPrescripcion(item: {
   tipo_prescripcion?: string | null;
   repeticiones?: string | null;
   duracion?: string | null;
-}) {
+}, t?: (key: string, params?: Record<string, string | number>) => string) {
   if (item.tipo_prescripcion === "tiempo") {
-    return item.duracion ? `Duración: ${item.duracion}` : "Duración: -";
+    return item.duracion ? `${t ? t("rutinas.duracionLabel", { valor: item.duracion }) : `Duración: ${item.duracion}`}` : "Duración: -";
   }
-  return item.repeticiones ? `Reps: ${item.repeticiones}` : "Reps: -";
+  return item.repeticiones ? `${t ? t("rutinas.repsLabel", { valor: item.repeticiones }) : `Reps: ${item.repeticiones}`}` : "Reps: -";
 }
 
 export default function RutinaDetallePage({
@@ -127,6 +128,7 @@ export default function RutinaDetallePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { t } = useIdioma();
   const { id } = use(params);
 
   const [loading, setLoading] = useState(true);
@@ -1235,7 +1237,7 @@ export default function RutinaDetallePage({
   if (!rutina) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white p-6">
-        Rutina no encontrada.
+        {t("rutinas.noEncontrada")}
       </main>
     );
   }
@@ -1248,14 +1250,14 @@ export default function RutinaDetallePage({
           onClick={() => intentarSalir()}
           className="px-4 py-2 rounded-xl border border-zinc-700 hover:bg-zinc-800 transition"
         >
-          ← Atrás
+          {t("rutinas.atras")}
         </button>
 
         {/* Botón flotante de guardar cambios */}
         {hayCambios && (
           <div className="fixed top-24 left-4 right-4 z-50 flex flex-col gap-3 md:top-auto md:left-auto md:right-6 md:bottom-6 md:w-auto">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-xl">
-              <p className="text-sm text-zinc-300 mb-3">Tenés cambios sin guardar</p>
+              <p className="text-sm text-zinc-300 mb-3">{t("rutinas.cambiosSinGuardar")}</p>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -1263,7 +1265,7 @@ export default function RutinaDetallePage({
                   disabled={guardando}
                   className="px-4 py-2 text-sm border border-zinc-700 rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Descartar
+                  {t("rutinas.descartar")}
                 </button>
                 <button
                   type="button"
@@ -1271,7 +1273,7 @@ export default function RutinaDetallePage({
                   disabled={guardando}
                   className="px-4 py-2 text-sm bg-emerald-500 rounded-lg font-semibold hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {guardando ? <BotonCargando texto="Guardando..." /> : "Guardar cambios"}
+                  {guardando ? <BotonCargando texto={t("rutinas.guardando")} /> : t("rutinas.guardarCambios")}
                 </button>
               </div>
             </div>
@@ -1309,7 +1311,7 @@ export default function RutinaDetallePage({
                 disabled={accionCargando !== null}
                 className="rounded-xl border border-zinc-700 px-4 py-3 text-sm hover:bg-zinc-800 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Editar rutina
+                {t("rutinas.editarRutina")}
               </button>
 
               <button
@@ -1318,18 +1320,18 @@ export default function RutinaDetallePage({
                 disabled={accionCargando !== null}
                 className="rounded-xl border border-red-800 px-4 py-3 text-sm text-red-400 hover:bg-red-950 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {accionCargando === "borrar-rutina" ? <BotonCargando texto="Borrando..." /> : "Borrar rutina"}
+                {accionCargando === "borrar-rutina" ? <BotonCargando texto={t("rutinas.borrando")} /> : t("rutinas.borrarRutina")}
               </button>
             </div>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 flex flex-col min-h-[220px]">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold">Alumnos</h2>
+                <h2 className="text-xl font-semibold">{t("rutinas.alumnos")}</h2>
                 <p className="mt-1 text-sm text-zinc-500">
                   {asignaciones.filter((a) => a._estado !== "eliminado").length === 0
-                    ? "Sin alumnos asignados"
-                    : `${asignaciones.filter((a) => a._estado !== "eliminado").length} ${asignaciones.filter((a) => a._estado !== "eliminado").length === 1 ? "alumno asignado" : "alumnos asignados"}`}
+                    ? t("rutinas.sinAlumnosAsignados")
+                    : `${asignaciones.filter((a) => a._estado !== "eliminado").length} ${asignaciones.filter((a) => a._estado !== "eliminado").length === 1 ? t("rutinas.alumnoAsignado") : t("rutinas.alumnosAsignados")}`}
                 </p>
               </div>
 
@@ -1339,14 +1341,15 @@ export default function RutinaDetallePage({
                 disabled={accionCargando !== null || alumnos.length === 0}
                 className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                + Asignar
+                {t("rutinas.asignar")}
               </button>
             </div>
 
             <div className="mt-4 max-h-[120px] overflow-hidden">
               {asignaciones.filter((a) => a._estado !== "eliminado").length === 0 ? (
                 <div className="rounded-xl border border-dashed border-zinc-700 p-4 text-sm text-zinc-400">
-                  No hay alumnos asignados.
+                  {t("rutinas.noHayAlumnos")}
+                  {t("rutinas.noHayAlumnos")}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -1376,7 +1379,7 @@ export default function RutinaDetallePage({
                             disabled={accionCargando !== null}
                             className="text-red-400 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                           >
-                            {accionCargando === `quitar-asignacion-${asignacion._localId}` ? <BotonCargando texto="Quitando..." /> : "Quitar"}
+                            {accionCargando === `quitar-asignacion-${asignacion._localId}` ? <BotonCargando texto={t("rutinas.quitando")} /> : t("rutinas.quitar")}
                           </button>
                         </div>
                       </div>
@@ -1391,7 +1394,7 @@ export default function RutinaDetallePage({
                 onClick={() => setMostrarAsignacionesModal(true)}
                 className="mt-4 self-end text-sm text-emerald-400 hover:text-emerald-300"
               >
-                Ver todas las asignaciones
+                {t("rutinas.verTodasAsignaciones")}
               </button>
             )}
           </div>
@@ -1402,10 +1405,10 @@ export default function RutinaDetallePage({
             <div className="w-full max-w-lg max-h-[85vh] overflow-hidden bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-col">
               <div className="flex items-start justify-between gap-4 border-b border-zinc-800 p-6 pb-4">
                 <div>
-                  <h2 className="text-2xl font-bold">Asignaciones</h2>
+                  <h2 className="text-2xl font-bold">{t("rutinas.asignaciones")}</h2>
                   <p className="mt-1 text-sm text-zinc-500">
                     {asignaciones.filter((a) => a._estado !== "eliminado").length}{" "}
-                    {asignaciones.filter((a) => a._estado !== "eliminado").length === 1 ? "alumno asignado" : "alumnos asignados"}
+                    {asignaciones.filter((a) => a._estado !== "eliminado").length === 1 ? t("rutinas.alumnoAsignado") : t("rutinas.alumnosAsignados")}
                   </p>
                 </div>
 
@@ -1415,7 +1418,7 @@ export default function RutinaDetallePage({
                   disabled={accionCargando !== null}
                   className="rounded-xl border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Cerrar
+                  {t("rutinas.cerrar")}
                 </button>
               </div>
 
@@ -1463,7 +1466,7 @@ export default function RutinaDetallePage({
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-5">
           <div className="flex items-center justify-between gap-3 mb-4">
-            <h2 className="text-xl font-semibold">Entrada en calor</h2>
+            <h2 className="text-xl font-semibold">{t("rutinas.entradaEnCalor")}</h2>
 
             <button
               type="button"
@@ -1471,7 +1474,7 @@ export default function RutinaDetallePage({
               disabled={accionCargando !== null}
               className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              + Agregar ejercicio
+              {t("rutinas.agregarEjercicio")}
             </button>
           </div>
 
@@ -1482,7 +1485,7 @@ export default function RutinaDetallePage({
           )}
 
           {entradaCalorEjercicios.filter((e) => e._estado !== "eliminado").length === 0 ? (
-            <p className="text-zinc-500">Sin ejercicios de entrada en calor.</p>
+            <p className="text-zinc-500">{t("rutinas.sinEjerciciosEntrada")}</p>
           ) : (
             <div className="space-y-3">
               {entradaCalorEjercicios
@@ -1532,7 +1535,7 @@ export default function RutinaDetallePage({
                           disabled={accionCargando !== null}
                           className="text-zinc-300 text-sm hover:text-white disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                          Editar
+                          {t("rutinas.editar")}
                         </button>
 
                         <button
@@ -1541,7 +1544,7 @@ export default function RutinaDetallePage({
                           disabled={accionCargando !== null}
                           className="text-red-400 text-sm hover:text-red-300 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                          {accionCargando === `borrar-entrada-${item._localId}` ? <BotonCargando texto="Borrando..." /> : "Borrar"}
+                          {accionCargando === `borrar-entrada-${item._localId}` ? <BotonCargando texto={t("rutinas.borrando")} /> : t("rutinas.borrar")}
                         </button>
                       </div>
                     </div>
@@ -1553,7 +1556,7 @@ export default function RutinaDetallePage({
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Ejercicios principales</h2>
+              <h2 className="text-xl font-semibold">{t("rutinas.ejerciciosPrincipales")}</h2>
 
               <button
                 type="button"
@@ -1561,13 +1564,13 @@ export default function RutinaDetallePage({
                 disabled={accionCargando !== null}
                 className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                + Agregar
+                {t("rutinas.agregar")}
               </button>
             </div>
 
             {rutinaEjercicios.filter((e) => e._estado !== "eliminado").length === 0 ? (
               <p className="text-zinc-400">
-                Todavía no hay ejercicios cargados.
+                {t("rutinas.sinEjercicios")}
               </p>
             ) : (
               <div className="space-y-3">
@@ -1595,7 +1598,7 @@ export default function RutinaDetallePage({
 
                           <div className="flex flex-wrap items-center gap-2 mt-1">
                             <p className="text-zinc-400">
-                              {item.series || "-"} series · {item.tipo_configuracion === "avanzado" ? "Serie por serie" : textoPrescripcion(item)}
+                              {item.series || "-"} series · {item.tipo_configuracion === "avanzado" ? t("rutinas.seriePorSerie") : textoPrescripcion(item, t)}
                             </p>
 
                             <span className={`rounded-full px-2 py-0.5 text-xs ${
@@ -1603,7 +1606,7 @@ export default function RutinaDetallePage({
                                 ? "bg-blue-500/10 text-blue-300"
                                 : "bg-zinc-800 text-zinc-300"
                             }`}>
-                              {item.tipo_configuracion === "avanzado" ? "Avanzado" : "Simple"}
+                              {item.tipo_configuracion === "avanzado" ? t("rutinas.avanzadoLabel") : t("rutinas.simpleLabel")}
                             </span>
                           </div>
 
@@ -1642,17 +1645,17 @@ export default function RutinaDetallePage({
                           )}
                           {item.tipo_configuracion === "avanzado" && (
                             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
-                              <p className="text-xs font-semibold text-zinc-400 mb-2">Series configuradas</p>
+                              <p className="text-xs font-semibold text-zinc-400 mb-2">{t("rutinas.seriesConfiguradas")}</p>
 
                               <div className="space-y-1 text-sm text-zinc-300">
                                 {(seriesPorEjercicio[item._localId] || []).map((serie) => (
                                   <div key={serie._localId} className="flex justify-between gap-3">
-                                    <span>Serie {serie.numero_serie}</span>
+                                    <span>{t("rutinas.serie", { numero: serie.numero_serie })}</span>
                                     <span>
-                                      {serie.repeticiones || "-"} reps ·
+                                      {serie.repeticiones || "-"} {t("rutinas.repsShort")} ·
                                       {serie.porcentaje_rm ? (
                                         <span className="text-emerald-400">
-                                          {serie.porcentaje_rm === "0" ? " Peso corporal" : ` ${serie.porcentaje_rm}% RM`}
+                                          {serie.porcentaje_rm === "0" ? ` ${t("rutinas.pesoCorporalShort")}` : ` ${serie.porcentaje_rm}${t("rutinas.porcentajeRM")} RM`}
                                         </span>
                                       ) : (
                                         <span> {serie.peso || "-"} kg</span>
@@ -1679,16 +1682,16 @@ export default function RutinaDetallePage({
                             disabled={accionCargando !== null}
                             className="text-zinc-300 text-sm hover:text-white disabled:opacity-60 disabled:cursor-not-allowed"
                           >
-                            Editar
-                          </button>
+                          {t("rutinas.editar")}
+                        </button>
 
-                          <button
-                            type="button"
-                            onClick={() => borrarEjercicioPrincipal(item._localId)}
-                            disabled={accionCargando !== null}
-                            className="text-red-400 text-sm hover:text-red-300 disabled:opacity-60 disabled:cursor-not-allowed"
-                          >
-                            {accionCargando === `borrar-ejercicio-${item._localId}` ? <BotonCargando texto="Borrando..." /> : "Borrar"}
+                        <button
+                          type="button"
+                          onClick={() => borrarEjercicioPrincipal(item._localId)}
+                          disabled={accionCargando !== null}
+                          className="text-red-400 text-sm hover:text-red-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {accionCargando === `borrar-ejercicio-${item._localId}` ? <BotonCargando texto={t("rutinas.borrando")} /> : t("rutinas.borrar")}
                           </button>
                         </div>
                       </div>
@@ -1701,42 +1704,42 @@ export default function RutinaDetallePage({
         {mostrarEditarRutina && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
             <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h2 className="text-2xl font-bold mb-4">Editar rutina</h2>
+              <h2 className="text-2xl font-bold mb-4">{t("rutinas.editarRutinaTitulo")}</h2>
 
               <div className="space-y-3">
                 <input
                   value={editNombre}
                   onChange={(e) => setEditNombre(e.target.value)}
                   className="w-full bg-zinc-800 rounded-xl p-3"
-                  placeholder="Nombre"
+                  placeholder={t("rutinas.nombre")}
                 />
 
                 <input
                   value={editObjetivo}
                   onChange={(e) => setEditObjetivo(e.target.value)}
                   className="w-full bg-zinc-800 rounded-xl p-3"
-                  placeholder="Objetivo"
+                  placeholder={t("rutinas.objetivo")}
                 />
 
                 <input
                   value={editEstructura}
                   onChange={(e) => setEditEstructura(e.target.value)}
                   className="w-full bg-zinc-800 rounded-xl p-3"
-                  placeholder="Estructura"
+                  placeholder={t("rutinas.estructura")}
                 />
 
                 <textarea
                   value={editEntradaCalorTexto}
                   onChange={(e) => setEditEntradaCalorTexto(e.target.value)}
                   className="w-full bg-zinc-800 rounded-xl p-3 min-h-24"
-                  placeholder="Notas generales de entrada en calor"
+                  placeholder={t("rutinas.notasEntradaCalor")}
                 />
 
                 <textarea
                   value={editDescripcion}
                   onChange={(e) => setEditDescripcion(e.target.value)}
                   className="w-full bg-zinc-800 rounded-xl p-3 min-h-28"
-                  placeholder="Descripción"
+                  placeholder={t("rutinas.descripcion")}
                 />
               </div>
 
@@ -1747,7 +1750,7 @@ export default function RutinaDetallePage({
                   disabled={accionCargando !== null}
                   className="flex-1 border border-zinc-700 rounded-xl py-3 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Cancelar
+                  {t("rutinas.cancelar")}
                 </button>
 
                 <button
@@ -1756,7 +1759,7 @@ export default function RutinaDetallePage({
                   disabled={accionCargando !== null}
                   className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {accionCargando === "guardar-rutina" ? <BotonCargando texto="Guardando..." /> : "Guardar"}
+                  {accionCargando === "guardar-rutina" ? <BotonCargando texto={t("rutinas.guardando")} /> : t("rutinas.guardar")}
                 </button>
               </div>
             </div>
@@ -1767,7 +1770,7 @@ export default function RutinaDetallePage({
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
             <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
               <h2 className="text-2xl font-bold mb-4">
-                {entradaEditandoId ? "Editar entrada en calor" : "Agregar entrada en calor"}
+                {entradaEditandoId ? t("rutinas.editarEntradaCalor") : t("rutinas.agregarEntradaCalor")}
               </h2>
 
               <div className="space-y-3">
@@ -1776,7 +1779,7 @@ export default function RutinaDetallePage({
                   onChange={(e) => seleccionarEjercicioEntrada(e.target.value)}
                   className="w-full bg-zinc-800 rounded-xl p-3"
                 >
-                  <option value="">Seleccionar del banco de ejercicios</option>
+                  <option value="">{t("rutinas.seleccionarBanco")}</option>
 
                   {ejercicios.map((ejercicio) => (
                     <option key={ejercicio.id} value={ejercicio.id}>
@@ -1789,7 +1792,7 @@ export default function RutinaDetallePage({
                   value={entradaNombreEjercicio}
                   onChange={(e) => setEntradaNombreEjercicio(e.target.value)}
                   className="w-full bg-zinc-800 rounded-xl p-3"
-                  placeholder="Nombre del ejercicio"
+                  placeholder={t("rutinas.nombreEjercicio")}
                 />
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1798,10 +1801,10 @@ export default function RutinaDetallePage({
                     onChange={(e) => setEntradaSeries(e.target.value)}
                     className="w-full bg-zinc-800 rounded-xl p-3"
                   >
-                    <option value="">Series</option>
+                    <option value="">{t("rutinas.series")}</option>
                     {opcionesSeries.map((opcion) => (
                       <option key={opcion} value={opcion}>
-                        {opcion === "custom" ? "Custom" : opcion}
+                        {opcion === "custom" ? t("rutinas.custom") : opcion}
                       </option>
                     ))}
                   </select>
@@ -1812,7 +1815,7 @@ export default function RutinaDetallePage({
                       value={entradaSeriesCustom}
                       onChange={(e) => setEntradaSeriesCustom(e.target.value)}
                       className="w-full bg-zinc-800 rounded-xl p-3"
-                      placeholder="Series custom"
+                      placeholder={t("rutinas.seriesCustom")}
                     />
                   )}
                 </div>
@@ -1827,7 +1830,7 @@ export default function RutinaDetallePage({
                         setEntradaDuracion("");
                       }}
                     />
-                    <span>Por repeticiones</span>
+                    <span>{t("rutinas.porRepeticiones")}</span>
                   </label>
 
                   <label className="flex items-center gap-2 rounded-xl bg-zinc-800 p-3">
@@ -1839,7 +1842,7 @@ export default function RutinaDetallePage({
                         setEntradaRepeticiones("");
                       }}
                     />
-                    <span>Por tiempo</span>
+                    <span>{t("rutinas.porTiempo")}</span>
                   </label>
                 </div>
 
@@ -1848,7 +1851,7 @@ export default function RutinaDetallePage({
                     value={entradaRepeticiones}
                     onChange={(e) => setEntradaRepeticiones(e.target.value)}
                     className="w-full bg-zinc-800 rounded-xl p-3"
-                    placeholder="Reps"
+                    placeholder={t("rutinas.reps")}
                   />
                 )}
 
@@ -1856,7 +1859,7 @@ export default function RutinaDetallePage({
                   <SelectorTiempo
                     value={entradaDuracion}
                     onChange={setEntradaDuracion}
-                    label="Duración"
+                    label={t("rutinas.duracion")}
                   />
                 )}
 
@@ -1864,7 +1867,7 @@ export default function RutinaDetallePage({
                   value={entradaObservaciones}
                   onChange={(e) => setEntradaObservaciones(e.target.value)}
                   className="w-full bg-zinc-800 rounded-xl p-3 min-h-24"
-                  placeholder="Observaciones"
+                  placeholder={t("rutinas.observaciones")}
                 />
               </div>
 
@@ -1878,7 +1881,7 @@ export default function RutinaDetallePage({
                   disabled={accionCargando !== null}
                   className="flex-1 border border-zinc-700 rounded-xl py-3 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Cancelar
+                  {t("rutinas.cancelar")}
                 </button>
 
                 <button
@@ -1887,7 +1890,7 @@ export default function RutinaDetallePage({
                   disabled={accionCargando !== null}
                   className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {accionCargando === "guardar-entrada" ? <BotonCargando texto="Guardando..." /> : "Guardar"}
+                  {accionCargando === "guardar-entrada" ? <BotonCargando texto={t("rutinas.guardando")} /> : t("rutinas.guardar")}
                 </button>
               </div>
             </div>
@@ -1900,7 +1903,7 @@ export default function RutinaDetallePage({
               <div className="w-full max-w-lg max-h-[90vh] overflow-hidden bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-col">
                 <div className="p-6 pb-4">
                   <h2 className="text-2xl font-bold">
-                    {ejercicioEditandoId ? "Editar ejercicio" : "Agregar ejercicio"}
+                    {ejercicioEditandoId ? t("rutinas.editarEjercicioTitulo") : t("rutinas.agregarEjercicioTitulo")}
                   </h2>
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 pb-4">
@@ -1910,7 +1913,7 @@ export default function RutinaDetallePage({
                       onChange={(e) => seleccionarEjercicioPrincipal(e.target.value)}
                       className="w-full bg-zinc-800 rounded-xl p-3"
                     >
-                      <option value="">Seleccionar del banco de ejercicios</option>
+                      <option value="">{t("rutinas.seleccionarBanco")}</option>
 
                       {ejercicios.map((ejercicio) => (
                         <option key={ejercicio.id} value={ejercicio.id}>
@@ -1918,7 +1921,7 @@ export default function RutinaDetallePage({
                         </option>
                       ))}
                       <option value="crear_nuevo">
-                        + Crear nuevo ejercicio
+                        {t("rutinas.crearNuevo")}
                       </option>
                     </select>
                     <button
@@ -1927,7 +1930,7 @@ export default function RutinaDetallePage({
                       disabled={!ejercicioId}
                       className="w-full rounded-xl border border-blue-700 px-3 py-3 text-sm text-blue-300 hover:bg-blue-950 disabled:opacity-50"
                     >
-                      Ver historial del ejercicio
+                      {t("rutinas.verHistorial")}
                     </button>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -1940,10 +1943,10 @@ export default function RutinaDetallePage({
                         }}
                         className="w-full bg-zinc-800 rounded-xl p-3"
                       >
-                        <option value="">Series</option>
+                        <option value="">{t("rutinas.series")}</option>
                         {opcionesSeries.map((opcion) => (
                           <option key={opcion} value={opcion}>
-                            {opcion === "custom" ? "Custom" : opcion}
+                            {opcion === "custom" ? t("rutinas.custom") : opcion}
                           </option>
                         ))}
                       </select>
@@ -1957,7 +1960,7 @@ export default function RutinaDetallePage({
                             actualizarCantidadSeriesAvanzadas(Number(e.target.value || 0));
                           }}
                           className="w-full bg-zinc-800 rounded-xl p-3"
-                          placeholder="Series custom"
+                          placeholder={t("rutinas.seriesCustom")}
                         />
                       )}
                     </div>
@@ -1972,8 +1975,8 @@ export default function RutinaDetallePage({
                             : "border-zinc-700 bg-zinc-800 text-zinc-300"
                         }`}
                       >
-                        <p className="font-semibold">Simple</p>
-                        <p className="text-xs text-zinc-400 mt-1">Todas las series iguales</p>
+                        <p className="font-semibold">{t("rutinas.simple")}</p>
+                        <p className="text-xs text-zinc-400 mt-1">{t("rutinas.simpleDesc")}</p>
                       </button>
 
                       <button
@@ -1988,8 +1991,8 @@ export default function RutinaDetallePage({
                             : "border-zinc-700 bg-zinc-800 text-zinc-300"
                         }`}
                       >
-                        <p className="font-semibold">Serie por serie</p>
-                        <p className="text-xs text-zinc-400 mt-1">Reps y peso diferentes</p>
+                        <p className="font-semibold">{t("rutinas.seriePorSerie")}</p>
+                        <p className="text-xs text-zinc-400 mt-1">{t("rutinas.seriePorSerieDesc")}</p>
                       </button>
                     </div>
 
@@ -2005,7 +2008,7 @@ export default function RutinaDetallePage({
                                 setDuracion("");
                               }}
                             />
-                            <span>Por repeticiones</span>
+                            <span>{t("rutinas.porRepeticiones")}</span>
                           </label>
 
                           <label className="flex items-center gap-2 rounded-xl bg-zinc-800 p-3">
@@ -2017,7 +2020,7 @@ export default function RutinaDetallePage({
                                 setRepeticiones("");
                               }}
                             />
-                            <span>Por tiempo</span>
+                            <span>{t("rutinas.porTiempo")}</span>
                           </label>
                         </div>
 
@@ -2026,7 +2029,7 @@ export default function RutinaDetallePage({
                             value={repeticiones}
                             onChange={(e) => setRepeticiones(e.target.value)}
                             className="w-full bg-zinc-800 rounded-xl p-3"
-                            placeholder="Reps"
+                            placeholder={t("rutinas.reps")}
                           />
                         )}
 
@@ -2034,7 +2037,7 @@ export default function RutinaDetallePage({
                           <SelectorTiempo
                             value={duracion}
                             onChange={setDuracion}
-                            label="Duración"
+                            label={t("rutinas.duracion")}
                           />
                         )}
 
@@ -2044,7 +2047,7 @@ export default function RutinaDetallePage({
                               value={peso}
                               onChange={(e) => cambiarPeso(e.target.value)}
                               className="w-full bg-zinc-800 rounded-xl p-3"
-                              placeholder="Peso"
+                              placeholder={t("rutinas.peso")}
                             />
                           )}
 
@@ -2058,7 +2061,7 @@ export default function RutinaDetallePage({
 
                               {porcentajesRM.map((valor) => (
                                 <option key={valor} value={String(valor)}>
-                                  {valor === 0 ? "0 - Peso corporal" : `${valor}%`}
+                                  {valor === 0 ? `0 - ${t("rutinas.pesoCorporal")}` : `${valor}%`}
                                 </option>
                               ))}
                             </select>
@@ -2069,7 +2072,7 @@ export default function RutinaDetallePage({
                             onChange={(e) => setRir(e.target.value)}
                             className="w-full bg-zinc-800 rounded-xl p-3"
                           >
-                            <option value="">RIR</option>
+                            <option value="">{t("rutinas.rir")}</option>
                             {opcionesRIR.map((valor) => (
                               <option key={valor} value={String(valor)}>
                                 {valor}
@@ -2082,7 +2085,7 @@ export default function RutinaDetallePage({
                           <SelectorTiempo
                             value={descanso}
                             onChange={setDescanso}
-                            label="Descanso entre series"
+                            label={t("rutinas.descansoEntreSeries")}
                             compacto
                           />
                         </div>
@@ -2091,7 +2094,7 @@ export default function RutinaDetallePage({
 
                     {tipoConfiguracionSeries === "avanzado" && (
                       <div className="space-y-2 rounded-xl border border-zinc-800 p-3">
-                        <p className="text-sm font-semibold text-zinc-300">Configurar cada serie</p>
+                        <p className="text-sm font-semibold text-zinc-300">{t("rutinas.configurarCadaSerie")}</p>
 
                         <div className="grid grid-cols-[64px_110px_110px_110px] gap-2 px-1 text-xs font-semibold text-zinc-500">
                           <span></span>
@@ -2109,7 +2112,7 @@ export default function RutinaDetallePage({
                               value={serie.repeticiones || ""}
                               onChange={(e) => actualizarSerieAvanzada(serie.numero_serie, "repeticiones", e.target.value)}
                               className="h-12 w-full bg-zinc-800 rounded-xl px-3"
-                              placeholder="Reps"
+                              placeholder={t("rutinas.repsShort")}
                             />
 
                             <input
@@ -2118,7 +2121,7 @@ export default function RutinaDetallePage({
                               onChange={(e) => actualizarSerieAvanzada(serie.numero_serie, "peso", e.target.value)}
                               disabled={Boolean(serie.porcentaje_rm)}
                               className="h-12 w-full bg-zinc-800 rounded-xl px-3 disabled:opacity-40 disabled:cursor-not-allowed"
-                              placeholder="Peso"
+                              placeholder={t("rutinas.pesoShort")}
                             />
 
                             <select
@@ -2143,7 +2146,7 @@ export default function RutinaDetallePage({
                             onChange={(e) => setRir(e.target.value)}
                             className="w-full bg-zinc-800 rounded-xl p-3"
                           >
-                            <option value="">RIR general</option>
+                            <option value="">{t("rutinas.rirGeneral")}</option>
                             {opcionesRIR.map((valor) => (
                               <option key={valor} value={String(valor)}>
                                 {valor}
@@ -2156,7 +2159,7 @@ export default function RutinaDetallePage({
                           <SelectorTiempo
                             value={descanso}
                             onChange={setDescanso}
-                            label="Descanso general"
+                            label={t("rutinas.descansoGeneral")}
                             compacto
                           />
                         </div>
@@ -2167,7 +2170,7 @@ export default function RutinaDetallePage({
                       value={observaciones}
                       onChange={(e) => setObservaciones(e.target.value)}
                       className="w-full bg-zinc-800 rounded-xl p-3 min-h-24"
-                      placeholder="Observaciones"
+                      placeholder={t("rutinas.observaciones")}
                     />
                   </div>
                 </div>
@@ -2182,7 +2185,7 @@ export default function RutinaDetallePage({
                       disabled={accionCargando !== null}
                       className="flex-1 border border-zinc-700 rounded-xl py-3 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      Cancelar
+                      {t("rutinas.cancelar")}
                     </button>
 
                     <button
@@ -2191,7 +2194,7 @@ export default function RutinaDetallePage({
                       disabled={accionCargando !== null}
                       className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {accionCargando === "guardar-ejercicio" ? <BotonCargando texto="Guardando..." /> : "Guardar"}
+                      {accionCargando === "guardar-ejercicio" ? <BotonCargando texto={t("rutinas.guardando")} /> : t("rutinas.guardar")}
                     </button>
                   </div>
                 </div>
@@ -2203,10 +2206,10 @@ export default function RutinaDetallePage({
         {mostrarConfirmarSalida && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-              <h2 className="text-xl font-bold">Hay cambios sin guardar</h2>
+              <h2 className="text-xl font-bold">{t("rutinas.hayCambiosSinGuardar")}</h2>
 
               <p className="mt-3 text-sm text-zinc-400">
-                Si salís ahora, se perderán los cambios que todavía no guardaste.
+                {t("rutinas.salirSinGuardarDesc")}
               </p>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
@@ -2218,7 +2221,7 @@ export default function RutinaDetallePage({
                   }}
                   className="rounded-xl border border-zinc-700 px-4 py-3 text-sm font-semibold hover:bg-zinc-800"
                 >
-                  Cancelar
+                  {t("rutinas.cancelar")}
                 </button>
 
                 <button
@@ -2231,7 +2234,7 @@ export default function RutinaDetallePage({
                   }}
                   className="rounded-xl border border-red-800 px-4 py-3 text-sm font-semibold text-red-400 hover:bg-red-950"
                 >
-                  Salir sin guardar
+                  {t("rutinas.salirSinGuardar")}
                 </button>
 
                 <button
@@ -2249,7 +2252,7 @@ export default function RutinaDetallePage({
                   disabled={accionCargando !== null}
                   className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {accionCargando === "guardar-rutina" ? <BotonCargando texto="Guardando..." /> : "Guardar y salir"}
+                  {accionCargando === "guardar-rutina" ? <BotonCargando texto={t("rutinas.guardando")} /> : t("rutinas.guardarYSalir")}
                 </button>
               </div>
             </div>

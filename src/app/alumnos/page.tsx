@@ -6,6 +6,7 @@ import { getRolCached } from "@/lib/rol-cache";
 import BackButton from "@/components/BackButton";
 import { AlumnoCard } from "@/components/alumnos/AlumnoCard";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Alumno = {
   id: string;
@@ -50,6 +51,7 @@ function getAlumnosCacheKey(userId: string) {
 export default function AlumnosPage() {
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>([]);
+  const { t } = useIdioma();
 
   const [busqueda, setBusqueda] = useState("");
   const [ordenarPor, setOrdenarPor] = useState<OrdenarPor>("entrenamientos_pendientes");
@@ -113,15 +115,12 @@ export default function AlumnosPage() {
       else { pendientes.set(id, (pendientes.get(id) || 0) + 1); }
     }
     const diasSemana = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-    // Inicio de la semana actual = último lunes
     const hoy = new Date();
-    const diaHoy = hoy.getDay(); // 0=Dom, 1=Lun, ..., 6=Sáb
+    const diaHoy = hoy.getDay();
     const inicioSemana = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
     if (diaHoy === 0) {
-      // Domingo: el lunes fue hace 6 días
       inicioSemana.setDate(inicioSemana.getDate() - 6);
     } else {
-      // Resto: el lunes fue hace (diaHoy - 1) días
       inicioSemana.setDate(inicioSemana.getDate() - (diaHoy - 1));
     }
 
@@ -143,13 +142,9 @@ export default function AlumnosPage() {
   const alumnosFiltrados = useMemo(() => {
     const texto = busqueda.toLowerCase().trim();
     let resultado = alumnos.filter((a) => {
-      // Filtro de búsqueda
       const coincideBusqueda = [a.nombre, a.apellido, a.email, a.telefono].filter(Boolean).join(" ").toLowerCase().includes(texto);
       if (!coincideBusqueda) return false;
-
-      // Filtro de alumnos pausados (undefined = no pausado)
       if (!mostrarPausados && a.activo === false) return false;
-
       return true;
     });
     resultado = [...resultado].sort((a, b) => {
@@ -170,11 +165,11 @@ export default function AlumnosPage() {
 
   async function crearAlumno() {
     if (!nuevoNombre.trim()) {
-      mostrarToast("Ingresá el nombre del alumno.", "info");
+      mostrarToast(t("alumnos.nombreRequerido"), "info");
       return;
     }
     if (!nuevoEmail.trim()) {
-      mostrarToast("Ingresá el email del alumno.", "info");
+      mostrarToast(t("alumnos.emailRequerido"), "info");
       return;
     }
     setGuardandoAlumno(true);
@@ -199,12 +194,12 @@ export default function AlumnosPage() {
     });
     const data = await response.json();
     if (!response.ok) {
-      mostrarToast(data.error || "No se pudo crear el alumno.", "error");
+      mostrarToast(data.error || t("alumnos.emailRequerido"), "error");
       setGuardandoAlumno(false);
       return;
     }
     setGuardandoAlumno(false);
-    mostrarToast("Alumno creado correctamente. Se envió una invitación por email.", "exito");
+    mostrarToast(t("alumnos.alumnoCreado"), "exito");
     setModalCrearAbierto(false);
     setNuevoNombre(""); setNuevoApellido(""); setNuevoEmail(""); setNuevoTelefono("");
     await cargarDatos();
@@ -233,16 +228,15 @@ export default function AlumnosPage() {
         <header className="flex items-start justify-between mb-6">
           <div>
             <BackButton fallback="/" />
-            <h1 className="text-3xl font-bold mt-4">Alumnos</h1>
+            <h1 className="text-3xl font-bold mt-4">{t("alumnos.titulo")}</h1>
             <p className="text-zinc-400 mt-1">
-              {alumnos.length} {alumnos.length === 1 ? "alumno registrado" : "alumnos registrados"}
-              {actualizandoAlumnos && <span className="ml-2 text-xs text-zinc-500">Actualizando...</span>}
+              {alumnos.length} {alumnos.length === 1 ? t("alumnos.registrado") : t("alumnos.registrados")}
+              {actualizandoAlumnos && <span className="ml-2 text-xs text-zinc-500">{t("alumnos.actualizando")}</span>}
             </p>
           </div>
           <div className="flex items-center gap-2 mt-4">
-            {/* Desktop: boton Agregar (abre modal) */}
             <div className="hidden md:flex gap-2">
-              <button type="button" onClick={() => setModalCrearAbierto(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition">+ Agregar alumno</button>
+              <button type="button" onClick={() => setModalCrearAbierto(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition">{t("alumnos.agregarAlumno")}</button>
             </div>
           </div>
         </header>
@@ -260,7 +254,7 @@ export default function AlumnosPage() {
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm">🔍</span>
             <input
               type="text"
-              placeholder="Buscar alumno..."
+              placeholder={t("alumnos.buscarPlaceholder")}
               value={busqueda}
               onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(0); }}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-2 pl-10 pr-3 outline-none focus:border-emerald-500 text-sm"
@@ -281,7 +275,7 @@ export default function AlumnosPage() {
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm">🔍</span>
             <input
               type="text"
-              placeholder="Buscar por nombre, apellido, email o teléfono..."
+              placeholder={t("alumnos.buscarPlaceholderDesktop")}
               value={busqueda}
               onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(0); }}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-emerald-500"
@@ -291,21 +285,21 @@ export default function AlumnosPage() {
 
         {alumnosFiltrados.length === 0 ? (
           <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
-            <h2 className="text-xl font-semibold">No se encontraron alumnos</h2>
-            <p className="text-zinc-400 mt-2">Probá con otro nombre, email o teléfono.</p>
+            <h2 className="text-xl font-semibold">{t("alumnos.noEncontrados")}</h2>
+            <p className="text-zinc-400 mt-2">{t("alumnos.noEncontradosDesc")}</p>
           </section>
         ) : (
           <>
             <div className="grid gap-3">
               {alumnosPaginados.map((alumno) => (
-                <AlumnoCard key={alumno.id} alumno={alumno} pendientes={pendientesPorAlumno.get(alumno.id) || 0} finalizados={finalizadosPorAlumno.get(alumno.id) || 0} ultimoEntrenamiento={ultimoEntrenamientoPorAlumno.get(alumno.id) || "Sin entrenamientos completados"} metricasLoading={metricasLoading} />
+                <AlumnoCard key={alumno.id} alumno={alumno} pendientes={pendientesPorAlumno.get(alumno.id) || 0} finalizados={finalizadosPorAlumno.get(alumno.id) || 0} ultimoEntrenamiento={ultimoEntrenamientoPorAlumno.get(alumno.id) || t("alumnos.sinEntrenamientos")} metricasLoading={metricasLoading} />
               ))}
             </div>
             {totalPaginas > 1 && (
               <div className="flex items-center justify-center gap-4 mt-6">
-                <button type="button" onClick={() => setPaginaActual((p) => Math.max(0, p - 1))} disabled={paginaSegura === 0} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed">← Anterior</button>
-                <span className="text-sm text-zinc-400">Página {paginaSegura + 1} de {totalPaginas}</span>
-                <button type="button" onClick={() => setPaginaActual((p) => Math.min(totalPaginas - 1, p + 1))} disabled={paginaSegura >= totalPaginas - 1} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed">Siguiente →</button>
+                <button type="button" onClick={() => setPaginaActual((p) => Math.max(0, p - 1))} disabled={paginaSegura === 0} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed">← {t("common.anterior")}</button>
+                <span className="text-sm text-zinc-400">{t("common.pagina")} {paginaSegura + 1} {t("common.de")} {totalPaginas}</span>
+                <button type="button" onClick={() => setPaginaActual((p) => Math.min(totalPaginas - 1, p + 1))} disabled={paginaSegura >= totalPaginas - 1} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed">{t("common.siguiente")} →</button>
               </div>
             )}
           </>
@@ -326,13 +320,13 @@ export default function AlumnosPage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70">
           <div className="w-full max-w-lg rounded-t-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold">🎯 Filtrar y ordenar</h3>
+              <h3 className="text-lg font-bold">{t("alumnos.filtrarYOrdenar")}</h3>
               <button type="button" onClick={() => setFiltrosAbierto(false)} className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800">✕</button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Mostrar</label>
+                <label className="block text-sm text-zinc-400 mb-1">{t("alumnos.mostrar")}</label>
                 <select value={alumnosPorPagina} onChange={(e) => { setAlumnosPorPagina(Number(e.target.value)); setPaginaActual(0); }} className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3">
                   <option value="5">5</option><option value="10">10</option><option value="20">20</option><option value="50">50</option>
                 </select>
@@ -345,22 +339,22 @@ export default function AlumnosPage() {
                     onChange={(e) => { setMostrarPausados(e.target.checked); setPaginaActual(0); }}
                     className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 accent-emerald-500"
                   />
-                  Mostrar alumnos pausados
+                  {t("alumnos.mostrarPausados")}
                 </label>
               </div>
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Ordenar por</label>
+                <label className="block text-sm text-zinc-400 mb-1">{t("alumnos.ordenarPor")}</label>
                 <select value={ordenarPor} onChange={(e) => { setOrdenarPor(e.target.value as OrdenarPor); setPaginaActual(0); }} className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3">
-                  <option value="nombre">Nombre</option><option value="antiguedad">Antigüedad</option><option value="entrenamientos_finalizados">Finalizados</option><option value="entrenamientos_pendientes">Pendientes</option>
+                  <option value="nombre">{t("alumnos.nombre")}</option><option value="antiguedad">{t("alumnos.antiguedad")}</option><option value="entrenamientos_finalizados">{t("alumnos.finalizados")}</option><option value="entrenamientos_pendientes">{t("alumnos.pendientes")}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Orden</label>
+                <label className="block text-sm text-zinc-400 mb-1">{t("alumnos.orden")}</label>
                 <select value={orden} onChange={(e) => { setOrden(e.target.value as Orden); setPaginaActual(0); }} className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3">
-                  <option value="asc">Ascendente</option><option value="desc">Descendente</option>
+                  <option value="asc">{t("alumnos.ascendente")}</option><option value="desc">{t("alumnos.descendente")}</option>
                 </select>
               </div>
-              <button type="button" onClick={() => setFiltrosAbierto(false)} className="w-full rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600">Aplicar filtros</button>
+              <button type="button" onClick={() => setFiltrosAbierto(false)} className="w-full rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600">{t("alumnos.aplicarFiltros")}</button>
             </div>
           </div>
         </div>
@@ -371,21 +365,21 @@ export default function AlumnosPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold">➕ Nuevo alumno</h3>
+              <h3 className="text-xl font-bold">{t("alumnos.nuevoAlumno")}</h3>
               <button type="button" onClick={() => setModalCrearAbierto(false)} className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800">✕</button>
             </div>
 
             <div className="space-y-3">
-              <input value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder="Nombre *" />
-              <input value={nuevoApellido} onChange={(e) => setNuevoApellido(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder="Apellido" />
-              <input type="email" value={nuevoEmail} onChange={(e) => setNuevoEmail(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder="Email *" />
-              <input value={nuevoTelefono} onChange={(e) => setNuevoTelefono(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder="Teléfono" />
+              <input value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder={t("alumnos.nombreLabel")} />
+              <input value={nuevoApellido} onChange={(e) => setNuevoApellido(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder={t("alumnos.apellidoLabel")} />
+              <input type="email" value={nuevoEmail} onChange={(e) => setNuevoEmail(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder={t("alumnos.emailLabel")} />
+              <input value={nuevoTelefono} onChange={(e) => setNuevoTelefono(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder={t("alumnos.telefonoLabel")} />
             </div>
 
             <div className="flex gap-3 mt-5">
-              <button type="button" onClick={() => setModalCrearAbierto(false)} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800">Cancelar</button>
+              <button type="button" onClick={() => setModalCrearAbierto(false)} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800">{t("alumnos.cancelar")}</button>
               <button type="button" onClick={crearAlumno} disabled={guardandoAlumno} className="flex-1 rounded-xl bg-emerald-500 py-3 text-sm font-semibold hover:bg-emerald-600 disabled:opacity-50">
-                {guardandoAlumno ? "Creando..." : "Crear e invitar"}
+                {guardandoAlumno ? t("alumnos.creando") : t("alumnos.crearEInvitar")}
               </button>
             </div>
           </div>

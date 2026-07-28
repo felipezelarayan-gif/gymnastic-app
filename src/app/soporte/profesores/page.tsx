@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 import ModalAccionesAdmin from "@/components/shared/ModalAccionesAdmin";
 
 type ProfesorConMetricas = {
@@ -25,6 +26,7 @@ type ProfesorConMetricas = {
 export default function SoporteProfesoresPage() {
   const router = useRouter();
   const { mostrarToast } = useToast();
+  const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [profesores, setProfesores] = useState<ProfesorConMetricas[]>([]);
   const [search, setSearch] = useState("");
@@ -315,31 +317,31 @@ export default function SoporteProfesoresPage() {
 
         <header className="mt-6 mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">👨‍🏫 Profesores</h1>
+            <h1 className="text-3xl font-bold">{t("soporte.profesores")}</h1>
             <p className="text-zinc-400 mt-2">
-              {profesores.length} {profesores.length === 1 ? "profesor registrado" : "profesores registrados"}
+              {profesores.length} {profesores.length === 1 ? t("soporte.profesoresPage.profeSingular") : t("soporte.profesoresPage.profePlural")}
             </p>
           </div>
           {puedeGestionar && (
-            <button type="button" onClick={() => setMostrarCrearModal(true)} className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold hover:bg-emerald-600">+ Nuevo profesor</button>
+            <button type="button" onClick={() => setMostrarCrearModal(true)} className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold hover:bg-emerald-600">{t("soporte.profesoresPage.nuevoProfesor")}</button>
           )}
         </header>
 
         <div className="mb-6 space-y-3">
           <div className="flex gap-2">
             <button type="button" onClick={() => setFiltrosAbierto(!filtrosAbierto)} className={`shrink-0 rounded-xl border px-4 py-2 text-sm transition ${filtroTipo !== "todos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"}`}>
-              <span className="hidden sm:inline">Filtros</span>
+              <span className="hidden sm:inline">{t("common.filtrar")}</span>
               <span className="sm:hidden">⚙️</span>
             </button>
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre o email..." className="flex-1 bg-zinc-900 rounded-xl p-4 border border-zinc-700 text-white placeholder-zinc-500" />
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("soporte.profesoresPage.buscarPlaceholder")} className="flex-1 bg-zinc-900 rounded-xl p-4 border border-zinc-700 text-white placeholder-zinc-500" />
           </div>
           {filtrosAbierto && (
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <p className="text-sm text-zinc-400 mb-3">Filtrar por tipo</p>
+              <p className="text-sm text-zinc-400 mb-3">{t("soporte.profesoresPage.filtrarTipo")}</p>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => { setFiltroTipo("todos"); setFiltrosAbierto(false); }} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroTipo === "todos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>Todos</button>
-                <button type="button" onClick={() => { setFiltroTipo("admin"); setFiltrosAbierto(false); }} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroTipo === "admin" ? "border-amber-600 bg-amber-500/20 text-amber-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>👑 Admins</button>
-                <button type="button" onClick={() => { setFiltroTipo("profe"); setFiltrosAbierto(false); }} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroTipo === "profe" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>Profes</button>
+                <button type="button" onClick={() => { setFiltroTipo("todos"); setFiltrosAbierto(false); }} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroTipo === "todos" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>{t("common.todos")}</button>
+                <button type="button" onClick={() => { setFiltroTipo("admin"); setFiltrosAbierto(false); }} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroTipo === "admin" ? "border-amber-600 bg-amber-500/20 text-amber-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>{t("soporte.administradores")}</button>
+                <button type="button" onClick={() => { setFiltroTipo("profe"); setFiltrosAbierto(false); }} className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition ${filtroTipo === "profe" ? "border-emerald-600 bg-emerald-500/20 text-emerald-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}>{t("soporte.profesores")}</button>
               </div>
             </div>
           )}
@@ -347,7 +349,7 @@ export default function SoporteProfesoresPage() {
 
         {profesoresFiltrados.length === 0 ? (
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-8 text-center">
-            <p className="text-zinc-400">{search ? "No se encontraron profesores con ese criterio." : "No hay profesores registrados."}</p>
+            <p className="text-zinc-400">{search ? t("soporte.profesoresPage.noEncontradosCriterio") : t("soporte.profesoresPage.noRegistrados")}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -381,30 +383,30 @@ export default function SoporteProfesoresPage() {
           <ModalAccionesAdmin
             abierto={mostrarAcciones}
             onCerrar={() => { setMostrarAcciones(false); setErrorAccion(null); }}
-            titulo={`⚙️ Acciones - ${profeSeleccionado.nombre || "Sin nombre"}`}
+            titulo={t("common.accionesTitulo", { nombre: profeSeleccionado.nombre || t("common.sinNombre") })}
             error={errorAccion}
             acciones={[
               {
                 id: "pausar",
                 icono: profeSeleccionado.activo === false ? "▶️" : "⏸️",
-                titulo: profeSeleccionado.activo === false ? "Reanudar usuario" : "Pausar usuario",
-                descripcion: profeSeleccionado.activo === false ? "Reanuda este profesor y sus alumnos." : "Pausa este profesor y sus alumnos. Reversible.",
+                titulo: profeSeleccionado.activo === false ? t("common.reanudarUsuario") : t("common.pausarUsuario"),
+                descripcion: profeSeleccionado.activo === false ? t("soporte.profesoresPage.reanudarDesc") : t("soporte.profesoresPage.pausarDesc"),
                 color: "yellow",
                 onClick: () => setMostrarConfirmarPausar(true),
               },
               {
                 id: "eliminar",
                 icono: "🗑️",
-                titulo: "Eliminar profesor",
-                descripcion: "Transfiere sus alumnos al admin que lo creó. Acción permanente.",
+                titulo: t("common.eliminarUsuario"),
+                descripcion: t("soporte.profesoresPage.eliminarDesc"),
                 color: "red",
                 onClick: () => setMostrarConfirmarEliminar(true),
               },
               {
                 id: "permisos",
                 icono: "🔧",
-                titulo: "Modificar permisos",
-                descripcion: "Cambiar rol y permisos del profesor.",
+                titulo: t("common.modificarPermisos"),
+                descripcion: t("soporte.profesoresPage.modificarPermisosDesc"),
                 color: "purple",
                 onClick: abrirModificarPermisos,
               },
@@ -418,24 +420,24 @@ export default function SoporteProfesoresPage() {
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
               {profeSeleccionado?.activo === false ? (
                 <>
-                  <h3 className="text-xl font-bold text-emerald-400 mb-3">▶️ Reanudar profesor</h3>
-                  <p className="text-zinc-300 text-sm mb-4">Se reanudará a <strong>{profeSeleccionado?.nombre}</strong> y todos sus alumnos.</p>
-                  <p className="text-zinc-500 text-sm mb-5">Todos volverán a tener acceso a la app.</p>
+                  <h3 className="text-xl font-bold text-emerald-400 mb-3">▶️ {t("common.reanudarUsuario")}</h3>
+                  <p className="text-zinc-300 text-sm mb-4">{t("soporte.profesoresPage.confirmarReanudar", { nombre: profeSeleccionado?.nombre ?? "" })}</p>
+                  <p className="text-zinc-500 text-sm mb-5">{t("soporte.profesoresPage.reanudarInfo")}</p>
                   {errorAccion && <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>}
                   <div className="flex gap-3">
-                    <button type="button" onClick={() => { setMostrarConfirmarPausar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">Cancelar</button>
-                    <button type="button" onClick={togglePausarProfe} disabled={procesando} className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">{procesando ? "Reanudando..." : "Sí, reanudar"}</button>
+                    <button type="button" onClick={() => { setMostrarConfirmarPausar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">{t("common.cancelarBtn")}</button>
+                    <button type="button" onClick={togglePausarProfe} disabled={procesando} className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">{procesando ? t("common.reanudando") : t("common.siReanudar")}</button>
                   </div>
                 </>
               ) : (
                 <>
-                  <h3 className="text-xl font-bold text-yellow-400 mb-3">⏸️ Pausar profesor</h3>
-                  <p className="text-zinc-300 text-sm mb-4">Se pausará a <strong>{profeSeleccionado?.nombre}</strong> y todos sus alumnos.</p>
-                  <p className="text-zinc-500 text-sm mb-5">Esta acción es reversible.</p>
+                  <h3 className="text-xl font-bold text-yellow-400 mb-3">⏸️ {t("common.pausarUsuario")}</h3>
+                  <p className="text-zinc-300 text-sm mb-4">{t("soporte.profesoresPage.confirmarPausar", { nombre: profeSeleccionado?.nombre ?? "" })}</p>
+                  <p className="text-zinc-500 text-sm mb-5">{t("soporte.profesoresPage.pausarInfo")}</p>
                   {errorAccion && <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>}
                   <div className="flex gap-3">
-                    <button type="button" onClick={() => { setMostrarConfirmarPausar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">Cancelar</button>
-                    <button type="button" onClick={togglePausarProfe} disabled={procesando} className="flex-1 rounded-xl bg-yellow-600 py-3 text-sm font-semibold hover:bg-yellow-700 disabled:opacity-50">{procesando ? "Pausando..." : "Sí, pausar"}</button>
+                    <button type="button" onClick={() => { setMostrarConfirmarPausar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">{t("common.cancelarBtn")}</button>
+                    <button type="button" onClick={togglePausarProfe} disabled={procesando} className="flex-1 rounded-xl bg-yellow-600 py-3 text-sm font-semibold hover:bg-yellow-700 disabled:opacity-50">{procesando ? t("common.pausando") : t("common.siPausar")}</button>
                   </div>
                 </>
               )}
@@ -447,13 +449,13 @@ export default function SoporteProfesoresPage() {
         {mostrarConfirmarEliminar && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-              <h3 className="text-xl font-bold text-red-400 mb-3">🗑️ Eliminar profesor</h3>
-              <p className="text-zinc-300 text-sm mb-4">Se eliminará permanentemente a <strong>{profeSeleccionado?.nombre}</strong> y sus alumnos serán transferidos a su admin.</p>
-              <p className="text-red-400 text-sm font-semibold mb-5">Esta acción no se puede deshacer.</p>
+              <h3 className="text-xl font-bold text-red-400 mb-3">🗑️ {t("common.eliminarUsuario")}</h3>
+              <p className="text-zinc-300 text-sm mb-4">{t("soporte.profesoresPage.confirmarEliminar", { nombre: profeSeleccionado?.nombre ?? "" })}</p>
+              <p className="text-red-400 text-sm font-semibold mb-5">{t("soporte.profesoresPage.borrarNoDeshacer")}</p>
               {errorAccion && <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>}
               <div className="flex gap-3">
-                <button type="button" onClick={() => { setMostrarConfirmarEliminar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">Cancelar</button>
-                <button type="button" onClick={eliminarProfe} disabled={procesando} className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50">{procesando ? "Eliminando..." : "Sí, eliminar"}</button>
+                <button type="button" onClick={() => { setMostrarConfirmarEliminar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">{t("common.cancelarBtn")}</button>
+                <button type="button" onClick={eliminarProfe} disabled={procesando} className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50">{procesando ? t("common.eliminando") : t("common.siEliminar")}</button>
               </div>
             </div>
           </div>
@@ -464,37 +466,37 @@ export default function SoporteProfesoresPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-xl font-bold">🔧 Modificar permisos</h3>
+                <h3 className="text-xl font-bold">{t("soporte.profesoresPage.permisosTitulo")}</h3>
                 <button type="button" onClick={() => setMostrarModificarPermisos(false)} className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800">✕</button>
               </div>
-              <p className="text-zinc-400 text-sm mb-4">Modificando permisos de <strong>{profeSeleccionado?.nombre}</strong></p>
+              <p className="text-zinc-400 text-sm mb-4">{t("soporte.profesoresPage.permisosDesc", { nombre: profeSeleccionado?.nombre ?? "" })}</p>
               {errorAccion && <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>}
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Rol</label>
+                  <label className="block text-sm text-zinc-400 mb-1">{t("soporte.profesoresPage.rolLabel")}</label>
                   <select value={nuevoRol} onChange={(e) => setNuevoRol(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700 text-white">
-                    <option value="admin">Soporte</option>
-                    <option value="profe">Profesor</option>
-                    <option value="alumno">Alumno</option>
+                    <option value="admin">{t("soporte.administrador")}</option>
+                    <option value="profe">{t("soporte.profesor")}</option>
+                    <option value="alumno">{t("alumno.alumnoLabel")}</option>
                   </select>
                 </div>
                 <div>
                   <label className="flex items-center gap-3 text-sm text-zinc-300 cursor-pointer">
                     <input type="checkbox" checked={nuevoEsAdmin} onChange={(e) => setNuevoEsAdmin(e.target.checked)} className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 accent-emerald-500" />
-                    Es administrador
+                    {t("soporte.profesoresPage.esAdminLabel")}
                   </label>
                 </div>
                 {nuevoEsAdmin && (
                   <div>
                     <label className="flex items-center gap-3 text-sm text-zinc-300 cursor-pointer">
                       <input type="checkbox" checked={nuevoPuedeCrearProfesores} onChange={(e) => setNuevoPuedeCrearProfesores(e.target.checked)} className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 accent-emerald-500" />
-                      Puede crear profesores
+                      {t("soporte.profesoresPage.puedeCrearProfesoresLabel")}
                     </label>
                   </div>
                 )}
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setMostrarModificarPermisos(false)} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800">Cancelar</button>
-                  <button type="button" onClick={guardarPermisos} disabled={procesando} className="flex-1 rounded-xl bg-purple-600 py-3 text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">{procesando ? "Guardando..." : "Guardar cambios"}</button>
+                  <button type="button" onClick={() => setMostrarModificarPermisos(false)} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800">{t("common.cancelarBtn")}</button>
+                  <button type="button" onClick={guardarPermisos} disabled={procesando} className="flex-1 rounded-xl bg-purple-600 py-3 text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">{procesando ? t("common.guardando") : t("common.guardarCambios")}</button>
                 </div>
               </div>
             </div>
@@ -506,21 +508,21 @@ export default function SoporteProfesoresPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
               <div className="flex items-start justify-between gap-4 mb-5">
-                <h2 className="text-2xl font-bold">➕ Nuevo profesor</h2>
+                <h2 className="text-2xl font-bold">{t("soporte.profesoresPage.modalCrearTitulo")}</h2>
                 <button type="button" onClick={() => setMostrarCrearModal(false)} className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800">✕</button>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Nombre completo</label>
-                  <input value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder="Nombre completo" />
+                  <label className="block text-sm text-zinc-400 mb-1">{t("soporte.profesoresPage.nombreLabel")}</label>
+                  <input value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder={t("soporte.profesoresPage.nombreLabel")} />
                 </div>
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Email</label>
+                  <label className="block text-sm text-zinc-400 mb-1">{t("soporte.profesoresPage.emailLabel")}</label>
                   <input type="email" value={nuevoEmail} onChange={(e) => setNuevoEmail(e.target.value)} className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700" placeholder="email@ejemplo.com" />
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setMostrarCrearModal(false)} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800">Cancelar</button>
-                  <button type="button" onClick={crearProfesor} disabled={guardando} className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600 disabled:opacity-50">{guardando ? "Creando..." : "Crear profesor"}</button>
+                  <button type="button" onClick={() => setMostrarCrearModal(false)} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800">{t("common.cancelarBtn")}</button>
+                  <button type="button" onClick={crearProfesor} disabled={guardando} className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600 disabled:opacity-50">{guardando ? t("common.creando") : t("soporte.profesoresPage.crearBtn")}</button>
                 </div>
               </div>
             </div>

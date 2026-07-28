@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 
 export default function LoginPage() {
   const router = useRouter();
   const { mostrarToast } = useToast();
+  const { t } = useIdioma();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -32,7 +34,7 @@ export default function LoginPage() {
 
   async function recuperarPassword() {
     if (!email) {
-      mostrarToast("Primero escribí tu correo electrónico.", "error");
+      mostrarToast(t("login.emailRequerido"), "error");
       return;
     }
 
@@ -43,20 +45,20 @@ export default function LoginPage() {
       return;
     }
 
-    mostrarToast("Te enviamos un correo para recuperar tu contraseña. Revisá tu bandeja de entrada.", "exito");
+    mostrarToast(t("login.emailEnviado"), "exito");
   }
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-zinc-950 text-white">
       <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <h1 className="text-2xl font-bold mb-2">Ingresar</h1>
+        <h1 className="text-2xl font-bold mb-2">{t("login.titulo")}</h1>
         <p className="text-sm text-zinc-400 mb-6">
-          Accedé a tus rutinas.
+          {t("login.subtitulo")}
         </p>
 
         <input
           className="w-full mb-3 rounded bg-zinc-800 p-3 outline-none"
-          placeholder="Correo electrónico"
+          placeholder={t("login.email")}
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -64,7 +66,7 @@ export default function LoginPage() {
 
         <input
           className="w-full mb-3 rounded bg-zinc-800 p-3 outline-none"
-          placeholder="Contraseña"
+          placeholder={t("login.password")}
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -75,14 +77,14 @@ export default function LoginPage() {
           disabled={cargando}
           className="w-full rounded bg-white text-black p-3 font-semibold mb-4 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {cargando ? "Ingresando..." : "Ingresar"}
+          {cargando ? t("login.ingresando") : t("login.ingresar")}
         </button>
 
         <button
           onClick={recuperarPassword}
           className="w-full text-sm text-zinc-400 underline"
         >
-          Olvidé mi contraseña
+          {t("login.olvidePassword")}
         </button>
       </div>
     </main>

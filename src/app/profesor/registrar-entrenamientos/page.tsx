@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
 import BackButton from "@/components/BackButton";
 import RutinaEntrenamientoView from "@/components/rutinas/RutinaEntrenamientoView";
+import { useIdioma } from "@/lib/i18n-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,8 +77,8 @@ const CACHE_KEY = "registrar-entrenamientos-cache-v3";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function nombreAlumno(alumno: Alumno): string {
-  return `${alumno.nombre ?? ""} ${alumno.apellido ?? ""}`.trim() || "Alumno sin nombre";
+function nombreAlumno(alumno: Alumno, t?: (key: string) => string): string {
+  return `${alumno.nombre ?? ""} ${alumno.apellido ?? ""}`.trim() || (t ? t("registrarEntrenamiento.sinNombre") : "Alumno sin nombre");
 }
 
 
@@ -286,6 +287,7 @@ export default function RegistrarEntrenamientosPage() {
   const [rutinasModalCache, setRutinasModalCache] = useState<RutinaModalSeleccionada[]>([]);
   const [modalCompacto, setModalCompacto] = useState(true);
   const [panelRefreshKey, setPanelRefreshKey] = useState(0);
+  const { t } = useIdioma();
   const [alumnosConRutina, setAlumnosConRutina] = useState<Set<string>>(new Set());
   const [alumnosRecientes, setAlumnosRecientes] = useState<Alumno[]>([]);
   const [alumnosTopRM, setAlumnosTopRM] = useState<Alumno[]>([]);

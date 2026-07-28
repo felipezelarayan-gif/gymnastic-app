@@ -37,12 +37,15 @@ export type EstadoAlumnoCardData = {
   descripcion: string;
   detalles?: DetalleEstadoAlumno[];
   variante: "neutral" | "verde";
+  href?: string;
 };
 
 export function obtenerEstadoAlumno({
   pendientes,
   tieneHistorial,
-}: DatosEstadoAlumno): EstadoAlumnoCardData {
+  t,
+}: DatosEstadoAlumno & { t?: (key: string, params?: Record<string, string | number>) => string }): EstadoAlumnoCardData {
+  const tr = (key: string, params?: Record<string, string | number>) => t ? t(key, params) : key;
   function obtenerMasProxima<T extends { fecha?: string | null }>(items: T[]) {
     return [...items].sort((a, b) => {
       const fechaA = a.fecha ? new Date(a.fecha).getTime() : Number.POSITIVE_INFINITY;
@@ -102,8 +105,8 @@ export function obtenerEstadoAlumno({
 
   if (tieneRutinasPendientes && tieneEvaluacionesPendientes) {
     const descripcion = evaluacionesSoloProfesor.length > 0
-      ? "Tenés actividades pendientes. Algunas evaluaciones las completa tu profesor."
-      : "Tenés actividades pendientes.";
+      ? tr("alumno.estadoActividadesPendientesProfesor")
+      : tr("alumno.estadoActividadesPendientes");
 
     // Mostrar solo la más cercana entre todas las pendientes
     const masCercana = obtenerMasProxima([
@@ -124,10 +127,11 @@ export function obtenerEstadoAlumno({
     return {
       estado: "rutina-evaluacion",
       icono: "💪",
-      titulo: "Tenés actividades pendientes",
+      titulo: tr("alumno.estadoActividadesPendientes"),
       descripcion,
       detalles: detalle,
       variante: "verde",
+      href: "/alumno/rutina",
     };
   }
 
@@ -135,27 +139,29 @@ export function obtenerEstadoAlumno({
     return {
       estado: "rutina",
       icono: "💪",
-      titulo: "Tenés una rutina pendiente",
-      descripcion: "Tu profesor ya dejó una rutina lista para completar.",
+      titulo: tr("alumno.estadoRutinaPendiente"),
+      descripcion: tr("alumno.estadoRutinaPendienteDesc"),
       detalles: detallesRutinas.length > 0 ? detallesRutinas : undefined,
       variante: "verde",
+      href: "/alumno/rutina",
     };
   }
 
   if (tieneEvaluacionesPendientes) {
     const descripcion = evaluacionesAlumno.length === 0
-      ? "Hay evaluaciones asignadas que completará tu profesor."
+      ? tr("alumno.estadoEvaluacionesProfesor")
       : evaluacionesSoloProfesor.length > 0
-        ? "Hay evaluaciones asignadas. Algunas las completás vos y otras las completa tu profesor."
-        : "Hay una evaluación esperando ser completada desde tu cuenta.";
+        ? tr("alumno.estadoEvaluacionesMixtas")
+        : tr("alumno.estadoEvaluacionAlumno");
 
     return {
       estado: "evaluacion",
       icono: "📋",
-      titulo: "Tenés evaluaciones pendientes",
+      titulo: tr("alumno.estadoEvaluacionesPendientes"),
       descripcion,
       detalles: detallesEvaluaciones.length > 0 ? detallesEvaluaciones : undefined,
       variante: "verde",
+      href: "/alumno/rutina",
     };
   }
 
@@ -163,9 +169,8 @@ export function obtenerEstadoAlumno({
     return {
       estado: "bienvenido",
       icono: "👋",
-      titulo: "Bienvenido",
-      descripcion:
-        "Todavía no tenés rutinas ni evaluaciones asignadas. Cuando tu profesor cargue una actividad, la vas a ver acá.",
+      titulo: tr("alumno.estadoBienvenido"),
+      descripcion: tr("alumno.estadoBienvenidoDesc"),
       variante: "neutral",
     };
   }
@@ -173,9 +178,8 @@ export function obtenerEstadoAlumno({
   return {
     estado: "sin-pendientes",
     icono: "✅",
-    titulo: "Todo al día",
-    descripcion:
-      "No tenés rutinas ni evaluaciones pendientes por el momento.",
+    titulo: tr("alumno.estadoAlDia"),
+    descripcion: tr("alumno.estadoAlDiaDesc"),
     variante: "verde",
   };
 }

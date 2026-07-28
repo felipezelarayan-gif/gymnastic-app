@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { FMS_INFO } from "@/lib/fms/fms-info";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Props = {
   abierto: boolean;
@@ -25,6 +26,7 @@ export default function FMSInfoModal({
   testNombre,
   tipo,
 }: Props) {
+  const { t } = useIdioma();
   const [tabActiva, setTabActiva] = useState<TabActiva>("descripcion");
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export default function FMSInfoModal({
             <h2 className="text-xl font-bold text-white">
               {info?.titulo ?? testNombre}
             </h2>
-            <p className="text-sm text-zinc-400">Información del test</p>
+            <p className="text-sm text-zinc-400">{t("fms.infoTest")}</p>
           </div>
 
           <button
@@ -58,7 +60,7 @@ export default function FMSInfoModal({
         <div className="p-4 sm:p-6">
           {!info ? (
             <p className="text-zinc-400 text-sm">
-              No hay información disponible para este test.
+              {t("fms.sinInfo")}
             </p>
           ) : (
             <>
@@ -82,9 +84,9 @@ export default function FMSInfoModal({
               <div className="min-h-[240px]">
                 {tabActiva === "descripcion" && (
                   <section>
-                    <h3 className="font-semibold text-white mb-2">Descripción</h3>
+                    <h3 className="font-semibold text-white mb-2">{t("fms.descripcion")}</h3>
                     <p className="text-zinc-300 text-sm leading-6">
-                      {info.descripcion || "Descripción pendiente."}
+                      {info.descripcion || t("fms.descripcionPendiente")}
                     </p>
                   </section>
                 )}
@@ -92,16 +94,14 @@ export default function FMSInfoModal({
                 {tabActiva === "instrucciones" && (
                   <section>
                     <h3 className="font-semibold text-white mb-2">
-                      {tipo === "profesor"
-                        ? "Instrucciones para el profesor"
-                        : "Instrucciones"}
+                      {tipo === "profesor" ? t("fms.instruccionesProfesor") : t("fms.instrucciones")}
                     </h3>
 
                     {(tipo === "profesor"
                       ? info.instruccionesProfesor
                       : info.instruccionesAlumno
                     ).length === 0 ? (
-                      <p className="text-zinc-500 text-sm">Instrucciones pendientes.</p>
+                      <p className="text-zinc-500 text-sm">{t("fms.instruccionesPendientes")}</p>
                     ) : (
                       <ul className="space-y-2 text-sm text-zinc-300">
                         {(tipo === "profesor"
@@ -122,38 +122,23 @@ export default function FMSInfoModal({
 
                 {tabActiva === "criterios" && (
                   <section>
-                    <h3 className="font-semibold text-white mb-3">Criterios de evaluación</h3>
+                    <h3 className="font-semibold text-white mb-3">{t("fms.criterios")}</h3>
                     <div className="space-y-2 text-sm">
                       {([3, 2, 1, 0] as const).map((puntaje) => {
                         const estilos = {
-                          3: {
-                            card: "border-green-700 bg-green-900/20",
-                            titulo: "text-green-300",
-                          },
-                          2: {
-                            card: "border-yellow-700 bg-yellow-900/20",
-                            titulo: "text-yellow-300",
-                          },
-                          1: {
-                            card: "border-orange-700 bg-orange-900/20",
-                            titulo: "text-orange-300",
-                          },
-                          0: {
-                            card: "border-red-700 bg-red-900/20",
-                            titulo: "text-red-300",
-                          },
+                          3: { card: "border-green-700 bg-green-900/20", titulo: "text-green-300" },
+                          2: { card: "border-yellow-700 bg-yellow-900/20", titulo: "text-yellow-300" },
+                          1: { card: "border-orange-700 bg-orange-900/20", titulo: "text-orange-300" },
+                          0: { card: "border-red-700 bg-red-900/20", titulo: "text-red-300" },
                         }[puntaje];
 
                         return (
-                          <div
-                            key={puntaje}
-                            className={`rounded-lg border px-3 py-2 ${estilos.card}`}
-                          >
+                          <div key={puntaje} className={`rounded-lg border px-3 py-2 ${estilos.card}`}>
                             <p className={`font-semibold ${estilos.titulo}`}>
-                              {puntaje} puntos
+                              {puntaje} {t("fms.puntos")}
                             </p>
                             <p className="text-zinc-300 mt-1">
-                              {info.criterios[puntaje] || "Criterio pendiente."}
+                              {info.criterios[puntaje] || t("fms.criterioPendiente")}
                             </p>
                           </div>
                         );

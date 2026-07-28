@@ -7,6 +7,7 @@ import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
 import BackButton from "@/components/BackButton";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Alumno = { id: string; nombre: string; apellido?: string | null };
 type Rutina = { id: string; nombre?: string | null };
@@ -99,19 +100,7 @@ function obtenerFechaOrden(fecha?: string | null) {
   return Number.isNaN(valor) ? 0 : valor;
 }
 
-function etiquetaItem(item: HistorialItem) {
-  if (item.tipo === "entrenamiento") return "Rutina";
-  if (item.tipo === "evaluacion_rm") return "Evaluación RM";
-  return "Evaluación FMS";
-}
-
-function iconoItem(item: HistorialItem) {
-  if (item.tipo === "entrenamiento") return "🏋️";
-  if (item.tipo === "evaluacion_rm") return "📊";
-  return "🤸";
-}
-
-function agruparRegistrosPorEjercicio(registros: Registro[]) {
+function agruparRegistrosPorEjercicio(registros: Registro[], ejercicioSinNombre: string = "Ejercicio") {
   const grupos = new Map<string, { id: string; nombre: string; registros: Registro[] }>();
 
   registros.forEach((registro, index) => {
@@ -121,7 +110,7 @@ function agruparRegistrosPorEjercicio(registros: Registro[]) {
       registro.ejercicio_id ||
       `${registro.nombre_ejercicio || "ejercicio"}-${index}`;
 
-    const nombre = registro.nombre_ejercicio || "Ejercicio";
+    const nombre = registro.nombre_ejercicio || ejercicioSinNombre;
     const grupoExistente = grupos.get(clave);
 
     if (grupoExistente) {
@@ -147,6 +136,7 @@ function agruparRegistrosPorEjercicio(registros: Registro[]) {
 }
 
 export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ id: string }> }) {
+  const { t } = useIdioma();
   const { id } = use(params);
   const [loading, setLoading] = useState(true);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
@@ -308,10 +298,10 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
           id: asignacion.id,
           asignacionId: asignacion.id,
           rutinaId: asignacion.rutina_id,
-          nombre: rutina?.nombre || "Rutina sin nombre",
+          nombre: rutina?.nombre || t("alumnos.rutinaSinNombre"),
           fecha: asignacion.fecha_completada || fechaRegistro,
-          estado: "Completada",
-          ejercicios: agruparRegistrosPorEjercicio(registrosAsignacion).length,
+          estado: t("alumnos.completada"),
+          ejercicios: agruparRegistrosPorEjercicio(registrosAsignacion, t("alumnos.ejercicioSinNombre")).length,
           rpePromedio,
           registros: registrosAsignacion,
         };
@@ -326,7 +316,7 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
       return {
         tipo: "evaluacion_rm",
         id: evaluacion.id,
-        nombre: plantilla?.nombre || "Evaluación RM",
+        nombre: plantilla?.nombre || t("alumnos.etiquetaEvaluacionRM"),
         fecha: evaluacion.created_at,
         estado: evaluacion.estado,
         resultados,
@@ -341,7 +331,7 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
       return {
         tipo: "evaluacion_fms",
         id: evaluacion.id,
-        nombre: "Evaluación FMS",
+        nombre: t("alumnos.etiquetaEvaluacionFMS"),
         fecha: evaluacion.fecha_realizacion || evaluacion.created_at,
         estado: evaluacion.estado,
         resultados: resultados || evaluacion.puntaje_total || 0,
@@ -349,10 +339,22 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
     });
 
     return [...entrenamientos, ...rm, ...fms].sort((a, b) => obtenerFechaOrden(b.fecha) - obtenerFechaOrden(a.fecha));
-  }, [registros, asignaciones, evaluacionesRM, evaluacionesRMResultados, evaluacionesFMS, evaluacionesFMSTests]);
+  }, [registros, asignaciones, evaluacionesRM, evaluacionesRMResultados, evaluacionesFMS, evaluacionesFMSTests, t]);
 
   const rutinasCompletadas = historial.filter((item) => item.tipo === "entrenamiento").length;
   const evaluacionesCompletadas = historial.filter((item) => item.tipo !== "entrenamiento").length;
+
+  function etiquetaItem(item: HistorialItem) {
+    if (item.tipo === "entrenamiento") return t("alumnos.etiquetaRutina");
+    if (item.tipo === "evaluacion_rm") return t("alumnos.etiquetaEvaluacionRM");
+    return t("alumnos.etiquetaEvaluacionFMS");
+  }
+
+  function iconoItem(item: HistorialItem) {
+    if (item.tipo === "entrenamiento") return "🏋️";
+    if (item.tipo === "evaluacion_rm") return "📊";
+    return "🤸";
+  }
 
   if (loading) {
     return (
@@ -372,7 +374,7 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
         <div className="max-w-3xl mx-auto space-y-5">
           <BackButton fallback={`/alumnos/${id}`} />
           <section className="rounded-3xl border border-red-900/50 bg-red-950/20 p-6">
-            <p className="font-semibold text-red-300">No pudimos cargar el historial</p>
+            <p className="font-semibold text-red-300">{t("alumnos.historialError")}</p>
             <p className="text-sm text-zinc-400 mt-2">{error}</p>
           </section>
         </div>
@@ -386,26 +388,26 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
         <BackButton fallback={`/alumnos/${id}`} />
 
         <header>
-          <p className="text-sm text-zinc-500">Profesor</p>
-          <h1 className="text-3xl font-bold">Historial de {alumno?.nombre} {alumno?.apellido || ""}</h1>
-          <p className="text-zinc-400 mt-2">Rutinas y evaluaciones realizadas por el alumno.</p>
+          <p className="text-sm text-zinc-500">{t("alumnos.profesorLabel")}</p>
+          <h1 className="text-3xl font-bold">{t("alumnos.historialTitulo", { nombre: `${alumno?.nombre || ""} ${alumno?.apellido || ""}`.trim() })}</h1>
+          <p className="text-zinc-400 mt-2">{t("alumnos.historialDesc")}</p>
         </header>
 
         <section className="grid grid-cols-2 gap-3">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
-            <p className="text-sm text-zinc-400">Rutinas completadas</p>
+            <p className="text-sm text-zinc-400">{t("alumnos.historialRutinasCompletadas")}</p>
             <p className="text-3xl font-bold mt-1">{rutinasCompletadas}</p>
           </div>
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
-            <p className="text-sm text-zinc-400">Evaluaciones</p>
+            <p className="text-sm text-zinc-400">{t("alumnos.historialEvaluaciones")}</p>
             <p className="text-3xl font-bold mt-1">{evaluacionesCompletadas}</p>
           </div>
         </section>
 
         {historial.length === 0 ? (
           <section className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-6">
-            <h2 className="text-xl font-bold">Sin historial</h2>
-            <p className="text-zinc-400 mt-2">Todavía no hay rutinas ni evaluaciones completadas.</p>
+            <h2 className="text-xl font-bold">{t("alumnos.historialVacio")}</h2>
+            <p className="text-zinc-400 mt-2">{t("alumnos.historialVacioDesc")}</p>
           </section>
         ) : (
           <section className="space-y-3">
@@ -444,7 +446,7 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
                     }}
                     className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
                   >
-                    Ver
+                    {t("alumnos.ver")}
                   </button>
                 </div>
               </article>
@@ -479,7 +481,7 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
                 onClick={() => setItemSeleccionado(null)}
                 className="rounded-full border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:border-zinc-500 hover:text-white"
               >
-                Cerrar
+                {t("alumnos.modalCerrar")}
               </button>
             </div>
 
@@ -487,27 +489,27 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
               {itemSeleccionado.tipo === "entrenamiento" ? (
                 itemSeleccionado.registros.length === 0 ? (
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
-                    <p className="font-semibold text-zinc-200">Sin ejercicios registrados</p>
-                    <p className="text-sm text-zinc-400 mt-1">No encontramos registros guardados para este entrenamiento.</p>
+                    <p className="font-semibold text-zinc-200">{t("alumnos.modalSinEjercicios")}</p>
+                    <p className="text-sm text-zinc-400 mt-1">{t("alumnos.modalSinEjerciciosDesc")}</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {agruparRegistrosPorEjercicio(itemSeleccionado.registros).map((grupo) => (
+                    {agruparRegistrosPorEjercicio(itemSeleccionado.registros, t("alumnos.ejercicioSinNombre")).map((grupo) => (
                       <article key={grupo.id} className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <h3 className="text-lg font-semibold text-white">{grupo.nombre}</h3>
                           <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-400">
-                            {grupo.registros.length} {grupo.registros.length === 1 ? "serie" : "series"}
+                            {grupo.registros.length} {grupo.registros.length === 1 ? t("alumnos.serieSingular") : t("alumnos.seriesPlural")}
                           </span>
                         </div>
 
                         <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800">
                           <div className="grid grid-cols-5 bg-zinc-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                            <span>Serie</span>
-                            <span>Reps</span>
-                            <span>Peso</span>
-                            <span>RPE</span>
-                            <span>RIR</span>
+                            <span>{t("alumnos.tablaSerie")}</span>
+                            <span>{t("alumnos.tablaReps")}</span>
+                            <span>{t("alumnos.tablaPeso")}</span>
+                            <span>{t("alumnos.tablaRPE")}</span>
+                            <span>{t("alumnos.tablaRIR")}</span>
                           </div>
 
                           <div className="divide-y divide-zinc-800">
@@ -528,11 +530,11 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
                 )
               ) : (
                 <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
-                  <p className="font-semibold text-zinc-200">Resumen</p>
+                  <p className="font-semibold text-zinc-200">{t("alumnos.modalResumen")}</p>
                   <p className="text-sm text-zinc-400 mt-1">
-                    {itemSeleccionado.tipo === "evaluacion_rm" ? "Resultados cargados" : "Tests cargados"}: {itemSeleccionado.resultados}
+                    {itemSeleccionado.tipo === "evaluacion_rm" ? t("alumnos.modalResultadosCargados") : t("alumnos.modalTestsCargados")}: {itemSeleccionado.resultados}
                   </p>
-                  <p className="text-sm text-zinc-400 mt-1">Estado: {itemSeleccionado.estado || "Sin estado"}</p>
+                  <p className="text-sm text-zinc-400 mt-1">{t("alumnos.modalEstado")} {itemSeleccionado.estado || t("alumnos.modalSinEstado")}</p>
                 </div>
               )}
             </div>
@@ -544,7 +546,7 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
                 title="Disponible en una actualización futura"
                 className="rounded-2xl border border-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-500 opacity-60"
               >
-                Modificar
+                {t("alumnos.modalModificar")}
               </button>
               <button
                 type="button"
@@ -552,7 +554,7 @@ export default function AlumnoHistorialProfesor({ params }: { params: Promise<{ 
                 title="Disponible en una actualización futura"
                 className="rounded-2xl border border-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-500 opacity-60"
               >
-                Deshacer
+                {t("alumnos.modalDeshacer")}
               </button>
             </div>
           </section>

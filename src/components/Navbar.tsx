@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getRolCached, invalidarRolCache } from "@/lib/rol-cache";
 import { useUnsavedChanges } from "@/lib/unsaved-changes-context";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Rol = "profe" | "alumno" | "admin" | null;
 
@@ -47,6 +48,7 @@ export default function Navbar() {
   const [rol, setRol] = useState<Rol>(null);
   const [esAdmin, setEsAdmin] = useState(false);
   const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
+  const { t } = useIdioma();
 
   function isActive(href: string): boolean {
     return pathname === href || pathname.startsWith(href + "/");
@@ -153,67 +155,67 @@ export default function Navbar() {
           {isAlumno ? (
             <>
               <Link href="/alumno" className={getDesktopLinkClass("/alumno", true)} onClick={(e) => { handleNavClick(e, "/alumno"); if (isExactActive("/alumno")) e.preventDefault(); }}>
-                🏠 <span>Inicio</span>
+                🏠 <span>{t("navbar.inicio")}</span>
               </Link>
 
               <Link href="/alumno/rutina" className={getDesktopLinkClass("/alumno/rutina")} onClick={(e) => { handleNavClick(e, "/alumno/rutina"); if (isActive("/alumno/rutina")) e.preventDefault(); }}>
-                📋 <span>Mi rutina</span>
+                📋 <span>{t("navbar.miRutina")}</span>
               </Link>
 
               <Link href="/alumno/progreso" className={getDesktopLinkClass("/alumno/progreso")} onClick={(e) => { handleNavClick(e, "/alumno/progreso"); if (isActive("/alumno/progreso")) e.preventDefault(); }}>
-                📈 <span>Progreso</span>
+                📈 <span>{t("navbar.progreso")}</span>
               </Link>
 
               <Link href="/alumno/perfil" className={getDesktopLinkClass("/alumno/perfil")} onClick={(e) => { handleNavClick(e, "/alumno/perfil"); if (isActive("/alumno/perfil")) e.preventDefault(); }}>
-                👤 <span>Mi perfil</span>
+                👤 <span>{t("navbar.perfil")}</span>
               </Link>
 
               <Link href="/alumno/configuracion" className={getDesktopLinkClass("/alumno/configuracion")} onClick={(e) => { handleNavClick(e, "/alumno/configuracion"); if (isActive("/alumno/configuracion")) e.preventDefault(); }}>
-                ⚙️ <span>Configuración</span>
+                ⚙️ <span>{t("navbar.configuracion")}</span>
               </Link>
             </>
           ) : isSoporte ? (
             <>
               <Link href="/soporte" className={getDesktopLinkClass("/soporte", true)} onClick={(e) => { handleNavClick(e, "/soporte"); if (isExactActive("/soporte")) e.preventDefault(); }}>
-                🏠 <span>Home</span>
+                🏠 <span>{t("navbar.soporteHome")}</span>
               </Link>
 
               <Link href="/soporte/profesores" className={getDesktopLinkClass("/soporte/profesores")} onClick={(e) => { handleNavClick(e, "/soporte/profesores"); if (isActive("/soporte/profesores")) e.preventDefault(); }}>
-                👨‍🏫 <span>Profesores</span>
+                👨‍🏫 <span>{t("navbar.profesores")}</span>
               </Link>
 
               <Link href="/soporte/alumnos" className={getDesktopLinkClass("/soporte/alumnos")} onClick={(e) => { handleNavClick(e, "/soporte/alumnos"); if (isActive("/soporte/alumnos")) e.preventDefault(); }}>
-                👥 <span>Alumnos</span>
+                👥 <span>{t("navbar.alumnos")}</span>
               </Link>
 
               <Link href="/soporte/administradores" className={getDesktopLinkClass("/soporte/administradores")} onClick={(e) => { handleNavClick(e, "/soporte/administradores"); if (isActive("/soporte/administradores")) e.preventDefault(); }}>
-                🔐 <span>Admins</span>
+                🔐 <span>{t("navbar.admins")}</span>
               </Link>
 
               <Link href="/configuracion" className={getDesktopLinkClass("/configuracion")} onClick={(e) => { handleNavClick(e, "/configuracion"); if (isActive("/configuracion")) e.preventDefault(); }}>
-                ⚙️ <span>Configuración</span>
+                ⚙️ <span>{t("navbar.configuracion")}</span>
               </Link>
             </>
           ) : (
             <>
               <Link href="/" className={getDesktopLinkClass("/")} onClick={(e) => { handleNavClick(e, "/"); if (isActive("/")) e.preventDefault(); }}>
-                🏠 <span>Home</span>
+                🏠 <span>{t("navbar.home")}</span>
               </Link>
 
               <Link href="/alumnos" className={getDesktopLinkClass("/alumnos")} onClick={(e) => { handleNavClick(e, "/alumnos"); if (isActive("/alumnos")) e.preventDefault(); }}>
-                👥 <span>Alumnos</span>
+                👥 <span>{t("navbar.alumnos")}</span>
               </Link>
 
               <Link href="/rutinas" className={getDesktopLinkClass("/rutinas")} onClick={(e) => { handleNavClick(e, "/rutinas"); if (isActive("/rutinas")) e.preventDefault(); }}>
-                📋 <span>Rutinas</span>
+                📋 <span>{t("navbar.rutinas")}</span>
               </Link>
 
               <Link href="/ejercicios" className={getDesktopLinkClass("/ejercicios")} onClick={(e) => { handleNavClick(e, "/ejercicios"); if (isActive("/ejercicios")) e.preventDefault(); }}>
-                💪 <span>Ejercicios</span>
+                💪 <span>{t("navbar.ejercicios")}</span>
               </Link>
 
               <Link href="/configuracion" className={getDesktopLinkClass("/configuracion")} onClick={(e) => { handleNavClick(e, "/configuracion"); if (isActive("/configuracion")) e.preventDefault(); }}>
-                ⚙️ <span>Configuración</span>
+                ⚙️ <span>{t("navbar.configuracion")}</span>
               </Link>
             </>
           )}
@@ -223,7 +225,7 @@ export default function Navbar() {
             onClick={cerrarSesion}
             className="ml-auto px-4 py-2 rounded-xl border border-red-800 bg-zinc-900 text-red-400 hover:bg-red-950 transition"
           >
-            Cerrar sesión
+            {t("navbar.cerrarSesion")}
           </button>
         </div>
       </nav>
@@ -233,27 +235,27 @@ export default function Navbar() {
         <div className="grid grid-cols-5 h-16 px-2">
           {isAlumno ? (
             <>
-              <MobileTab href="/alumno" exact icon="🏠" label="Inicio" isActive={isCurrentPage("/alumno", true)} onNavClick={handleNavClick} />
-              <MobileTab href="/alumno/rutina" icon="📋" label="Mi rutina" isActive={isCurrentPage("/alumno/rutina")} onNavClick={handleNavClick} />
-              <MobileTab href="/alumno/progreso" icon="📈" label="Progreso" isActive={isCurrentPage("/alumno/progreso")} onNavClick={handleNavClick} />
-              <MobileTab href="/alumno/perfil" icon="👤" label="Perfil" isActive={isCurrentPage("/alumno/perfil")} onNavClick={handleNavClick} />
-              <MobileTab href="/alumno/configuracion" icon="⚙️" label="Config" isActive={isCurrentPage("/alumno/configuracion")} onNavClick={handleNavClick} />
+              <MobileTab href="/alumno" exact icon="🏠" label={t("navbar.inicio")} isActive={isCurrentPage("/alumno", true)} onNavClick={handleNavClick} />
+              <MobileTab href="/alumno/rutina" icon="📋" label={t("navbar.miRutina")} isActive={isCurrentPage("/alumno/rutina")} onNavClick={handleNavClick} />
+              <MobileTab href="/alumno/progreso" icon="📈" label={t("navbar.progreso")} isActive={isCurrentPage("/alumno/progreso")} onNavClick={handleNavClick} />
+              <MobileTab href="/alumno/perfil" icon="👤" label={t("navbar.perfil")} isActive={isCurrentPage("/alumno/perfil")} onNavClick={handleNavClick} />
+              <MobileTab href="/alumno/configuracion" icon="⚙️" label={t("navbar.config")} isActive={isCurrentPage("/alumno/configuracion")} onNavClick={handleNavClick} />
             </>
           ) : isSoporte ? (
             <>
-              <MobileTab href="/soporte" exact icon="🏠" label="Home" isActive={isCurrentPage("/soporte", true)} onNavClick={handleNavClick} />
-              <MobileTab href="/soporte/profesores" icon="👨‍🏫" label="Profe" isActive={isCurrentPage("/soporte/profesores")} onNavClick={handleNavClick} />
-              <MobileTab href="/soporte/alumnos" icon="👥" label="Alumnos" isActive={isCurrentPage("/soporte/alumnos")} onNavClick={handleNavClick} />
-              <MobileTab href="/soporte/administradores" icon="🔐" label="Admins" isActive={isCurrentPage("/soporte/administradores")} onNavClick={handleNavClick} />
-              <MobileTab href="/configuracion" icon="⚙️" label="Config" isActive={isCurrentPage("/configuracion")} onNavClick={handleNavClick} />
+              <MobileTab href="/soporte" exact icon="🏠" label={t("navbar.soporteHome")} isActive={isCurrentPage("/soporte", true)} onNavClick={handleNavClick} />
+              <MobileTab href="/soporte/profesores" icon="👨‍🏫" label={t("navbar.profesores")} isActive={isCurrentPage("/soporte/profesores")} onNavClick={handleNavClick} />
+              <MobileTab href="/soporte/alumnos" icon="👥" label={t("navbar.alumnos")} isActive={isCurrentPage("/soporte/alumnos")} onNavClick={handleNavClick} />
+              <MobileTab href="/soporte/administradores" icon="🔐" label={t("navbar.admins")} isActive={isCurrentPage("/soporte/administradores")} onNavClick={handleNavClick} />
+              <MobileTab href="/configuracion" icon="⚙️" label={t("navbar.config")} isActive={isCurrentPage("/configuracion")} onNavClick={handleNavClick} />
             </>
           ) : (
             <>
-              <MobileTab href="/" exact icon="🏠" label="Inicio" isActive={isCurrentPage("/", true)} onNavClick={handleNavClick} />
-              <MobileTab href="/alumnos" icon="👥" label="Alumnos" isActive={isCurrentPage("/alumnos")} onNavClick={handleNavClick} />
-              <MobileTab href="/rutinas" icon="📋" label="Rutinas" isActive={isCurrentPage("/rutinas")} onNavClick={handleNavClick} />
-              <MobileTab href="/ejercicios" icon="💪" label="Ejercicios" isActive={isCurrentPage("/ejercicios")} onNavClick={handleNavClick} />
-              <MobileTab href="/configuracion" icon="⚙️" label="Config" isActive={isCurrentPage("/configuracion")} onNavClick={handleNavClick} />
+              <MobileTab href="/" exact icon="🏠" label={t("navbar.inicio")} isActive={isCurrentPage("/", true)} onNavClick={handleNavClick} />
+              <MobileTab href="/alumnos" icon="👥" label={t("navbar.alumnos")} isActive={isCurrentPage("/alumnos")} onNavClick={handleNavClick} />
+              <MobileTab href="/rutinas" icon="📋" label={t("navbar.rutinas")} isActive={isCurrentPage("/rutinas")} onNavClick={handleNavClick} />
+              <MobileTab href="/ejercicios" icon="💪" label={t("navbar.ejercicios")} isActive={isCurrentPage("/ejercicios")} onNavClick={handleNavClick} />
+              <MobileTab href="/configuracion" icon="⚙️" label={t("navbar.config")} isActive={isCurrentPage("/configuracion")} onNavClick={handleNavClick} />
             </>
           )}
         </div>

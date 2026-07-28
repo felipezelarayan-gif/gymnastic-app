@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 import ModalAccionesAdmin from "@/components/shared/ModalAccionesAdmin";
 
 type Admin = {
@@ -20,6 +21,7 @@ type Admin = {
 export default function SoporteAdministradoresPage() {
   const router = useRouter();
   const { mostrarToast } = useToast();
+  const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [search, setSearch] = useState("");
@@ -318,9 +320,9 @@ export default function SoporteAdministradoresPage() {
 
         <header className="mt-6 mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">🔐 Administradores</h1>
+            <h1 className="text-3xl font-bold">{t("soporte.administradores")}</h1>
             <p className="text-zinc-400 mt-2">
-              {admins.length} {admins.length === 1 ? "administrador" : "administradores"} en el sistema
+              {admins.length} {t("soporte.administradoresPage.adminCount")}
             </p>
           </div>
           {esSoporte && (
@@ -329,7 +331,7 @@ export default function SoporteAdministradoresPage() {
               onClick={() => setMostrarCrearModal(true)}
               className="rounded-xl bg-emerald-500 px-5 py-3 font-semibold hover:bg-emerald-600"
             >
-              + Nuevo admin
+              {t("soporte.administradoresPage.nuevoAdmin")}
             </button>
           )}
         </header>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { useIdioma } from "@/lib/i18n-context";
 
 type DetalleEstadoAlumnoCard = {
   tipo: "rutina" | "evaluacion";
@@ -35,6 +36,7 @@ export default function EstadoAlumnoCard({
       : "bg-zinc-900/40 border-zinc-800/60";
 
   const { formatearFechaCorta } = useFormatoFecha();
+  const { t } = useIdioma();
 
   const contenido = (
     <>
@@ -53,11 +55,11 @@ export default function EstadoAlumnoCard({
             const etiquetaTipo =
               detalle.tipo === "rutina"
                 ? detalle.cantidad === 1
-                  ? "Rutina pendiente (1)"
-                  : `Rutinas pendientes (${detalle.cantidad})`
+                  ? t("alumno.rutinaPendienteSingular")
+                  : t("alumno.rutinasPendientesCount", { count: detalle.cantidad })
                 : detalle.cantidad === 1
-                  ? "Evaluación pendiente (1)"
-                  : `Evaluaciones pendientes (${detalle.cantidad})`;
+                  ? t("alumno.evaluacionPendienteSingular")
+                  : t("alumno.evaluacionesPendientesCount", { count: detalle.cantidad });
 
             const iconoTipo = detalle.tipo === "rutina" ? "🏋️" : "📋";
 
@@ -69,9 +71,9 @@ export default function EstadoAlumnoCard({
                 <p className="text-lg font-bold leading-tight">{detalle.nombre}</p>
                 {fecha && (
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Fecha: {fecha}
+                    {t("alumno.fecha")}: {fecha}
                     {detalle.isOverdue && (
-                      <span className="text-red-400 ml-1 font-medium">Vencida</span>
+                      <span className="text-red-400 ml-1 font-medium">{t("alumno.vencida")}</span>
                     )}
                   </p>
                 )}

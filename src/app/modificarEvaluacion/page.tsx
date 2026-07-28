@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import BackButton from "@/components/BackButton";
+import { useIdioma } from "@/lib/i18n-context";
 
 type ResultadoRM = {
   id: string;
@@ -42,6 +43,7 @@ function ModificarEvaluacionContent() {
   const searchParams = useSearchParams();
   const evaluacionId = searchParams.get("evaluacionId") || "";
   const subtipo = (searchParams.get("subtipo") as "rm" | "fms") || "rm";
+  const { t } = useIdioma();
 
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);

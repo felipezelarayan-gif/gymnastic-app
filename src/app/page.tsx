@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Profile = {
   nombre: string;
@@ -47,6 +48,7 @@ export default function Home() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const { mostrarToast } = useToast();
+  const { t } = useIdioma();
 
   // Leer caché de localStorage después de la hidratación (solo cliente)
   useEffect(() => {
@@ -83,7 +85,7 @@ export default function Home() {
       }
 
       if (!data) {
-        mostrarToast("No se encontró tu perfil.", "error");
+        mostrarToast(t("errors.perfilNoEncontrado"), "error");
         setLoading(false);
         return;
       }
@@ -142,10 +144,10 @@ export default function Home() {
         <div className="text-center">
           <h1 className="text-3xl font-bold">Gymnastic App</h1>
 
-          <p className="mt-3 text-zinc-400">No estás logueado.</p>
+          <p className="mt-3 text-zinc-400">{t("home.noLogueado")}</p>
 
           <a href="/login" className="mt-4 inline-block underline">
-            Ir al login
+            {t("home.irAlLogin")}
           </a>
         </div>
       </main>
@@ -167,11 +169,11 @@ export default function Home() {
 
           <div>
             <h1 className="text-3xl font-bold">
-              {profile.rol === "admin" ? "Panel de Soporte" : "Panel del profe"}
+              {profile.rol === "admin" ? t("home.tituloAdmin") : t("home.tituloProfe")}
             </h1>
 
             <p className="text-zinc-400 mt-1">
-              Hola, {profile.nombre}
+              {t("home.saludo", { nombre: profile.nombre })}
             </p>
           </div>
         </header>
@@ -182,11 +184,11 @@ export default function Home() {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-              👥 Alumnos
+              👥 {t("home.alumnos")}
             </h2>
 
             <p className="text-zinc-400 mt-2">
-              Ver, crear y administrar alumnos.
+              {t("home.alumnosDesc")}
             </p>
           </a>
 
@@ -195,11 +197,11 @@ export default function Home() {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-              📋 Rutinas
+              📋 {t("home.rutinas")}
             </h2>
 
             <p className="text-zinc-400 mt-2">
-              Crear rutinas y asignarlas a alumnos.
+              {t("home.rutinasDesc")}
             </p>
           </a>
 
@@ -208,11 +210,11 @@ export default function Home() {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-              🏋️ Registrar entrenamientos
+              🏋️ {t("home.registrarEntrenamientos")}
             </h2>
 
             <p className="text-zinc-400 mt-2">
-              Cargar entrenamientos de alumnos activos.
+              {t("home.registrarEntrenamientosDesc")}
             </p>
           </a>
 
@@ -221,11 +223,11 @@ export default function Home() {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-              💪 Ejercicios
+              💪 {t("home.ejercicios")}
             </h2>
 
             <p className="text-zinc-400 mt-2">
-              Ver y editar ejercicios con videos de YouTube.
+              {t("home.ejerciciosDesc")}
             </p>
           </a>
 
@@ -234,11 +236,11 @@ export default function Home() {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-              📈 Historial
+              📈 {t("home.historial")}
             </h2>
 
             <p className="text-zinc-400 mt-2">
-              Revisar entrenamientos completados y progreso.
+              {t("home.historialDesc")}
             </p>
           </a>
 
@@ -247,11 +249,11 @@ export default function Home() {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-              📏 Evaluaciones
+              📏 {t("home.evaluaciones")}
             </h2>
 
             <p className="text-zinc-400 mt-2">
-              Gestionar evaluaciones RM y FMS.
+              {t("home.evaluacionesDesc")}
             </p>
           </a>
 
@@ -260,11 +262,11 @@ export default function Home() {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
             <h2 className="text-xl font-semibold">
-              💬 Mensajes
+              💬 {t("home.mensajes")}
             </h2>
 
             <p className="text-zinc-400 mt-2">
-              Ver mensajes de tus alumnos.
+              {t("home.mensajesDesc")}
             </p>
           </a>
 
@@ -273,11 +275,11 @@ export default function Home() {
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition md:col-span-3"
           >
             <h2 className="text-xl font-semibold">
-              ⚙️ Configuración
+              ⚙️ {t("home.configuracion")}
             </h2>
 
             <p className="text-zinc-400 mt-2">
-              Gestionar profesores, permisos y ajustes generales.
+              {t("home.configuracionDesc")}
             </p>
           </a>
         </section>

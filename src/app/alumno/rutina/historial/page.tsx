@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
 import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
@@ -53,10 +54,10 @@ function ordenarPorFechaDesc<T extends { fecha?: string | null }>(items: T[]) {
   });
 }
 
-function obtenerEtiquetaActividad(actividad: HistorialActividad) {
-  if (actividad.tipo === "rutina") return "Rutina";
-  if (actividad.subtipo) return `Evaluación ${actividad.subtipo.toUpperCase()}`;
-  return "Evaluación";
+function obtenerEtiquetaActividad(actividad: HistorialActividad, t?: (key: string, params?: Record<string, string | number>) => string) {
+  if (actividad.tipo === "rutina") return t ? t("alumno.historial.etiquetaRutina") : "Routine";
+  if (actividad.subtipo) return t ? t("alumno.historial.etiquetaEvaluacion", { subtipo: actividad.subtipo.toUpperCase() }) : `Test ${actividad.subtipo.toUpperCase()}`;
+  return t ? t("alumno.historial.etiquetaEvaluacionGenerica") : "Test";
 }
 
 function obtenerIconoActividad(actividad: HistorialActividad) {
@@ -80,6 +81,7 @@ function agruparDetallePorEjercicio(detalle: DetalleEntrenamiento[]): DetalleEje
 
 export default function NuevaRutinaHistorialPage() {
   const { mostrarToast } = useToast();
+  const { t } = useIdioma();
   const [cargando, setCargando] = useState(true);
   const [historial, setHistorial] = useState<HistorialActividad[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +125,7 @@ export default function NuevaRutinaHistorialPage() {
     const { data: authData, error: authError } = await supabase.auth.getUser();
 
     if (authError || !authData.user) {
-      setError("No se pudo validar tu sesión.");
+      setError(t("alumno.historial.errorSesion"));
       setCargando(false);
       return;
     }
@@ -141,7 +143,7 @@ export default function NuevaRutinaHistorialPage() {
     }
 
     if (!alumnoData) {
-      setError("No encontramos un alumno vinculado a esta cuenta.");
+      setError(t("alumno.historial.errorAlumnoNoEncontrado"));
       setCargando(false);
       return;
     }
@@ -351,7 +353,7 @@ export default function NuevaRutinaHistorialPage() {
       return;
     }
 
-    setErrorDetalle("Todavía no hay un detalle disponible para esta evaluación.");
+    setErrorDetalle(t("alumno.historial.errorDetalleNoDisponible"));
     setCargandoDetalle(false);
   }
 
@@ -359,7 +361,7 @@ export default function NuevaRutinaHistorialPage() {
     if (!confirmarModificar) return;
 
     if (confirmarModificar.rutina_id === null) {
-      mostrarToast("Esta rutina fue eliminada por el profesor. Para corregir este registro, contactá al soporte.", "error");
+      mostrarToast(t("alumno.historial.errorRutinaEliminada"), "error");
       setConfirmarModificar(null);
       return;
     }
@@ -385,7 +387,7 @@ export default function NuevaRutinaHistorialPage() {
     if (!confirmarDeshacer) return;
 
     if (confirmarDeshacer.rutina_id === null) {
-      mostrarToast("Esta rutina fue eliminada por el profesor. Para corregir este registro, contactá al soporte.", "error");
+      mostrarToast(t("alumno.historial.errorRutinaEliminada"), "error");
       setConfirmarDeshacer(null);
       return;
     }
@@ -447,7 +449,7 @@ export default function NuevaRutinaHistorialPage() {
 
       setConfirmarDeshacer(null);
     } catch (error) {
-      const mensaje = error instanceof Error ? error.message : "No se pudo deshacer el entrenamiento.";
+      const mensaje = error instanceof Error ? error.message : t("alumno.historial.errorDeshacer");
       mostrarToast(mensaje, "error");
     } finally {
       setDeshaciendo(false);
@@ -485,7 +487,7 @@ export default function NuevaRutinaHistorialPage() {
         <BackButton fallback="/alumno/rutina" />
 
         <section className="rounded-3xl border border-red-900/50 bg-red-950/20 p-6">
-            <p className="text-red-300 font-semibold">No pudimos cargar el historial</p>
+            <p className="text-red-300 font-semibold">{t("alumno.historial.noPudimosCargarHistorial")}</p>
             <p className="text-zinc-400 mt-2">{error}</p>
           </section>
         </div>
@@ -499,33 +501,33 @@ export default function NuevaRutinaHistorialPage() {
         <BackButton fallback="/alumno/rutina" />
 
         <header>
-          <p className="text-sm text-zinc-500">Alumno</p>
-          <h1 className="text-3xl font-bold">Historial</h1>
+          <p className="text-sm text-zinc-500">{t("alumno.historial.alumnoLabel")}</p>
+          <h1 className="text-3xl font-bold">{t("alumno.historial.titulo")}</h1>
           <p className="text-zinc-400 mt-2">
-            Tus rutinas y evaluaciones realizadas.
+            {t("alumno.historial.subtitulo")}
           </p>
         </header>
 
         <section className="grid grid-cols-3 gap-3">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
-            <p className="text-sm text-zinc-400">Rutinas completadas</p>
+            <p className="text-sm text-zinc-400">{t("alumno.historial.rutinasCompletadas")}</p>
             <p className="text-3xl font-bold mt-1">{rutinasCompletadas}</p>
           </div>
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
-            <p className="text-sm text-zinc-400">Evaluaciones realizadas</p>
+            <p className="text-sm text-zinc-400">{t("alumno.historial.evaluacionesRealizadas")}</p>
             <p className="text-3xl font-bold mt-1">{evaluacionesCompletadas}</p>
           </div>
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
-            <p className="text-sm text-zinc-400">Ejercicios completados</p>
+            <p className="text-sm text-zinc-400">{t("alumno.historial.ejerciciosCompletados")}</p>
             <p className="text-3xl font-bold mt-1">{ejerciciosCompletados}</p>
           </div>
         </section>
 
         {historial.length === 0 ? (
           <section className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-6">
-            <h2 className="text-xl font-bold">Sin historial</h2>
+            <h2 className="text-xl font-bold">{t("alumno.historial.sinHistorial")}</h2>
             <p className="text-zinc-400 mt-2">
-              Todavía no hay rutinas ni evaluaciones completadas.
+              {t("alumno.historial.sinHistorialDesc")}
             </p>
           </section>
         ) : (
@@ -540,13 +542,13 @@ export default function NuevaRutinaHistorialPage() {
                     <span className="text-3xl">{obtenerIconoActividad(actividad)}</span>
                     <div className="min-w-0">
                       <p className="text-sm text-zinc-400">
-                        {obtenerEtiquetaActividad(actividad)}
+                        {obtenerEtiquetaActividad(actividad, t)}
                       </p>
                       <h2 className="text-xl font-bold mt-1 truncate">
                         {actividad.nombre}
                       </h2>
                       <div className="flex flex-wrap gap-2 text-sm text-zinc-500 mt-1">
-                        <span>Fecha completada: {formatearFechaCorta(actividad.fecha)}</span>
+                        <span>{t("alumno.historial.fechaCompletada", { fecha: formatearFechaCorta(actividad.fecha) || "" })}</span>
                         {actividad.estado && (
                           <>
                             <span>•</span>
@@ -565,7 +567,7 @@ export default function NuevaRutinaHistorialPage() {
                           onClick={() => setModalRutina({ open: true, id: actividad.id, completada: true })}
                           className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
                         >
-                          Ver detalles
+                          {t("alumno.historial.verDetalles")}
                         </button>
                       ) : (
                         <button
@@ -577,7 +579,7 @@ export default function NuevaRutinaHistorialPage() {
                           })}
                           className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
                         >
-                          Ver detalles
+                          {t("alumno.historial.verDetalles")}
                         </button>
                       )}
                       {actividad.tipo === "rutina" && actividad.rutina_id !== null ? (
@@ -587,20 +589,19 @@ export default function NuevaRutinaHistorialPage() {
                             onClick={() => setConfirmarModificar(actividad)}
                             className="rounded-full border border-amber-800 px-4 py-2 text-sm font-semibold text-amber-300 hover:border-amber-500 hover:bg-amber-950/30"
                           >
-                            Modificar
+                            {t("alumno.historial.modificar")}
                           </button>
                           <button
                             type="button"
                             onClick={() => setConfirmarDeshacer(actividad)}
                             className="rounded-full border border-red-900/60 px-4 py-2 text-sm font-semibold text-red-300 hover:border-red-500 hover:bg-red-950/30"
                           >
-                            Deshacer
+                            {t("alumno.historial.deshacer")}
                           </button>
                         </>
                       ) : actividad.tipo === "rutina" && actividad.rutina_id === null ? (
                         <p className="max-w-[220px] text-right text-xs text-zinc-500">
-                          Rutina eliminada por el profesor.
-                          Para corregir este registro, contactá al soporte.
+                          {t("alumno.historial.rutinaEliminada")}
                         </p>
                       ) : null}
                     </div>
@@ -617,7 +618,7 @@ export default function NuevaRutinaHistorialPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm text-zinc-500">
-                  {rutinaSeleccionada?.tipo === "rutina" ? "Detalle del entrenamiento" : "Detalle de la evaluación"}
+                  {rutinaSeleccionada?.tipo === "rutina" ? t("alumno.historial.detalleEntrenamiento") : t("alumno.historial.detalleEvaluacion")}
                 </p>
                 <h2 className="text-2xl font-bold mt-1">
                   {rutinaSeleccionada?.nombre || "Rutina"}
@@ -632,7 +633,7 @@ export default function NuevaRutinaHistorialPage() {
                 onClick={cerrarModalDetalle}
                 className="rounded-full border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:border-zinc-500 hover:text-white"
               >
-                Cerrar
+                {t("alumno.historial.cerrar")}
               </button>
             </div>
 
@@ -640,23 +641,23 @@ export default function NuevaRutinaHistorialPage() {
               {cargandoDetalle ? (
                 <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-5 text-center">
                   <p className="font-semibold text-emerald-300">
-                    {rutinaSeleccionada?.tipo === "rutina" ? "Estamos cargando tu rutina" : "Estamos cargando tu evaluación"}
+                    {rutinaSeleccionada?.tipo === "rutina" ? t("alumno.historial.cargandoRutina") : t("alumno.historial.cargandoEvaluacion")}
                   </p>
                   <p className="text-sm text-zinc-400 mt-1">
-                    Consultando los ejercicios realizados...
+                    {t("alumno.historial.consultandoEjercicios")}
                   </p>
                 </div>
               ) : errorDetalle ? (
                 <div className="rounded-2xl border border-red-900/50 bg-red-950/20 p-5">
-                  <p className="font-semibold text-red-300">No pudimos cargar el detalle</p>
+                  <p className="font-semibold text-red-300">{t("alumno.historial.noPudimosCargarDetalle")}</p>
                   <p className="text-sm text-zinc-400 mt-1">{errorDetalle}</p>
                 </div>
               ) : rutinaSeleccionada?.subtipo === "fms" ? (
                 detalleFms.length === 0 ? (
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
-                    <p className="font-semibold text-zinc-200">Sin resultados registrados</p>
+                    <p className="font-semibold text-zinc-200">{t("alumno.historial.sinResultados")}</p>
                     <p className="text-sm text-zinc-400 mt-1">
-                      No encontramos resultados guardados para esta evaluación.
+                      {t("alumno.historial.sinResultadosDesc")}
                     </p>
                   </div>
                 ) : (
@@ -680,7 +681,7 @@ export default function NuevaRutinaHistorialPage() {
                       </article>
                     ))}
                     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 flex items-center justify-between">
-                      <span className="text-zinc-400">Total</span>
+                      <span className="text-zinc-400">{t("alumno.historial.total")}</span>
                       <span className="text-xl font-bold text-white">
                         {detalleFms.reduce((total, item) => total + Number(item.puntaje || 0), 0)}
                       </span>
@@ -690,12 +691,12 @@ export default function NuevaRutinaHistorialPage() {
               ) : detalleAgrupado.length === 0 ? (
                 <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
                   <p className="font-semibold text-zinc-200">
-                    {rutinaSeleccionada?.tipo === "rutina" ? "Sin ejercicios registrados" : "Sin resultados registrados"}
+                    {rutinaSeleccionada?.tipo === "rutina" ? t("alumno.historial.sinEjerciciosRegistrados") : t("alumno.historial.sinResultados")}
                   </p>
                   <p className="text-sm text-zinc-400 mt-1">
                     {rutinaSeleccionada?.tipo === "rutina"
-                      ? "No encontramos registros guardados para este entrenamiento."
-                      : "No encontramos resultados guardados para esta evaluación."}
+                      ? t("alumno.historial.sinEjerciciosDesc")
+                      : t("alumno.historial.sinResultadosDesc")}
                   </p>
                 </div>
               ) : (
@@ -708,17 +709,17 @@ export default function NuevaRutinaHistorialPage() {
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="text-lg font-semibold text-white">{grupo.ejercicio}</h3>
                         <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-400">
-                          {grupo.series.length} {grupo.series.length === 1 ? "serie" : "series"}
+                          {grupo.series.length} {grupo.series.length === 1 ? t("alumno.historial.serieSingular") : t("alumno.historial.seriesPlural")}
                         </span>
                       </div>
 
                       <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800">
                         <div className="grid grid-cols-5 bg-zinc-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                          <span>Serie</span>
-                          <span>Reps</span>
-                          <span>Peso</span>
-                          <span>RPE</span>
-                          <span>RIR</span>
+                          <span>{t("alumno.historial.serieLabel")}</span>
+                          <span>{t("alumno.historial.repsLabel")}</span>
+                          <span>{t("alumno.historial.pesoLabel")}</span>
+                          <span>{t("alumno.historial.rpeLabel")}</span>
+                          <span>{t("alumno.historial.rirLabel")}</span>
                         </div>
 
                         <div className="divide-y divide-zinc-800">
@@ -752,9 +753,9 @@ export default function NuevaRutinaHistorialPage() {
     {confirmarModificar && (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
         <section className="w-full max-w-md rounded-3xl border border-amber-900 bg-zinc-950 p-6 shadow-2xl">
-          <h2 className="text-xl font-bold text-amber-300 mb-2">¿Modificar entrenamiento?</h2>
+          <h2 className="text-xl font-bold text-amber-300 mb-2">{t("alumno.historial.confirmarModificarTitulo")}</h2>
           <p className="text-zinc-300 mb-4">
-            El entrenamiento se reabrirá con los datos anteriores para que puedas editarlo y volver a completarlo. ¿Deseas continuar?
+            {t("alumno.historial.confirmarModificarDesc")}
           </p>
           <div className="flex justify-end gap-3">
             <button
@@ -763,7 +764,7 @@ export default function NuevaRutinaHistorialPage() {
               className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-500"
               disabled={modificando}
             >
-              Cancelar
+              {t("alumno.historial.cancelar")}
             </button>
             <button
               type="button"
@@ -771,7 +772,7 @@ export default function NuevaRutinaHistorialPage() {
               disabled={modificando}
               className="rounded-full border border-amber-900 px-4 py-2 text-sm font-semibold text-amber-300 hover:border-amber-500 hover:bg-amber-950/30 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {modificando ? "Abriendo..." : "Modificar"}
+              {modificando ? t("alumno.historial.abriendo") : t("alumno.historial.modificar")}
             </button>
           </div>
         </section>
@@ -781,9 +782,9 @@ export default function NuevaRutinaHistorialPage() {
     {confirmarDeshacer && (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
         <section className="w-full max-w-md rounded-3xl border border-red-900 bg-zinc-950 p-6 shadow-2xl">
-          <h2 className="text-xl font-bold text-red-300 mb-2">¿Deshacer entrenamiento?</h2>
+          <h2 className="text-xl font-bold text-red-300 mb-2">{t("alumno.historial.confirmarDeshacerTitulo")}</h2>
           <p className="text-zinc-300 mb-4">
-            Se eliminarán los registros del entrenamiento y la rutina volverá a quedar pendiente para que puedas realizarla nuevamente. Esta acción no se puede deshacer.
+            {t("alumno.historial.confirmarDeshacerDesc")}
           </p>
           <div className="flex justify-end gap-3">
             <button
@@ -792,7 +793,7 @@ export default function NuevaRutinaHistorialPage() {
               className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-500"
               disabled={deshaciendo}
             >
-              Cancelar
+              {t("alumno.historial.cancelar")}
             </button>
             <button
               type="button"
@@ -800,7 +801,7 @@ export default function NuevaRutinaHistorialPage() {
               disabled={deshaciendo}
               className="rounded-full border border-red-900 px-4 py-2 text-sm font-semibold text-red-300 hover:border-red-500 hover:bg-red-950/30 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {deshaciendo ? "Procesando..." : "Deshacer"}
+              {deshaciendo ? t("alumno.historial.procesando") : t("alumno.historial.deshacer")}
             </button>
           </div>
         </section>

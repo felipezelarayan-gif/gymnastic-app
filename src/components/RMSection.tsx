@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Props = {
   alumnoId: string;
@@ -26,6 +27,7 @@ export default function RMSection({ alumnoId }: Props) {
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
   const [rms, setRms] = useState<RMActual[]>([]);
   const [mostrarModal, setMostrarModal] = useState(false);
+  const { t } = useIdioma();
 
   const [ejercicioId, setEjercicioId] = useState("");
   const [peso, setPeso] = useState("");
@@ -73,7 +75,7 @@ export default function RMSection({ alumnoId }: Props) {
 
   async function guardarRM() {
     if (!ejercicioId || !peso || !repeticiones) {
-      alert("Completá todos los campos");
+      alert(t("evaluaciones.completarCampos"));
       return;
     }
 
@@ -121,13 +123,13 @@ export default function RMSection({ alumnoId }: Props) {
             onClick={() => setMostrarModal(true)}
             className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white"
           >
-            + Registrar marca
+            {t("evaluaciones.registrarMarca")}
           </button>
         </div>
 
         {rms.length === 0 ? (
           <p className="text-zinc-400">
-            Sin registros todavía.
+            {t("evaluaciones.sinRegistrosRM")}
           </p>
         ) : (
           <div className="space-y-2">
@@ -154,7 +156,7 @@ export default function RMSection({ alumnoId }: Props) {
           <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 w-full max-w-md">
 
             <h2 className="text-xl font-bold mb-4">
-              Registrar RM
+              {t("evaluaciones.registrarRM")}
             </h2>
 
             <div className="space-y-3">
@@ -167,7 +169,7 @@ export default function RMSection({ alumnoId }: Props) {
                 className="w-full bg-zinc-800 rounded-xl p-3"
               >
                 <option value="">
-                  Seleccionar ejercicio
+                  {t("evaluaciones.seleccionarEjercicio")}
                 </option>
 
                 {ejercicios.map((ejercicio) => (
@@ -182,7 +184,7 @@ export default function RMSection({ alumnoId }: Props) {
 
               <input
                 type="number"
-                placeholder="Peso (kg)"
+                placeholder={t("common.peso")}
                 value={peso}
                 onChange={(e) =>
                   setPeso(e.target.value)
@@ -192,7 +194,7 @@ export default function RMSection({ alumnoId }: Props) {
 
               <input
                 type="number"
-                placeholder="Repeticiones"
+                placeholder={t("common.repeticiones")}
                 value={repeticiones}
                 onChange={(e) =>
                   setRepeticiones(e.target.value)
@@ -210,14 +212,14 @@ export default function RMSection({ alumnoId }: Props) {
                 }
                 className="flex-1 border border-zinc-700 rounded-xl py-3"
               >
-                Cancelar
+                {t("common.cancelar")}
               </button>
 
               <button
                 onClick={guardarRM}
                 className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold"
               >
-                Guardar
+                {t("common.guardar")}
               </button>
 
             </div>

@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import Link from "next/link";
+import { useIdioma } from "@/lib/i18n-context";
 import { obtenerEstadoAlumnoProfesor } from "@/lib/alumno/obtenerEstadoAlumnoProfesor";
 
 type ProfileData = {
@@ -60,6 +61,7 @@ type EvaluacionInfo = {
 export default function SoportePerfilPage() {
   const router = useRouter();
   const params = useParams();
+  const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [profesores, setProfesores] = useState<ProfesorInfo[]>([]);

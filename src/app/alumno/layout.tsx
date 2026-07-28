@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useIdioma } from "@/lib/i18n-context";
 
 export default function AlumnoLayout({ children }: { children: React.ReactNode }) {
+  const { t } = useIdioma();
   const pathname = usePathname();
   const router = useRouter();
   const [pausado, setPausado] = useState(false);
@@ -60,11 +62,11 @@ export default function AlumnoLayout({ children }: { children: React.ReactNode }
       <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
         <div className="max-w-md text-center">
           <div className="text-6xl mb-6">🚫</div>
-          <h1 className="text-3xl font-bold mb-3">Acceso suspendido</h1>
+          <h1 className="text-3xl font-bold mb-3">{t("sessionGuard.accesoSuspendido")}</h1>
           <p className="text-zinc-400 leading-relaxed mb-8">
-            Tu cuenta ha sido pausada por tu profesor.
+            {t("sessionGuard.cuentaPausada")}
             <br />
-            Comunicate con él para más detalles.
+            <span dangerouslySetInnerHTML={{ __html: t("sessionGuard.contactar") }} />
           </p>
           <button
             type="button"
@@ -74,7 +76,7 @@ export default function AlumnoLayout({ children }: { children: React.ReactNode }
             }}
             className="rounded-xl border border-red-800 px-6 py-3 text-red-400 hover:bg-red-950 transition"
           >
-            Cerrar sesión
+            {t("sessionGuard.cerrarSesion")}
           </button>
         </div>
       </main>

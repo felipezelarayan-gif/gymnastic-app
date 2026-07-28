@@ -10,6 +10,7 @@ import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import BackButton from "@/components/BackButton";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 
 type ModoCarga = "protocolo" | "rapida" | null;
 
@@ -138,6 +139,7 @@ function obtenerMejorIntento(intentos: IntentoProtocolo[]) {
 }
 
 export default function RealizarEvaluacionRMDetalle() {
+  const { t } = useIdioma();
   const params = useParams();
   const evaluacionId = String(params.id || "");
 

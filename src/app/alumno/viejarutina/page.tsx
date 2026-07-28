@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { getEjerciciosVideosPorIdsCached } from "@/lib/ejercicios-cache";
 import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Rutina = {
   id: string;
@@ -203,6 +204,7 @@ async function cargarVideosEjercicios(idsEjercicios: string[]) {
 }
 
 export default function AlumnoRutinaPage() {
+  const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [alumnoId, setAlumnoId] = useState("");
   const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>([]);

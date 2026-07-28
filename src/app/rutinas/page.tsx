@@ -8,6 +8,7 @@ import BackButton from "@/components/BackButton";
 import VerRutinaPlantillaModal from "@/components/rutinas/VerRutinaPlantillaModal";
 import CrearRutinaModal from "@/components/rutinas/CrearRutinaModal";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useIdioma } from "@/lib/i18n-context";
 import { OPCIONES_TIPO } from "@/lib/rutinas/opciones-tipo";
 
 type Rutina = {
@@ -217,6 +218,7 @@ export default function RutinasPage() {
   const [verRutinaId, setVerRutinaId] = useState<string | null>(null);
   const [profesorId, setProfesorId] = useState<string | null>(null);
   const { mostrarToast } = useToast();
+  const { t } = useIdioma();
 
   useEffect(() => {
     verificarPermiso();
@@ -361,14 +363,14 @@ export default function RutinasPage() {
         <header className="flex items-start justify-between mb-6">
           <div>
             <BackButton fallback="/" />
-            <h1 className="text-3xl font-bold mt-4">Rutinas</h1>
+            <h1 className="text-3xl font-bold mt-4">{t("rutinas.titulo")}</h1>
             <p className="text-zinc-400 mt-1">
               {totalRutinas > 0
-                ? `${totalRutinas} ${totalRutinas === 1 ? "rutina" : "rutinas"}`
-                : "Creá rutinas y asignalas a tus alumnos."
+                ? `${totalRutinas} ${totalRutinas === 1 ? t("rutinas.rutinaSingular") : t("rutinas.rutinasPlural")}`
+                : t("rutinas.descripcionLista")
               }
               {actualizandoRutinas && (
-                <span className="ml-2 text-xs text-zinc-500">Actualizando...</span>
+                <span className="ml-2 text-xs text-zinc-500">{t("rutinas.actualizando")}</span>
               )}
             </p>
           </div>
@@ -381,7 +383,7 @@ export default function RutinasPage() {
                 disabled={loading || actualizandoRutinas}
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-5 py-3 text-sm font-semibold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                {actualizandoRutinas ? "Actualizando..." : "Actualizar"}
+                {actualizandoRutinas ? t("rutinas.actualizando") : t("rutinas.actualizar")}
               </button>
 
               <button
@@ -389,7 +391,7 @@ export default function RutinasPage() {
                 onClick={() => setMostrarModal(true)}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition"
               >
-                + Crear rutina
+                {t("rutinas.crearRutinaBtn")}
               </button>
             </div>
 
@@ -418,7 +420,7 @@ export default function RutinasPage() {
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm">🔍</span>
             <input
               type="text"
-              placeholder="Buscar rutina..."
+              placeholder={t("rutinas.buscarPlaceholder")}
               value={busqueda}
               onChange={(e) => handleBusquedaChange(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-2 pl-10 pr-3 outline-none focus:border-emerald-500 text-sm"
@@ -439,7 +441,7 @@ export default function RutinasPage() {
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm">🔍</span>
             <input
               type="text"
-              placeholder="Buscar por nombre..."
+              placeholder={t("rutinas.buscarPlaceholderDesktop")}
               value={busqueda}
               onChange={(e) => handleBusquedaChange(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-emerald-500"
@@ -449,11 +451,11 @@ export default function RutinasPage() {
 
         {rutinas.length === 0 ? (
           <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
-            <h2 className="text-xl font-semibold">No se encontraron rutinas</h2>
+            <h2 className="text-xl font-semibold">{t("rutinas.noEncontradas")}</h2>
             <p className="text-zinc-400 mt-2">
               {busqueda || filtroTipo
-                ? "Probá con otros filtros o creá una nueva rutina."
-                : "Tocá el botón + para crear tu primera rutina."
+                ? t("rutinas.noEncontradasDesc")
+                : t("rutinas.noEncontradasDescEmpty")
               }
             </p>
           </section>
@@ -483,7 +485,7 @@ export default function RutinasPage() {
                         onClick={() => setVerRutinaId(rutina.id)}
                         className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
                       >
-                        Ver/Asignar
+                        {t("rutinas.verAsignar")}
                       </button>
                       <a
                         href={`/rutinas/${rutina.id}`}
@@ -509,7 +511,7 @@ export default function RutinasPage() {
                         {rutina.nombre}
                         {rutina.creada_desde_perfil_alumno && (
                           <span className="ml-2 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400 align-middle">
-                            Personalizada
+                            {t("rutinas.personalizada")}
                           </span>
                         )}
                       </h3>
@@ -520,13 +522,13 @@ export default function RutinasPage() {
                         onClick={() => setVerRutinaId(rutina.id)}
                         className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
                       >
-                        Ver/Asignar
+                        {t("rutinas.verAsignar")}
                       </button>
                       <a
                         href={`/rutinas/${rutina.id}`}
                         className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
                       >
-                        Editar
+                        {t("rutinas.editar")}
                       </a>
                       <button
                         type="button"
@@ -534,7 +536,7 @@ export default function RutinasPage() {
                         disabled={borrandoId === rutina.id}
                         className="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {borrandoId === rutina.id ? "..." : "Borrar"}
+                        {borrandoId === rutina.id ? "..." : t("rutinas.borrar")}
                       </button>
                     </div>
                   </div>
@@ -573,7 +575,7 @@ export default function RutinasPage() {
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70">
             <div className="w-full max-w-lg rounded-t-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold">🎯 Filtrar y ordenar</h3>
+                <h3 className="text-lg font-bold">{t("alumnos.filtrarYOrdenar")}</h3>
                 <button
                   type="button"
                   onClick={() => setFiltrosAbierto(false)}

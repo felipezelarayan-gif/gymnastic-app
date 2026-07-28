@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
+import { useIdioma } from "@/lib/i18n-context";
 import FMSInfoModal from "@/components/fms/FMSInfoModal";
 import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
 
@@ -110,6 +111,7 @@ function totalColor(total: number, maximo: number) {
 export default function RealizarEvaluacionFMSDetalle() {
   const params = useParams();
   const evaluacionId = String(params.id || "");
+  const { t } = useIdioma();
 
   const [loading, setLoading] = useState(true);
   const [evaluacion, setEvaluacion] = useState<EvaluacionFMS | null>(null);

@@ -10,6 +10,7 @@ import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import AsignarModal from "@/components/shared/AsignarModal";
 import VerRutinaPlantillaModal from "@/components/rutinas/VerRutinaPlantillaModal";
 import CrearRutinaModal from "@/components/rutinas/CrearRutinaModal";
+import { useIdioma } from "@/lib/i18n-context";
 
 type Alumno = {
   id: string;
@@ -46,6 +47,7 @@ export default function AlumnoRutinasProfesor({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { t } = useIdioma();
   const { id } = use(params);
 
   const [loading, setLoading] = useState(true);
@@ -112,14 +114,12 @@ export default function AlumnoRutinasProfesor({
       .eq("alumno_id", id)
       .eq("rutinas.profesor_id", profesorActualId);
 
-    // Filtro por estado
     if (filtroEstado === "completadas") {
       query = query.eq("completada", true);
     } else if (filtroEstado === "pendientes") {
       query = query.eq("completada", false);
     }
 
-    // Filtro por fecha
     if (filtroFecha !== "todas") {
       const now = new Date();
       let desdeFecha: Date;
@@ -137,7 +137,6 @@ export default function AlumnoRutinasProfesor({
       query = query.gte("fecha_asignacion", desdeFecha!.toISOString());
     }
 
-    // Ordenamiento
     if (ordenarPor === "nombre") {
       query = query.order("rutinas(nombre)", { ascending: orden === "asc" });
     } else {
@@ -183,7 +182,6 @@ export default function AlumnoRutinasProfesor({
     const profesorActualId = sessionData.session.user.id;
     setProfesorId(profesorActualId);
 
-    // Paso 1: Ejecutar consultas independientes en paralelo
     const [
       { data: alumnoData, error: alumnoError },
       { data: disponiblesData, error: disponiblesError },
@@ -218,12 +216,10 @@ export default function AlumnoRutinasProfesor({
     setAlumno(alumnoData as Alumno);
     setDisponibles((disponiblesData || []) as Rutina[]);
 
-    // Cargar asignaciones con paginación
     await cargarAsignaciones(profesorActualId);
     setLoading(false);
   }
 
-  // Auto-cargar cuando cambian filtros o página
   useEffect(() => {
     if (profesorId) {
       cargarAsignaciones(profesorId);
@@ -239,7 +235,6 @@ export default function AlumnoRutinasProfesor({
     setGuardando(true);
 
     try {
-      // Validar que el alumno pertenece al profesor
       const { data: alumnoPropio, error: alumnoError } = await supabase
         .from("alumnos")
         .select("id")
@@ -252,7 +247,6 @@ export default function AlumnoRutinasProfesor({
         return;
       }
 
-      // Crear todas las asignaciones en batch
       const asignaciones = rutinasSeleccionadas.map((rutina) => ({
         alumno_id: id,
         rutina_id: rutina.id,
@@ -270,7 +264,6 @@ export default function AlumnoRutinasProfesor({
         return;
       }
 
-      // Recargar asignaciones desde Supabase
       await cargarTodo();
     } catch (error) {
       console.error("Error al asignar rutinas:", error);
@@ -592,7 +585,6 @@ export default function AlumnoRutinasProfesor({
   const handleRutinaCreada = useCallback((rutinaId: string) => {
     setMostrarCrearModal(false);
 
-    // Asignar la rutina al alumno y redirigir
     if (!profesorId) return;
 
     supabase
@@ -633,7 +625,7 @@ export default function AlumnoRutinasProfesor({
     .filter((rutina) => rutina.creada_desde_perfil_alumno !== true)
     .map((rutina) => ({
       id: rutina.id,
-      nombre: rutina.nombre || "Rutina sin nombre",
+      nombre: rutina.nombre || t("alumnos.rutinaSinNombre"),
     }));
 
   return (
@@ -645,12 +637,12 @@ export default function AlumnoRutinasProfesor({
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold">
-                Rutinas de {alumno?.nombre} {alumno?.apellido || ""}
+                {t("alumnos.rutinasDe", { nombre: `${alumno?.nombre || ""} ${alumno?.apellido || ""}`.trim() })}
               </h1>
               <p className="text-zinc-400 mt-1">
                 {totalAsignaciones > 0
-                  ? `${totalAsignaciones} ${totalAsignaciones === 1 ? "rutina asignada" : "rutinas asignadas"}`
-                  : "Solo se muestran las rutinas asignadas a este alumno."
+                  ? `${totalAsignaciones} ${totalAsignaciones === 1 ? t("alumnos.rutinaAsignada") : t("alumnos.rutinasAsignadas")}`
+                  : t("alumnos.soloAsignadas")
                 }
               </p>
             </div>
@@ -662,7 +654,7 @@ export default function AlumnoRutinasProfesor({
                   onClick={() => setMostrarCrearModal(true)}
                   className="hidden md:inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-600 transition text-sm"
                 >
-                  + Crear rutina
+                  {t("rutinas.crearRutinaBtn")}
                 </button>
                 <button
                   type="button"
@@ -670,14 +662,14 @@ export default function AlumnoRutinasProfesor({
                   disabled={guardando || disponibles.length === 0}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-700 px-5 py-3 text-sm font-semibold text-emerald-400 hover:bg-emerald-950 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Asignar rutinas
+                  {t("alumnos.asignarRutinas")}
                 </button>
               </div>
             </div>
           </div>
         </header>
 
-        {/* FAB: boton flotante para crear rutina (solo mobile) */}
+        {/* FAB */}
         <button
           type="button"
           onClick={() => setMostrarCrearModal(true)}
@@ -699,7 +691,7 @@ export default function AlumnoRutinasProfesor({
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm">🔍</span>
             <input
               type="text"
-              placeholder="Buscar por nombre..."
+              placeholder={t("rutinas.buscarPlaceholderDesktop")}
               value={busqueda}
               onChange={(e) => { setBusqueda(e.target.value); setPaginaActual(0); }}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-emerald-500"
@@ -709,11 +701,11 @@ export default function AlumnoRutinasProfesor({
 
         {asignadas.length === 0 ? (
           <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
-            <h2 className="text-xl font-semibold">No se encontraron rutinas</h2>
+            <h2 className="text-xl font-semibold">{t("alumnos.noEncontradasRutinas")}</h2>
             <p className="text-zinc-400 mt-2">
               {busqueda
-                ? "No se encontraron rutinas con ese nombre."
-                : "Este alumno no tiene rutinas asignadas."
+                ? t("alumnos.noEncontradasRutinasDesc")
+                : t("alumnos.sinRutinasAsignadas")
               }
             </p>
           </section>
@@ -732,10 +724,10 @@ export default function AlumnoRutinasProfesor({
                     <div className="md:hidden flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <h3 className="font-semibold truncate text-sm">
-                          {rutina?.nombre || "Rutina sin nombre"}
+                          {rutina?.nombre || t("alumnos.rutinaSinNombre")}
                         </h3>
                         <p className="text-xs text-zinc-500 mt-1">
-                          Fecha {formatearFechaCorta(asignacion.completada ? asignacion.fecha_completada : asignacion.fecha_asignacion)} - <span className={asignacion.completada ? "text-zinc-400" : "text-emerald-400"}>{asignacion.completada ? "Completada" : "Pendiente"}</span>
+                          {t("alumnos.fecha")} {formatearFechaCorta(asignacion.completada ? asignacion.fecha_completada : asignacion.fecha_asignacion)} - <span className={asignacion.completada ? "text-zinc-400" : "text-emerald-400"}>{asignacion.completada ? t("alumnos.completada") : t("alumnos.pendiente")}</span>
                           {rutina?.creada_desde_perfil_alumno && (
                             <span className="ml-1 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-1.5 py-0.5 text-[10px] text-yellow-400 align-middle font-semibold">
                               !
@@ -749,7 +741,7 @@ export default function AlumnoRutinasProfesor({
                           onClick={() => setVerRutinaId(asignacion.rutina_id)}
                           className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
                         >
-                          Ver/Asignar
+                          {t("rutinas.verAsignar")}
                         </button>
                         <button
                           type="button"
@@ -772,21 +764,21 @@ export default function AlumnoRutinasProfesor({
                     {/* Desktop */}
                     <div className="hidden md:flex items-center gap-4">
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold truncate">{rutina?.nombre || "Rutina sin nombre"}</h3>
+                        <h3 className="font-semibold truncate">{rutina?.nombre || t("alumnos.rutinaSinNombre")}</h3>
                         <div className="flex items-center gap-3 mt-1">
                           <span className="text-xs text-zinc-500">
-                            Fecha {formatearFechaCorta(asignacion.completada ? asignacion.fecha_completada : asignacion.fecha_asignacion)}
+                            {t("alumnos.fecha")} {formatearFechaCorta(asignacion.completada ? asignacion.fecha_completada : asignacion.fecha_asignacion)}
                           </span>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             asignacion.completada
                               ? "bg-zinc-800 text-zinc-400"
                               : "bg-emerald-900/40 text-emerald-400"
                           }`}>
-                            {asignacion.completada ? "Completada" : "Pendiente"}
+                            {asignacion.completada ? t("alumnos.completada") : t("alumnos.pendiente")}
                           </span>
                           {rutina?.creada_desde_perfil_alumno && (
                             <span className="ml-2 inline-block rounded border border-yellow-700 bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400 align-middle">
-                              Personalizada
+                              {t("rutinas.personalizada")}
                             </span>
                           )}
                         </div>
@@ -797,14 +789,14 @@ export default function AlumnoRutinasProfesor({
                           onClick={() => setVerRutinaId(asignacion.rutina_id)}
                           className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
                         >
-                          Ver
+                          {t("alumnos.ver")}
                         </button>
                         <button
                           type="button"
                           onClick={() => editarRutinaParaAlumno(asignacion)}
                           className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
                         >
-                          Editar
+                          {t("rutinas.editar")}
                         </button>
                         <button
                           type="button"
@@ -812,7 +804,7 @@ export default function AlumnoRutinasProfesor({
                           disabled={quitandoId === asignacion.id}
                           className="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {quitandoId === asignacion.id ? "..." : "Quitar"}
+                          {quitandoId === asignacion.id ? "..." : t("alumnos.quitar")}
                         </button>
                       </div>
                     </div>
@@ -829,10 +821,10 @@ export default function AlumnoRutinasProfesor({
                   disabled={paginaSegura === 0}
                   className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  ← Anterior
+                  {t("common.anterior")}
                 </button>
                 <span className="text-sm text-zinc-400">
-                  Página {paginaSegura + 1} de {totalPaginas}
+                  {t("common.pagina")} {paginaSegura + 1} {t("common.de")} {totalPaginas}
                 </span>
                 <button
                   type="button"
@@ -840,7 +832,7 @@ export default function AlumnoRutinasProfesor({
                   disabled={paginaSegura >= totalPaginas - 1}
                   className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Siguiente →
+                  {t("common.siguiente")}
                 </button>
               </div>
             )}
@@ -876,7 +868,7 @@ export default function AlumnoRutinasProfesor({
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70">
             <div className="w-full max-w-lg rounded-t-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold">🎯 Filtrar y ordenar</h3>
+                <h3 className="text-lg font-bold">{t("alumnos.filtrarYOrdenar")}</h3>
                 <button
                   type="button"
                   onClick={() => setFiltrosAbierto(false)}
@@ -888,53 +880,53 @@ export default function AlumnoRutinasProfesor({
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Estado</label>
+                  <label className="block text-sm text-zinc-400 mb-1">{t("alumnos.estado")}</label>
                   <select
                     value={filtroEstado}
                     onChange={(e) => setFiltroEstado(e.target.value as "todas" | "completadas" | "pendientes")}
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
                   >
-                    <option value="todas">Todos los estados</option>
-                    <option value="completadas">Completadas</option>
-                    <option value="pendientes">Pendientes</option>
+                    <option value="todas">{t("alumnos.todosLosEstados")}</option>
+                    <option value="completadas">{t("alumnos.completadas")}</option>
+                    <option value="pendientes">{t("alumnos.pendientes")}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Fecha</label>
+                  <label className="block text-sm text-zinc-400 mb-1">{t("alumnos.fechaFiltro")}</label>
                   <select
                     value={filtroFecha}
                     onChange={(e) => setFiltroFecha(e.target.value as "todas" | "semana" | "mes" | "tresmeses")}
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
                   >
-                    <option value="todas">Todas las fechas</option>
-                    <option value="semana">Última semana</option>
-                    <option value="mes">Último mes</option>
-                    <option value="tresmeses">Últimos 3 meses</option>
+                    <option value="todas">{t("alumnos.todasLasFechas")}</option>
+                    <option value="semana">{t("alumnos.ultimaSemana")}</option>
+                    <option value="mes">{t("alumnos.ultimoMes")}</option>
+                    <option value="tresmeses">{t("alumnos.ultimos3Meses")}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Ordenar por</label>
+                  <label className="block text-sm text-zinc-400 mb-1">{t("alumnos.ordenarPor")}</label>
                   <select
                     value={ordenarPor}
                     onChange={(e) => setOrdenarPor(e.target.value as "fecha" | "nombre" | "estado")}
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
                   >
-                    <option value="fecha">Antigüedad</option>
-                    <option value="nombre">Nombre</option>
+                    <option value="fecha">{t("alumnos.antiguedad")}</option>
+                    <option value="nombre">{t("alumnos.nombre")}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Orden</label>
+                  <label className="block text-sm text-zinc-400 mb-1">{t("alumnos.orden")}</label>
                   <select
                     value={orden}
                     onChange={(e) => setOrden(e.target.value as "asc" | "desc")}
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-3"
                   >
-                    <option value="desc">Descendente</option>
-                    <option value="asc">Ascendente</option>
+                    <option value="desc">{t("alumnos.descendente")}</option>
+                    <option value="asc">{t("alumnos.ascendente")}</option>
                   </select>
                 </div>
 
@@ -951,7 +943,7 @@ export default function AlumnoRutinasProfesor({
                     }}
                     className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800"
                   >
-                    Limpiar
+                    {t("alumnos.limpiar")}
                   </button>
                   <button
                     type="button"
@@ -961,7 +953,7 @@ export default function AlumnoRutinasProfesor({
                     }}
                     className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600"
                   >
-                    Aplicar filtros
+                    {t("alumnos.aplicarFiltros")}
                   </button>
                 </div>
               </div>

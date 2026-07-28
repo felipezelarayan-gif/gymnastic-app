@@ -4,8 +4,10 @@
 
 import { useParams, useRouter } from "next/navigation";
 import RutinaEntrenamientoView from "@/components/rutinas/RutinaEntrenamientoView";
+import { useIdioma } from "@/lib/i18n-context";
 
 export default function AlumnoNuevaRutinaPage() {
+  const { t } = useIdioma();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const asignacionId = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -14,9 +16,9 @@ export default function AlumnoNuevaRutinaPage() {
     return (
       <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center px-4">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-center">
-          <h1 className="text-lg font-semibold">Rutina no encontrada</h1>
+          <h1 className="text-lg font-semibold">{t("rutinas.noEncontrada")}</h1>
           <p className="mt-2 text-sm text-zinc-500">
-            No se pudo identificar la rutina asignada.
+            {t("alumno.rutinaNoIdentificada")}
           </p>
         </div>
       </main>
