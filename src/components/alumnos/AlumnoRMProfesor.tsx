@@ -6,6 +6,7 @@ import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import { obtenerRMsActualesAlumno, type RMActualCalculado } from "@/lib/rmActual";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { useIdioma } from "@/lib/i18n-context";
+import { campoBilingue } from "@/lib/utils/campoBilingue";
 
 type RMHistorial = {
   id: string;
@@ -34,7 +35,7 @@ function numero(valor?: number | string | null) {
 }
 
 export default function AlumnoRMProfesor({ alumnoId }: Props) {
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [rmsActuales, setRmsActuales] = useState<RMActualCalculado[]>([]);
   const [historial, setHistorial] = useState<RMHistorial[]>([]);
@@ -87,14 +88,15 @@ export default function AlumnoRMProfesor({ alumnoId }: Props) {
           .from("rutina_ejercicios")
           .select("ejercicio_id,nombre_ejercicio")
           .in("ejercicio_id", ejercicioIds),
-        supabase.from("ejercicios").select("id,nombre").in("id", ejercicioIds),
+        supabase.from("ejercicios").select("id,nombre,nombre_es,nombre_en").in("id", ejercicioIds),
       ]);
 
       const mapa = new Map<string, string>();
 
       (ejerciciosData || []).forEach((item) => {
-        if (item.id && item.nombre) {
-          mapa.set(item.id, item.nombre);
+        const nombreBilingue = campoBilingue(item, "nombre", idioma);
+        if (item.id && nombreBilingue) {
+          mapa.set(item.id, nombreBilingue);
         }
       });
 

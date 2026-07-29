@@ -10,6 +10,7 @@ import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
+import { campoBilingue } from "@/lib/utils/campoBilingue";
 import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 
 type Alumno = {
@@ -46,7 +47,7 @@ export default function MisProgresosPage() {
   const [modalRutina, setModalRutina] = useState<{ open: boolean; id: string; completada: boolean; } | null>(null);
   const { formatearFechaCorta } = useFormatoFecha();
   const { mostrarToast } = useToast();
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
 
   async function cargarDatos() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -75,7 +76,7 @@ export default function MisProgresosPage() {
     const idsEjercicios = Array.from(new Set((rmsCalculados || []).map((rm) => rm.ejercicio_id).filter(Boolean)));
     let ejerciciosData: Ejercicio[] = [];
     if (idsEjercicios.length > 0) {
-      const { data } = await supabase.from("ejercicios").select("id,nombre").in("id", idsEjercicios);
+      const { data } = await supabase.from("ejercicios").select("id,nombre,nombre_es,nombre_en").in("id", idsEjercicios);
       ejerciciosData = data || [];
     }
 
@@ -91,7 +92,14 @@ export default function MisProgresosPage() {
   useEffect(() => { const t = window.setTimeout(() => cargarDatos(), 0); return () => window.clearTimeout(t); }, []);
 
   const rmsMostrados = rmsActuales.slice(0, 5);
-  function nombreEjercicio(ejercicioId: string) { return ejercicios.find((i) => i.id === ejercicioId)?.nombre || t("alumnos.ejercicioSinNombre"); }
+  function nombreEjercicio(ejercicioId: string) { 
+    const encontrado = ejercicios.find((i) => i.id === ejercicioId);
+    if (encontrado) {
+      const nombre = campoBilingue(encontrado, "nombre", idioma);
+      if (nombre) return nombre;
+    }
+    return t("alumnos.ejercicioSinNombre"); 
+  }
 
   if (loading) return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
