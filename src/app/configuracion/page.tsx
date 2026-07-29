@@ -377,9 +377,9 @@ export default function ConfiguracionPage() {
         <BackButton fallback="/" />
 
         <header className="mt-6 mb-6">
-          <h1 className="text-3xl font-bold">⚙️ Configuración</h1>
+          <h1 className="text-3xl font-bold">{t("configuracion.titulo")}</h1>
           <p className="text-zinc-400 mt-2">
-            Ajustes generales de la aplicación.
+            {t("configuracion.descripcion")}
           </p>
         </header>
 
@@ -404,14 +404,14 @@ export default function ConfiguracionPage() {
               <h3 className="text-lg font-bold truncate">
                 {profile?.nombre || "Sin nombre"}
               </h3>
-              <p className="text-zinc-400 text-sm">Profesor</p>
+              <p className="text-zinc-400 text-sm">{t("configuracion.profesor")}</p>
               {profile?.es_admin && (
                 <span className="inline-block mt-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-                  Administrador
+                  {t("configuracion.administrador")}
                 </span>
               )}
             </div>
-            <span className="text-zinc-500 text-sm shrink-0">Ver y editar perfil →</span>
+            <span className="text-zinc-500 text-sm shrink-0">{t("configuracion.verEditarPerfil")}</span>
           </div>
         </section>
 
@@ -420,7 +420,7 @@ export default function ConfiguracionPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
               <div className="flex items-start justify-between gap-4 mb-5">
-                <h2 className="text-2xl font-bold">👤 Mi perfil</h2>
+                <h2 className="text-2xl font-bold">{t("configuracion.miPerfil")}</h2>
                 <button
                   type="button"
                   onClick={() => setMostrarPerfilModal(false)}
@@ -446,13 +446,13 @@ export default function ConfiguracionPage() {
                   <h3 className="text-xl font-bold">
                     {profile?.nombre || "Sin nombre"}
                   </h3>
-                  <p className="text-zinc-400 text-sm">Profesor</p>
+                  <p className="text-zinc-400 text-sm">{t("configuracion.profesor")}</p>
                   {profile?.email && (
                     <p className="text-zinc-500 text-xs mt-1">{profile.email}</p>
                   )}
                   <div className="mt-2 flex flex-wrap gap-2">
                     <label className="cursor-pointer rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800">
-                      📷 Cambiar foto
+                      {t("configuracion.cambiarFoto")}
                       <input
                         type="file"
                         accept="image/*"
@@ -466,7 +466,7 @@ export default function ConfiguracionPage() {
                         onClick={eliminarFoto}
                         className="rounded-lg border border-red-800 px-3 py-1.5 text-xs text-red-400 hover:bg-red-950"
                       >
-                        🗑️ Eliminar foto
+                        {t("configuracion.eliminarFoto")}
                       </button>
                     )}
                   </div>
@@ -475,7 +475,7 @@ export default function ConfiguracionPage() {
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Nombre</label>
+                  <label className="block text-sm text-zinc-400 mb-1">{t("configuracion.nombreLabel")}</label>
                   <input
                     value={nombreAdmin}
                     onChange={(e) => setNombreAdmin(e.target.value)}
@@ -484,7 +484,7 @@ export default function ConfiguracionPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Rol</label>
+                  <label className="block text-sm text-zinc-400 mb-1">{t("configuracion.rolLabel")}</label>
                   <input
                     value={profile?.rol || ""}
                     disabled
@@ -497,7 +497,7 @@ export default function ConfiguracionPage() {
                     onClick={() => setMostrarPerfilModal(false)}
                     className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800"
                   >
-                    Cancelar
+                    {t("configuracion.cancelarBtn")}
                   </button>
                   <button
                     type="button"
@@ -507,7 +507,7 @@ export default function ConfiguracionPage() {
                     }}
                     className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600"
                   >
-                    Guardar datos
+                    {t("configuracion.guardarDatos")}
                   </button>
                 </div>
               </div>
@@ -522,10 +522,10 @@ export default function ConfiguracionPage() {
         >
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">📊 Métricas</h2>
-              <p className="text-zinc-400 text-sm mt-0.5">3 métricas disponibles</p>
+              <h2 className="text-lg font-semibold">{t("configuracion.metricas")}</h2>
+              <p className="text-zinc-400 text-sm mt-0.5">{t("configuracion.metricasDisponibles")}</p>
             </div>
-            <span className="text-zinc-500 text-sm shrink-0">Ver detalles →</span>
+            <span className="text-zinc-500 text-sm shrink-0">{t("configuracion.verDetalles")}</span>
           </div>
         </section>
 
@@ -534,7 +534,7 @@ export default function ConfiguracionPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
               <div className="flex items-start justify-between gap-4 mb-5">
-                <h2 className="text-2xl font-bold">📊 Métricas</h2>
+                <h2 className="text-2xl font-bold">{t("configuracion.metricas")}</h2>
                 <button
                   type="button"
                   onClick={() => setMostrarMetricasModal(false)}
@@ -546,19 +546,19 @@ export default function ConfiguracionPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="text-sm text-zinc-400">Alumnos</p>
+                  <p className="text-sm text-zinc-400">{t("configuracion.alumnosCount")}</p>
                   <p className="text-3xl font-bold mt-1">{metricasProfesor.cantidadAlumnos}</p>
-                  <p className="text-xs text-zinc-500 mt-1">Asignados a este profesor</p>
+                  <p className="text-xs text-zinc-500 mt-1">{t("configuracion.alumnosAsignados")}</p>
                 </div>
                 <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="text-sm text-zinc-400">Rutinas</p>
+                  <p className="text-sm text-zinc-400">{t("configuracion.rutinasCount")}</p>
                   <p className="text-3xl font-bold mt-1">{metricasProfesor.cantidadRutinas}</p>
-                  <p className="text-xs text-zinc-500 mt-1">Creadas por este profesor</p>
+                  <p className="text-xs text-zinc-500 mt-1">{t("configuracion.rutinasCreadas")}</p>
                 </div>
                 <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="text-sm text-zinc-400">Evaluaciones RM</p>
+                  <p className="text-sm text-zinc-400">{t("configuracion.evaluacionesRM")}</p>
                   <p className="text-3xl font-bold mt-1">{metricasProfesor.cantidadEvaluacionesRM}</p>
-                  <p className="text-xs text-zinc-500 mt-1">Creadas por este profesor</p>
+                  <p className="text-xs text-zinc-500 mt-1">{t("configuracion.evaluacionesRMCreadas")}</p>
                 </div>
               </div>
 
@@ -568,7 +568,7 @@ export default function ConfiguracionPage() {
                     href="/configuracion/metricas"
                     className="inline-flex items-center justify-center rounded-xl border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-400 hover:bg-emerald-950"
                   >
-                    Ver métricas de profesores
+                    {t("configuracion.verMetricasProfesores")}
                   </a>
                 </div>
               )}
@@ -579,7 +579,7 @@ export default function ConfiguracionPage() {
                   onClick={() => setMostrarMetricasModal(false)}
                   className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
                 >
-                  Cerrar
+                  {t("configuracion.cerrarBtn")}
                 </button>
               </div>
             </div>
@@ -594,8 +594,8 @@ export default function ConfiguracionPage() {
               onClick={() => setMostrarCrearProfesorModal(true)}
             >
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">➕ Crear nuevo profesor</h2>
-                <span className="text-zinc-500 text-sm shrink-0">Abrir formulario →</span>
+                <h2 className="text-lg font-semibold">{t("configuracion.crearProfesor")}</h2>
+                <span className="text-zinc-500 text-sm shrink-0">{t("configuracion.abrirFormulario")}</span>
               </div>
             </section>
 
@@ -604,7 +604,7 @@ export default function ConfiguracionPage() {
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
                 <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
                   <div className="flex items-start justify-between gap-4 mb-5">
-                    <h2 className="text-2xl font-bold">➕ Crear nuevo profesor</h2>
+                    <h2 className="text-2xl font-bold">{t("configuracion.crearProfesor")}</h2>
                     <button
                       type="button"
                       onClick={() => setMostrarCrearProfesorModal(false)}
@@ -616,16 +616,16 @@ export default function ConfiguracionPage() {
 
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-sm text-zinc-400 mb-1">Nombre completo</label>
+                      <label className="block text-sm text-zinc-400 mb-1">{t("configuracion.nombreCompleto")}</label>
                       <input
                         value={nuevoUsuarioNombre}
                         onChange={(e) => setNuevoUsuarioNombre(e.target.value)}
                         className="w-full bg-zinc-800 rounded-xl p-3 border border-zinc-700"
-                        placeholder="Nombre completo"
+                        placeholder={t("configuracion.nombreCompleto")}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-zinc-400 mb-1">Email</label>
+                      <label className="block text-sm text-zinc-400 mb-1">{t("configuracion.email")}</label>
                       <input
                         type="email"
                         value={nuevoUsuarioEmail}
@@ -640,7 +640,7 @@ export default function ConfiguracionPage() {
                         onClick={() => setMostrarCrearProfesorModal(false)}
                         className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800"
                       >
-                        Cancelar
+                        {t("configuracion.cancelarBtn")}
                       </button>
                       <button
                         type="button"
@@ -651,7 +651,7 @@ export default function ConfiguracionPage() {
                         disabled={guardandoUsuario}
                         className="flex-1 rounded-xl bg-emerald-500 py-3 font-semibold hover:bg-emerald-600 disabled:opacity-50"
                       >
-                        {guardandoUsuario ? "Creando..." : "Crear profesor"}
+                        {guardandoUsuario ? t("configuracion.creando") : t("configuracion.crearProfesorBtn")}
                       </button>
                     </div>
                   </div>
@@ -670,12 +670,12 @@ export default function ConfiguracionPage() {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold">👨‍🏫 Profesores</h2>
+                  <h2 className="text-lg font-semibold">{t("configuracion.listaProfesores")}</h2>
                   <p className="text-zinc-400 text-sm mt-0.5">
-                    {profesores.length} {profesores.length === 1 ? "profesor" : "profesores"}
+                    {profesores.length} {profesores.length === 1 ? t("configuracion.profesorSingular") : t("configuracion.profesoresPlural")}
                   </p>
                 </div>
-                <span className="text-zinc-500 text-sm shrink-0">Ver lista →</span>
+                <span className="text-zinc-500 text-sm shrink-0">{t("configuracion.verLista")}</span>
               </div>
             </section>
 
@@ -685,9 +685,9 @@ export default function ConfiguracionPage() {
                 <div className="w-full max-w-lg max-h-[85vh] overflow-hidden bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-col">
                   <div className="flex items-start justify-between gap-4 border-b border-zinc-800 p-6 pb-4">
                     <div>
-                      <h2 className="text-2xl font-bold">👨‍🏫 Profesores</h2>
+                      <h2 className="text-2xl font-bold">{t("configuracion.listaProfesores")}</h2>
                       <p className="text-zinc-500 text-sm mt-1">
-                        {profesores.length} {profesores.length === 1 ? "registrado" : "registrados"}
+                        {profesores.length} {profesores.length === 1 ? t("configuracion.registrado") : t("configuracion.registrados")}
                       </p>
                     </div>
                     <button
@@ -701,7 +701,7 @@ export default function ConfiguracionPage() {
 
                   <div className="flex-1 overflow-y-auto p-6">
                     {profesores.length === 0 ? (
-                      <p className="text-zinc-400">No hay profesores cargados.</p>
+                      <p className="text-zinc-400">{t("configuracion.noHayProfesores")}</p>
                     ) : (
                       <div className="space-y-3">
                         {profesores.map((profesor) => (
@@ -711,7 +711,7 @@ export default function ConfiguracionPage() {
                           >
                             <div className="min-w-0 flex-1">
                               <p className="font-semibold truncate">
-                                {profesor.nombre || "Sin nombre"}
+                                {profesor.nombre || t("configuracion.sinNombre")}
                               </p>
                               {profesor.email && (
                                 <p className="text-zinc-500 text-sm truncate">
@@ -724,7 +724,7 @@ export default function ConfiguracionPage() {
                               onClick={() => quitarProfesor(profesor.id)}
                               className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 shrink-0"
                             >
-                              Borrar
+                              {t("common.borrar")}
                             </button>
                           </div>
                         ))}
@@ -744,10 +744,10 @@ export default function ConfiguracionPage() {
         >
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">📅 Formato de fecha</h2>
-              <p className="text-zinc-400 text-sm mt-0.5">Formato actual: {formato}</p>
+              <h2 className="text-lg font-semibold">{t("configuracion.formatoFecha")}</h2>
+              <p className="text-zinc-400 text-sm mt-0.5">{t("configuracion.formatoActual", { formato })}</p>
             </div>
-            <span className="text-zinc-500 text-sm shrink-0">Cambiar →</span>
+            <span className="text-zinc-500 text-sm shrink-0">{t("configuracion.cambiar")}</span>
           </div>
         </section>
 
@@ -756,7 +756,7 @@ export default function ConfiguracionPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
               <div className="flex items-start justify-between gap-4 mb-5">
-                <h2 className="text-2xl font-bold">📅 Formato de fecha</h2>
+                <h2 className="text-2xl font-bold">{t("configuracion.formatoFecha")}</h2>
                 <button
                   type="button"
                   onClick={() => setMostrarFechaModal(false)}
@@ -767,7 +767,7 @@ export default function ConfiguracionPage() {
               </div>
 
               <p className="text-zinc-400 text-sm mb-3">
-                Elegí cómo querés ver las fechas en toda la aplicación.
+                {t("configuracion.elegirFormato")}
               </p>
 
               <select
@@ -783,7 +783,7 @@ export default function ConfiguracionPage() {
               </select>
 
               <p className="text-zinc-500 text-sm mt-2">
-                Formato actual: <span className="text-zinc-300">{formato}</span>
+                {t("configuracion.formatoActual", { formato })}: <span className="text-zinc-300">{formato}</span>
               </p>
 
               <div className="mt-4 flex justify-end">
@@ -792,7 +792,7 @@ export default function ConfiguracionPage() {
                   onClick={() => setMostrarFechaModal(false)}
                   className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
                 >
-                  Cerrar
+                  {t("configuracion.cerrarBtn")}
                 </button>
               </div>
             </div>
@@ -816,12 +816,12 @@ export default function ConfiguracionPage() {
         >
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">🌎 Idioma</h2>
+              <h2 className="text-lg font-semibold">{t("configuracion.idioma")}</h2>
               <p className="text-zinc-400 text-sm mt-0.5">
                 {idiomaActual === "es" ? "Español" : "English"}
               </p>
             </div>
-            <span className="text-zinc-500 text-sm shrink-0">Cambiar →</span>
+            <span className="text-zinc-500 text-sm shrink-0">{t("configuracion.cambiarIdioma")}</span>
           </div>
         </section>
 
@@ -830,7 +830,7 @@ export default function ConfiguracionPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
               <div className="flex items-start justify-between gap-4 mb-5">
-                <h2 className="text-2xl font-bold">🌎 Idioma</h2>
+                <h2 className="text-2xl font-bold">{t("configuracion.idioma")}</h2>
                 <button
                   type="button"
                   onClick={() => setMostrarIdiomaModal(false)}
@@ -841,7 +841,7 @@ export default function ConfiguracionPage() {
               </div>
 
               <p className="text-zinc-400 text-sm mb-3">
-                Elegí el idioma de la aplicación.
+                {t("configuracion.elegirIdioma")}
               </p>
 
               <div className="flex gap-3">
@@ -876,7 +876,7 @@ export default function ConfiguracionPage() {
               </div>
 
               <p className="text-zinc-500 text-sm mt-3">
-                Por ahora solo se guarda la preferencia. Más adelante conectamos esta opción con todos los textos de la app.
+                {t("configuracion.idiomaInfo")}
               </p>
 
               <div className="mt-4 flex justify-end">
@@ -885,7 +885,7 @@ export default function ConfiguracionPage() {
                   onClick={() => setMostrarIdiomaModal(false)}
                   className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
                 >
-                  Cerrar
+                  {t("configuracion.cerrarBtn")}
                 </button>
               </div>
             </div>
@@ -893,13 +893,13 @@ export default function ConfiguracionPage() {
         )}
 
         <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mt-4 hover:border-zinc-700 hover:bg-zinc-800/70 transition">
-          <h2 className="text-xl font-semibold mb-3">🔒 Sesión</h2>
+          <h2 className="text-xl font-semibold mb-3">{t("configuracion.sesion")}</h2>
           <button
             type="button"
             onClick={cerrarSesion}
             className="w-full md:w-auto rounded-xl border border-red-800 px-5 py-3 text-red-400 hover:bg-red-950"
           >
-            Cerrar sesión
+            {t("configuracion.cerrarSesionBtn")}
           </button>
         </section>
       </div>
