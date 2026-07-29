@@ -80,7 +80,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     setIdioma(nuevoIdioma);
     localStorage.setItem("language", nuevoIdioma);
 
-    // Guardar en DB
+    // Guardar en DB y en auth.users.raw_user_meta_data
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (sessionData?.session?.user) {
@@ -88,6 +88,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
           .from("profiles")
           .update({ idioma: nuevoIdioma })
           .eq("id", sessionData.session.user.id);
+
+        // Guardar también en user_metadata para que esté disponible
+        // en los templates de email de Supabase Auth (invite, recovery)
+        await supabase.auth.updateUser({
+          data: { idioma: nuevoIdioma },
+        });
       }
     } catch {
       // Si falla la DB, el cambio ya quedó en localStorage

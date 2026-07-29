@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     "https://gymnastic-app-u64l.vercel.app";
 
   let profesorCreadorId = profesorId || null;
+  let idiomaCreador: string | null = null;
 
   if (!profesorCreadorId) {
     const authHeader = request.headers.get("authorization");
@@ -32,6 +33,19 @@ export async function POST(request: Request) {
     if (token) {
       const { data: authUserData } = await supabaseAdmin.auth.getUser(token);
       profesorCreadorId = authUserData.user?.id || null;
+    }
+  }
+
+  // Obtener el idioma del creador (profesor o admin)
+  if (profesorCreadorId) {
+    const { data: perfilCreador } = await supabaseAdmin
+      .from("profiles")
+      .select("idioma")
+      .eq("id", profesorCreadorId)
+      .maybeSingle();
+    
+    if (perfilCreador?.idioma) {
+      idiomaCreador = perfilCreador.idioma;
     }
   }
 
@@ -66,6 +80,7 @@ export async function POST(request: Request) {
         nombre,
         apellido,
         rol: rolFinal,
+        idioma: idiomaCreador || "en",
       },
       redirectTo: siteUrl ? `${siteUrl}/bienvenida` : undefined,
     });
