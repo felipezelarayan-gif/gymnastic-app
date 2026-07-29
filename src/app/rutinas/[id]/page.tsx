@@ -1349,7 +1349,6 @@ export default function RutinaDetallePage({
               {asignaciones.filter((a) => a._estado !== "eliminado").length === 0 ? (
                 <div className="rounded-xl border border-dashed border-zinc-700 p-4 text-sm text-zinc-400">
                   {t("rutinas.noHayAlumnos")}
-                  {t("rutinas.noHayAlumnos")}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -1424,7 +1423,7 @@ export default function RutinaDetallePage({
 
               <div className="flex-1 overflow-y-auto p-6">
                 {asignaciones.filter((a) => a._estado !== "eliminado").length === 0 ? (
-                  <p className="text-zinc-400">No hay alumnos asignados.</p>
+                  <p className="text-zinc-400">{t("rutinas.noHayAlumnos")}</p>
                 ) : (
                   <div className="space-y-3">
                     {asignaciones

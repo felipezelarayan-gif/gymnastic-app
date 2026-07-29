@@ -142,6 +142,7 @@ export const translations = {
       evaluacionesDesc: "Gestionar evaluaciones RM y FMS.",
       mensajes: "Mensajes",
       mensajesDesc: "Ver mensajes de tus alumnos.",
+      configuracion: "Configuración",
       configuracionDesc: "Gestionar profesores, permisos y ajustes generales.",
     },
     alumno: {
@@ -570,7 +571,6 @@ export const translations = {
       idioma: "🌎 Idioma",
       cambiarIdioma: "Cambiar →",
       elegirIdioma: "Elegí el idioma de la aplicación.",
-      idiomaInfo: "Por ahora solo se guarda la preferencia. Más adelante conectamos esta opción con todos los textos de la app.",
       sesion: "🔒 Sesión",
       cerrarSesionBtn: "Cerrar sesión",
       cerrarBtn: "Cerrar",
@@ -1864,7 +1864,6 @@ export const translations = {
       idioma: "🌎 Language",
       cambiarIdioma: "Change →",
       elegirIdioma: "Choose the application language.",
-      idiomaInfo: "For now it just saves your preference. We'll connect this option with all texts in the app later.",
       sesion: "🔒 Session",
       cerrarSesionBtn: "Sign out",
       cerrarBtn: "Close",
