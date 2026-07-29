@@ -1429,7 +1429,7 @@ export const translations = {
     },
     alumno: {
       hola: "Hi, {{nombre}} 👋",
-      listoEntrenar: "Ready to train",
+      listoEntrenar: "Ready to work out",
       entrenamientosRecientes: "🔥 {{count}} workout{{plural}} in the last 7 days",
       miRutina: "🏋️ My routine",
       miRutinaDesc: "View current routine, tests and complete pending items.",
@@ -2446,7 +2446,7 @@ export const translations = {
     },
     registrarEntrenamiento: {
       titulo: "Record Workouts",
-      descripcion: "Log routines for members who are training without their phone.",
+      descripcion: "Log routines for members who are working out without their phone.",
       sinNombre: "Unnamed member",
       buscarAlumno: "Search member",
       buscarPlaceholder: "Name or email...",
@@ -2472,7 +2472,7 @@ export const translations = {
       cargando: "Loading profile...",
       noEncontrado: "Member profile not found.",
       bienvenido: "👋 Welcome to the app",
-      bienvenidoDesc: "We recommend completing your profile before starting to train.",
+      bienvenidoDesc: "We recommend completing your profile before starting to work out.",
       completarAhora: "Complete now",
       masTarde: "Later",
       fotoPerfil: "Profile picture",
