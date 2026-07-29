@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { FMS_INFO } from "@/lib/fms/fms-info";
+import { FMS_INFO, type FMSInfo } from "@/lib/fms/fms-info";
 import { useIdioma } from "@/lib/i18n-context";
 
 type Props = {
@@ -14,11 +14,6 @@ type Props = {
 
 type TabActiva = "descripcion" | "instrucciones" | "criterios";
 
-const TABS: { id: TabActiva; label: string }[] = [
-  { id: "descripcion", label: "Descripción" },
-  { id: "instrucciones", label: "Instrucciones" },
-  { id: "criterios", label: "Criterios" },
-];
 
 export default function FMSInfoModal({
   abierto,
@@ -26,7 +21,7 @@ export default function FMSInfoModal({
   testNombre,
   tipo,
 }: Props) {
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
   const [tabActiva, setTabActiva] = useState<TabActiva>("descripcion");
 
   useEffect(() => {
@@ -35,7 +30,28 @@ export default function FMSInfoModal({
 
   if (!abierto) return null;
 
-  const info = FMS_INFO[testNombre];
+  // Buscar por nombre traducido o por id
+  let info: FMSInfo | null = FMS_INFO[testNombre] || null;
+  if (!info) {
+    // Fallback: buscar por id (deep-squat, hurdle-step, etc.)
+    info = Object.values(FMS_INFO).find((item) => item.id === testNombre) || null;
+  }
+  if (!info) {
+    // Fallback: buscar por nombre normalizado
+    const testNormalized = testNombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    info = Object.values(FMS_INFO).find((item) => {
+      const itemNormalized = item.titulo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return itemNormalized === testNormalized;
+    }) || null;
+  }
+
+  const es = idioma === "es";
+
+  const TABS: { id: TabActiva; label: string }[] = [
+    { id: "descripcion", label: t("fms.descripcion") },
+    { id: "instrucciones", label: t("fms.instrucciones") },
+    { id: "criterios", label: t("fms.criterios") },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -86,7 +102,7 @@ export default function FMSInfoModal({
                   <section>
                     <h3 className="font-semibold text-white mb-2">{t("fms.descripcion")}</h3>
                     <p className="text-zinc-300 text-sm leading-6">
-                      {info.descripcion || t("fms.descripcionPendiente")}
+                      {(es ? info.descripcion : info.descripcion_en) || t("fms.descripcionPendiente")}
                     </p>
                   </section>
                 )}
@@ -98,15 +114,15 @@ export default function FMSInfoModal({
                     </h3>
 
                     {(tipo === "profesor"
-                      ? info.instruccionesProfesor
-                      : info.instruccionesAlumno
+                      ? (es ? info.instruccionesProfesor : info.instruccionesProfesor_en)
+                      : (es ? info.instruccionesAlumno : info.instruccionesAlumno_en)
                     ).length === 0 ? (
                       <p className="text-zinc-500 text-sm">{t("fms.instruccionesPendientes")}</p>
                     ) : (
                       <ul className="space-y-2 text-sm text-zinc-300">
                         {(tipo === "profesor"
-                          ? info.instruccionesProfesor
-                          : info.instruccionesAlumno
+                          ? (es ? info.instruccionesProfesor : info.instruccionesProfesor_en)
+                          : (es ? info.instruccionesAlumno : info.instruccionesAlumno_en)
                         ).map((item, index) => (
                           <li
                             key={index}
@@ -138,7 +154,7 @@ export default function FMSInfoModal({
                               {puntaje} {t("fms.puntos")}
                             </p>
                             <p className="text-zinc-300 mt-1">
-                              {info.criterios[puntaje] || t("fms.criterioPendiente")}
+                              {(es ? info.criterios[puntaje] : info.criterios_en[puntaje]) || t("fms.criterioPendiente")}
                             </p>
                           </div>
                         );

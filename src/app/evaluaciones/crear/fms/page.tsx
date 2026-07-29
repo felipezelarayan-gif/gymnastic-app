@@ -23,19 +23,14 @@ type EvaluacionFMSDraft = {
 
 const DRAFT_KEY = "evaluacion_fms_crear_draft";
 
-const TESTS_FMS = [
-  "Sentadilla profunda",
-  "Paso de valla",
-  "Estocada en linea",
-  "Movilidad de hombro",
-  "Elevacion activa de pierna",
-  "Estabilidad de tronco",
-  "Estabilidad rotatoria",
+const TESTS_FMS_KEYS = [
+  "fmsTest1", "fmsTest2", "fmsTest3", "fmsTest4",
+  "fmsTest5", "fmsTest6", "fmsTest7",
 ];
 
 export default function CrearEvaluacionFMS() {
   const router = useRouter();
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [tipoEvaluacion, setTipoEvaluacion] = useState<TipoEvaluacion>(null);
   const [alumnoId, setAlumnoId] = useState("");
@@ -43,7 +38,7 @@ export default function CrearEvaluacionFMS() {
   const [fecha, setFecha] = useState("");
   const [momentoEvaluacion, setMomentoEvaluacion] = useState<"ahora" | "profesor" | "alumno">("profesor");
   const [notas, setNotas] = useState("");
-  const [testsSeleccionados, setTestsSeleccionados] = useState<string[]>([...TESTS_FMS]);
+  const [testsSeleccionados, setTestsSeleccionados] = useState<string[]>([...TESTS_FMS_KEYS]);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito] = useState(false);
@@ -79,7 +74,7 @@ export default function CrearEvaluacionFMS() {
       const profesorActualId = sessionData.session?.user.id;
 
       if (!profesorActualId) {
-        alert("No se pudo identificar al profesor. Volve a iniciar sesion.");
+        alert(t("evaluaciones.errorSinProfesor"));
         router.push("/login");
         return;
       }
@@ -131,7 +126,7 @@ export default function CrearEvaluacionFMS() {
       tipoEvaluacion === "individual" ? [alumnoId].filter(Boolean) : alumnosIds;
 
     if (testsSeleccionados.length === 0) {
-      alert("Selecciona al menos un test FMS.");
+      alert(t("evaluaciones.errorSeleccionarTest"));
       return;
     }
 
@@ -144,7 +139,7 @@ export default function CrearEvaluacionFMS() {
 
     if (!userId) {
       setGuardando(false);
-      alert("No se pudo identificar al profesor. Volve a iniciar sesion.");
+      alert(t("evaluaciones.errorSinProfesor"));
       return;
     }
 
@@ -156,7 +151,7 @@ export default function CrearEvaluacionFMS() {
 
     if (!alumnosParaEvaluar.every((id) => alumnosPropiosIds.has(id))) {
       setGuardando(false);
-      alert("Hay alumnos seleccionados que no pertenecen a este profesor.");
+      alert(t("evaluaciones.errorAlumnosNoPropios"));
       return;
     }
 
@@ -186,14 +181,14 @@ export default function CrearEvaluacionFMS() {
 
     if (evaluacionError || !evaluacionesCreadas || evaluacionesCreadas.length === 0) {
       setGuardando(false);
-      alert(evaluacionError?.message || "No se pudo crear la evaluacion FMS.");
+      alert(evaluacionError?.message || t("evaluaciones.errorCrearEvaluacionFMS"));
       return;
     }
 
     const tests = evaluacionesCreadas.flatMap((evaluacion) =>
-      testsSeleccionados.map((testNombre) => ({
+      testsSeleccionados.map((testKey) => ({
         evaluacion_fms_id: evaluacion.id,
-        test_nombre: testNombre,
+        test_nombre: t(`evaluaciones.${testKey}`),
         asignado: true,
         completado: false,
       }))
@@ -229,15 +224,15 @@ export default function CrearEvaluacionFMS() {
       <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
         <div className="text-center">
           <p className="text-4xl mb-4">OK</p>
-          <h2 className="text-2xl font-bold">Evaluacion FMS creada</h2>
+          <h2 className="text-2xl font-bold">{t("evaluaciones.exitoTituloFMS")}</h2>
           <p className="text-zinc-400 mt-2">
             {tipoEvaluacion === "grupal"
-              ? `Se crearon ${alumnosIds.length} evaluaciones FMS individuales.`
-              : "La evaluacion FMS quedo creada correctamente."}
+              ? t("evaluaciones.exitoGrupalFMS", { count: alumnosIds.length })
+              : t("evaluaciones.exitoIndividualFMS")}
           </p>
           <div className="flex gap-3 justify-center mt-6">
             <Link href="/evaluaciones/realizar?tipo=fms" className="bg-white text-zinc-950 font-semibold px-5 py-2 rounded-lg hover:bg-zinc-200 transition">
-              Ir a realizar FMS
+              {t("evaluaciones.irARealizarFMS")}
             </Link>
             <BackButton fallback="/evaluaciones" />
           </div>
@@ -254,48 +249,48 @@ export default function CrearEvaluacionFMS() {
         </div>
 
         <header className="mb-8">
-          <h1 className="text-3xl font-bold">Crear Test FMS</h1>
+          <h1 className="text-3xl font-bold">{t("evaluaciones.crearTituloFMS")}</h1>
           <p className="text-zinc-400 mt-2">
-            Programa una evaluacion de movimiento funcional individual o grupal.
+            {t("evaluaciones.crearDescripcionFMS")}
           </p>
         </header>
 
         <div className="mb-6 rounded-xl border border-blue-900/50 bg-blue-950/20 p-4 text-sm text-blue-300">
-          Esta evaluacion se guarda como borrador local en este dispositivo hasta que la crees.
+          {t("evaluaciones.borradorInfo")}
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 mb-8">
           <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-            Tests a incluir
+            {t("evaluaciones.testsAIncluir")}
           </h3>
           <div className="flex gap-2 mb-3">
             <button
               type="button"
-              onClick={() => setTestsSeleccionados([...TESTS_FMS])}
+              onClick={() => setTestsSeleccionados([...TESTS_FMS_KEYS])}
               className="border border-zinc-700 text-zinc-300 px-3 py-1 rounded-lg hover:bg-zinc-800 transition text-xs"
             >
-              Seleccionar todos
+              {t("evaluaciones.seleccionarTodos")}
             </button>
             <button
               type="button"
               onClick={() => setTestsSeleccionados([])}
               className="border border-zinc-700 text-zinc-300 px-3 py-1 rounded-lg hover:bg-zinc-800 transition text-xs"
             >
-              Limpiar selección
+              {t("evaluaciones.limpiarSeleccion")}
             </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-            {TESTS_FMS.map((test, index) => {
-              const seleccionado = testsSeleccionados.includes(test);
+            {TESTS_FMS_KEYS.map((testKey, index) => {
+              const seleccionado = testsSeleccionados.includes(testKey);
               return (
                 <button
-                  key={test}
+                  key={testKey}
                   type="button"
                   onClick={() =>
                     setTestsSeleccionados((prev) =>
-                      prev.includes(test)
-                        ? prev.filter((t) => t !== test)
-                        : [...prev, test]
+                      prev.includes(testKey)
+                        ? prev.filter((t) => t !== testKey)
+                        : [...prev, testKey]
                     )
                   }
                   className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg border transition ${
@@ -304,13 +299,13 @@ export default function CrearEvaluacionFMS() {
                       : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500"
                   }`}
                 >
-                  <span className="text-zinc-600">{index + 1}.</span> {test}
+                  <span className="text-zinc-600">{index + 1}.</span> {t(`evaluaciones.${testKey}`)}
                 </button>
               );
             })}
           </div>
           <p className="text-zinc-500 text-xs mt-3">
-            {testsSeleccionados.length} de {TESTS_FMS.length} tests incluidos. Cada test se puntúa de 0 a 3. Máximo: 21 puntos.
+            {t("evaluaciones.testsCount", { count: testsSeleccionados.length, total: TESTS_FMS_KEYS.length })}
           </p>
         </div>
 
@@ -326,19 +321,19 @@ export default function CrearEvaluacionFMS() {
 
           {!tipoEvaluacion && (
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 text-sm text-zinc-400">
-              Primero elegi si queres crear una evaluacion individual o grupal.
+              {t("evaluaciones.primeroElegirTipo")}
             </div>
           )}
 
           {tipoEvaluacion === "individual" && (
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Alumno *</label>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">{t("evaluaciones.alumnoLabel")}</label>
               <select
                 value={alumnoId}
                 onChange={(e) => setAlumnoId(e.target.value)}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-zinc-500"
               >
-                <option value="">Selecciona un alumno</option>
+                <option value="">{t("evaluaciones.seleccionarAlumno")}</option>
                 {alumnos.map((a) => (
                   <option key={a.id} value={a.id}>{a.nombre}</option>
                 ))}
@@ -348,7 +343,7 @@ export default function CrearEvaluacionFMS() {
 
           {tipoEvaluacion === "grupal" && (
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Alumnos *</label>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">{t("evaluaciones.alumnosLabel")}</label>
               <div className="max-h-64 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-900 p-3 space-y-2">
                 {alumnos.map((a) => {
                   const seleccionado = alumnosIds.includes(a.id);
@@ -377,8 +372,8 @@ export default function CrearEvaluacionFMS() {
               </div>
               <p className="text-xs text-zinc-500 mt-2">
                 {alumnosIds.length === 0
-                  ? "No hay alumnos seleccionados."
-                  : `${alumnosIds.length} alumno(s) seleccionados.`}
+                  ? t("evaluaciones.sinAlumnosSeleccionados")
+                  : t("evaluaciones.alumnosSeleccionadosCount", { count: alumnosIds.length })}
               </p>
             </div>
           )}
@@ -386,15 +381,15 @@ export default function CrearEvaluacionFMS() {
           {tipoEvaluacion && !puedeMostrarFormulario && (
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 text-sm text-zinc-400">
               {tipoEvaluacion === "grupal"
-                ? "Elegi uno o mas alumnos para continuar."
-                : "Elegi un alumno para continuar."}
+                ? t("evaluaciones.elegirAlumnos")
+                : t("evaluaciones.elegirAlumnoMsg")}
             </div>
           )}
 
           {puedeMostrarFormulario && (
             <>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Fecha *</label>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">{t("evaluaciones.fechaLabel")}</label>
                 <input
                   type="date"
                   value={fecha}
@@ -404,12 +399,12 @@ export default function CrearEvaluacionFMS() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Momento de evaluacion *</label>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">{t("evaluaciones.momentoLabel")}</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {[
-                    { key: "ahora", titulo: "Ahora", desc: "Guardar y realizar" },
-                    { key: "profesor", titulo: "Mas tarde", desc: "Por profesor" },
-                    { key: "alumno", titulo: "Alumno", desc: "Carga mas tarde" },
+                    { key: "ahora", titulo: t("evaluaciones.momentoAhora"), desc: t("evaluaciones.momentoAhoraDesc") },
+                    { key: "profesor", titulo: t("evaluaciones.momentoDespues"), desc: t("evaluaciones.momentoDespuesDesc") },
+                    { key: "alumno", titulo: t("evaluaciones.momentoAlumno"), desc: t("evaluaciones.momentoAlumnoDesc") },
                   ].map((opcion) => (
                     <button
                       key={opcion.key}
@@ -429,11 +424,11 @@ export default function CrearEvaluacionFMS() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Notas (opcional)</label>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">{t("evaluaciones.notasLabel")}</label>
                 <textarea
                   value={notas}
                   onChange={(e) => setNotas(e.target.value)}
-                  placeholder="Contexto, lesiones previas, condiciones a tener en cuenta..."
+                  placeholder={t("evaluaciones.notasPlaceholder")}
                   rows={3}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
                 />
@@ -445,7 +440,7 @@ export default function CrearEvaluacionFMS() {
                   disabled={guardando}
                   className="bg-white text-zinc-950 font-semibold px-6 py-3 rounded-lg hover:bg-zinc-200 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {guardando ? "Guardando..." : "Crear evaluacion"}
+                  {guardando ? t("common.guardando") : t("evaluaciones.crearBtn")}
                 </button>
                 <BackButton fallback="/evaluaciones" />
               </div>

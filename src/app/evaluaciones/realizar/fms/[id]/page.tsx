@@ -40,6 +40,7 @@ type TestFMS = {
   observaciones: string | null;
 };
 
+
 const PUNTAJE_LABELS: Record<number, string> = {
   0: "Dolor",
   1: "No pudo",
@@ -54,30 +55,17 @@ const PUNTAJE_COLORS: Record<number, string> = {
   3: "bg-emerald-900/40 border-emerald-700 text-emerald-400",
 };
 
-const TESTS_BILATERALES = [
-  "Paso de valla",
-  "Estocada en linea",
-  "Movilidad de hombro",
-  "Elevacion activa de pierna",
-  "Estabilidad rotatoria",
-];
 
-function normalizarTexto(valor: string) {
-  return valor
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[-_]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+function esTestBilateral(testNombre: string, t: (key: string) => string) {
+  const bilaterales = [
+    t("evaluaciones.fmsTest2"),
+    t("evaluaciones.fmsTest3"),
+    t("evaluaciones.fmsTest4"),
+    t("evaluaciones.fmsTest5"),
+    t("evaluaciones.fmsTest7"),
+  ];
 
-function esTestBilateral(testNombre: string) {
-  const nombreNormalizado = normalizarTexto(testNombre);
-
-  return TESTS_BILATERALES.some((test) =>
-    nombreNormalizado.includes(normalizarTexto(test))
-  );
+  return bilaterales.includes(testNombre);
 }
 
 function calcularPuntajeBilateral(derecho: number | null, izquierdo: number | null) {
@@ -85,16 +73,16 @@ function calcularPuntajeBilateral(derecho: number | null, izquierdo: number | nu
   return Math.min(derecho, izquierdo);
 }
 
-function totalLabel(total: number, maximo: number) {
-  if (maximo <= 0) return "Sin tests cargados";
+function totalLabel(total: number, maximo: number, t?: (key: string) => string) {
+  if (maximo <= 0) return t ? t("evaluaciones.fmsSinTests") : "Sin tests cargados";
 
   const porcentaje = (total / maximo) * 100;
 
-  if (porcentaje <= 25) return "Alto riesgo de lesion";
-  if (porcentaje <= 50) return "Disfunciones a trabajar";
-  if (porcentaje <= 75) return "Compensaciones a trabajar";
-  if (porcentaje < 100) return "Adecuado, pero mejorable";
-  return "Movimiento funcional adecuado";
+  if (porcentaje <= 25) return t ? t("evaluaciones.fmsAltoRiesgo") : "Alto riesgo de lesion";
+  if (porcentaje <= 50) return t ? t("evaluaciones.fmsDisfunciones") : "Disfunciones a trabajar";
+  if (porcentaje <= 75) return t ? t("evaluaciones.fmsCompensaciones") : "Compensaciones a trabajar";
+  if (porcentaje < 100) return t ? t("evaluaciones.fmsAdecuado") : "Adecuado, pero mejorable";
+  return t ? t("evaluaciones.fmsOptimo") : "Movimiento funcional adecuado";
 }
 
 function totalColor(total: number, maximo: number) {
@@ -111,7 +99,7 @@ function totalColor(total: number, maximo: number) {
 export default function RealizarEvaluacionFMSDetalle() {
   const params = useParams();
   const evaluacionId = String(params.id || "");
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
 
   const [loading, setLoading] = useState(true);
   const [evaluacion, setEvaluacion] = useState<EvaluacionFMS | null>(null);
@@ -130,7 +118,7 @@ export default function RealizarEvaluacionFMSDetalle() {
       const profesorActualId = sessionData.session?.user.id;
 
       if (!profesorActualId) {
-        alert("No se pudo identificar al profesor. Volve a iniciar sesion.");
+        alert(t("evaluaciones.errorSinProfesor"));
         window.location.href = "/login";
         return;
       }
@@ -145,7 +133,7 @@ export default function RealizarEvaluacionFMSDetalle() {
         .single();
 
       if (evaluacionError || !evaluacionData) {
-        alert(evaluacionError?.message || "No se pudo cargar la evaluacion FMS.");
+        alert(evaluacionError?.message || t("evaluaciones.fmsErrorCargar"));
         setLoading(false);
         return;
       }
@@ -187,7 +175,7 @@ export default function RealizarEvaluacionFMSDetalle() {
 
   async function validarEvaluacionPropia() {
     if (!evaluacion || !profesorId) {
-      alert("No se pudo validar la evaluacion actual.");
+      alert(t("evaluaciones.fmsErrorSinPermiso"));
       return false;
     }
 
@@ -204,12 +192,12 @@ export default function RealizarEvaluacionFMSDetalle() {
     }
 
     if (!evaluacionPropia) {
-      alert("No tenes permiso para modificar esta evaluacion.");
+      alert(t("evaluaciones.fmsErrorSinPermiso"));
       return false;
     }
 
     if (evaluacionPropia.alumno_id !== evaluacion.alumno_id) {
-      alert("La evaluacion no coincide con el alumno cargado.");
+      alert(t("evaluaciones.fmsErrorNoCoincide"));
       return false;
     }
 
@@ -283,7 +271,7 @@ export default function RealizarEvaluacionFMSDetalle() {
     if (guardando || !evaluacion || total === null) return;
 
     if (!valoresCompletos) {
-      alert("Completa el puntaje de todos los tests FMS.");
+      alert(t("evaluaciones.fmsErrorCompletar"));
       return;
     }
 
@@ -349,7 +337,7 @@ export default function RealizarEvaluacionFMSDetalle() {
   }
 
   if (!evaluacion) {
-    return <main className="min-h-screen bg-zinc-950 text-white p-8">No se encontro la evaluacion FMS.</main>;
+    return <main className="min-h-screen bg-zinc-950 text-white p-8">{t("evaluaciones.fmsNoEncontrada")}</main>;
   }
 
   if (exito) {
@@ -357,7 +345,7 @@ export default function RealizarEvaluacionFMSDetalle() {
       <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
         <div className="text-center">
           <p className="text-4xl mb-4">OK</p>
-          <h2 className="text-2xl font-bold">Evaluacion FMS guardada</h2>
+          <h2 className="text-2xl font-bold">{t("evaluaciones.fmsExitoGuardar")}</h2>
           {total !== null && (
             <p className={`text-xl font-bold mt-1 ${totalColor(total, puntajeMaximo)}`}>
               {total}/{puntajeMaximo} - {totalLabel(total, puntajeMaximo)}
@@ -377,16 +365,16 @@ export default function RealizarEvaluacionFMSDetalle() {
         </div>
 
         <header className="mb-8">
-          <p className="text-sm text-zinc-500 mb-2">Evaluacion FMS</p>
+          <p className="text-sm text-zinc-500 mb-2">{t("evaluaciones.fmsRealizarTitulo")}</p>
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold">{alumno?.nombre || "Alumno"}</h1>
-              <p className="text-zinc-400 mt-2">Fecha a realizar: {formatearFechaCorta(evaluacion.fecha_asignacion) || "Sin fecha"}</p>
+              <p className="text-zinc-400 mt-2">{t("evaluaciones.realizarFecha", { fecha: formatearFechaCorta(evaluacion.fecha_asignacion) || t("evaluaciones.realizarSinFecha") })}</p>
               {evaluacion.observaciones && <p className="text-zinc-500 mt-2">{evaluacion.observaciones}</p>}
             </div>
             <div className="text-right shrink-0">
               <p className="text-2xl font-bold">{completados}/{tests.length}</p>
-              <p className="text-xs text-zinc-500">completados</p>
+              <p className="text-xs text-zinc-500">{t("evaluaciones.fmsCompletados")}</p>
             </div>
           </div>
 
@@ -401,13 +389,13 @@ export default function RealizarEvaluacionFMSDetalle() {
         <div className="space-y-4">
           {tests.map((test, index) => {
             const puntajeActual = test.puntaje;
-            const bilateral = esTestBilateral(test.test_nombre);
+            const bilateral = esTestBilateral(test.test_nombre, t);
 
             return (
               <div key={test.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-  <p className="text-xs text-zinc-500 mb-0.5">Patron {index + 1}</p>
+  <p className="text-xs text-zinc-500 mb-0.5">{t("evaluaciones.fmsPatron", { numero: index + 1 })}</p>
   <div className="flex items-center gap-2">
     <h3 className="font-semibold text-white">{test.test_nombre}</h3>
       <button
@@ -416,7 +404,7 @@ export default function RealizarEvaluacionFMSDetalle() {
         className="rounded-md border border-zinc-700 px-2 py-1 text-xs font-medium text-zinc-400 hover:border-zinc-500 hover:text-white transition"
         aria-label={`Ver guia de ${test.test_nombre}`}
       >
-        Ver guía
+        {t("evaluaciones.fmsVerGuia")}
       </button>
   </div>
 </div>
@@ -435,7 +423,7 @@ export default function RealizarEvaluacionFMSDetalle() {
                     ] as const).map(([lado, label, puntajeLado]) => (
                       <div key={lado}>
                         <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
-                          Lado {label}
+                          {t("evaluaciones.fmsLadoLabel", { label })}
                         </p>
                         <div className="grid grid-cols-4 gap-2">
                           {[0, 1, 2, 3].map((val) => (
@@ -457,7 +445,7 @@ export default function RealizarEvaluacionFMSDetalle() {
                       </div>
                     ))}
                     <p className="text-xs text-zinc-500">
-                      Puntaje del patron: {puntajeActual ?? "sin completar"} {puntajeActual !== null ? "(menor lado)" : ""}
+                      {t("evaluaciones.fmsPuntajePatron", { valor: puntajeActual ?? t("evaluaciones.fmsSinCompletar") })} {puntajeActual !== null ? t("evaluaciones.fmsMenorLado") : ""}
                     </p>
                   </div>
                 ) : (
@@ -483,13 +471,13 @@ export default function RealizarEvaluacionFMSDetalle() {
                 <div className="flex flex-wrap gap-2 mt-4">
                   {(test.dolor || test.puntaje === 0) && (
                     <span className="px-3 py-1 rounded-full bg-red-900/40 border border-red-700 text-red-300 text-xs font-medium">
-                      Dolor detectado
+                      {t("evaluaciones.fmsDolorDetectado")}
                     </span>
                   )}
 
                   {test.asimetria && (
                     <span className="px-3 py-1 rounded-full bg-yellow-900/40 border border-yellow-700 text-yellow-300 text-xs font-medium">
-                      Asimetría detectada
+                      {t("evaluaciones.fmsAsimetriaDetectada")}
                     </span>
                   )}
                 </div>
@@ -497,7 +485,7 @@ export default function RealizarEvaluacionFMSDetalle() {
                 <textarea
                   value={test.observaciones || ""}
                   onChange={(e) => actualizarObservaciones(test.id, e.target.value)}
-                  placeholder="Observaciones del patron..."
+                  placeholder={t("evaluaciones.fmsObsPlaceholder")}
                   rows={2}
                   className="mt-3 w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
                 />
@@ -508,25 +496,25 @@ export default function RealizarEvaluacionFMSDetalle() {
 
         {total !== null && (
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 text-center mt-6">
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-2">Puntaje total</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-2">{t("evaluaciones.fmsPuntajeTotal")}</p>
             <p className={`text-5xl font-bold ${totalColor(total, puntajeMaximo)}`}>{total}<span className="text-2xl text-zinc-600">/{puntajeMaximo}</span></p>
-            <p className={`mt-2 text-sm font-medium ${totalColor(total, puntajeMaximo)}`}>{totalLabel(total, puntajeMaximo)}</p>
+            <p className={`mt-2 text-sm font-medium ${totalColor(total, puntajeMaximo)}`}>{totalLabel(total, puntajeMaximo, t)}</p>
             {(hayDolor || hayAsimetrias) && (
               <div className="mt-4 space-y-2">
                 {hayDolor && (
                   <div className="rounded-lg border border-red-700 bg-red-900/30 px-4 py-3 text-left">
-                    <p className="text-sm font-semibold text-red-300">Alerta: dolor registrado</p>
+                    <p className="text-sm font-semibold text-red-300">{t("evaluaciones.fmsAlertaDolor")}</p>
                     <p className="text-xs text-red-200/80 mt-1">
-                      Hay al menos un patron con dolor. Revisar antes de interpretar el puntaje total.
+                      {t("evaluaciones.fmsAlertaDolorDesc")}
                     </p>
                   </div>
                 )}
 
                 {hayAsimetrias && (
                   <div className="rounded-lg border border-yellow-700 bg-yellow-900/30 px-4 py-3 text-left">
-                    <p className="text-sm font-semibold text-yellow-300">Asimetrias registradas</p>
+                    <p className="text-sm font-semibold text-yellow-300">{t("evaluaciones.fmsAlertaAsimetria")}</p>
                     <p className="text-xs text-yellow-200/80 mt-1">
-                      Hay diferencias entre lado derecho e izquierdo en al menos un patron bilateral.
+                      {t("evaluaciones.fmsAlertaAsimetriaDesc")}
                     </p>
                   </div>
                 )}
@@ -541,7 +529,7 @@ export default function RealizarEvaluacionFMSDetalle() {
             disabled={!valoresCompletos || guardando}
             className="bg-white text-zinc-950 font-semibold px-6 py-3 rounded-lg hover:bg-zinc-200 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {guardando ? "Guardando..." : "Guardar evaluacion"}
+            {guardando ? t("common.guardando") : t("evaluaciones.fmsGuardar")}
           </button>
           <BackButton fallback="/evaluaciones/realizar/fms" />
         </div>

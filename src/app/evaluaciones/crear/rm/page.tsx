@@ -12,6 +12,7 @@ import BackButton from "@/components/BackButton";
 import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
 import TipoEvaluacionSelector from "@/components/TipoEvaluacionSelector";
 import { useIdioma } from "@/lib/i18n-context";
+import { campoBilingue } from "@/lib/utils/campoBilingue";
 
 type Alumno = { id: string; nombre: string; profesor_id?: string | null };
 type Ejercicio = { id: string; nombre: string };
@@ -20,7 +21,7 @@ const DRAFT_KEY = "evaluacion_rm_crear_draft";
 
 export default function CrearEvaluacionRM() {
   const router = useRouter();
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [profesorId, setProfesorId] = useState<string | null>(null);
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
@@ -50,7 +51,7 @@ export default function CrearEvaluacionRM() {
       const profesorActualId = sessionData.session?.user.id;
 
       if (!profesorActualId) {
-        alert("No se pudo identificar al profesor. Volvé a iniciar sesión.");
+        alert(t("evaluaciones.errorSinProfesor"));
         router.push("/login");
         return;
       }
@@ -63,7 +64,7 @@ export default function CrearEvaluacionRM() {
           .select("id, nombre, profesor_id")
           .eq("profesor_id", profesorActualId)
           .order("nombre"),
-        supabase.from("ejercicios").select("id, nombre").order("nombre"),
+        supabase.from("ejercicios").select("id, nombre, nombre_es, nombre_en").order("nombre"),
       ]);
 
       if (perfilesError) {
@@ -187,7 +188,7 @@ export default function CrearEvaluacionRM() {
     );
 
     if (yaSeleccionado) {
-      alert("Este ejercicio ya está agregado a la evaluación.");
+      alert(t("evaluaciones.errorEjercicioYaAgregado"));
       return;
     }
 
@@ -210,12 +211,12 @@ export default function CrearEvaluacionRM() {
 
   async function verHistorialEjercicio() {
     if (tipoEvaluacion !== "individual") {
-      alert("El historial solo está disponible para evaluaciones individuales.");
+      alert(t("evaluaciones.errorHistorialSoloIndividual"));
       return;
     }
 
     if (!alumnoId || !ejercicioModalId) {
-      alert("Seleccioná un alumno y un ejercicio.");
+      alert(t("evaluaciones.errorSeleccionarAlumnoEjercicio"));
       return;
     }
 
@@ -229,7 +230,7 @@ export default function CrearEvaluacionRM() {
     );
 
     if (!alumnoPropio) {
-      alert("No tenés permiso para ver el historial de ese alumno.");
+      alert(t("evaluaciones.errorSinPermisoHistorial"));
       return;
     }
 
@@ -238,7 +239,8 @@ export default function CrearEvaluacionRM() {
     setHistorialRMActual(null);
 
     const ejercicio = ejercicios.find((e) => e.id === ejercicioModalId);
-    setHistorialEjercicioNombre(ejercicio?.nombre || "Ejercicio");
+    const nombreEj = ejercicio ? campoBilingue(ejercicio, "nombre", idioma) : "";
+    setHistorialEjercicioNombre(nombreEj || "Ejercicio");
 
     const { data, error } = await obtenerRMActualAlumnoEjercicio(
       alumnoId,
@@ -289,7 +291,7 @@ export default function CrearEvaluacionRM() {
 
     if (!todosSonPropios) {
       setGuardando(false);
-      alert("Hay alumnos seleccionados que no pertenecen a este profesor.");
+      alert(t("evaluaciones.errorAlumnosNoPropios"));
       return;
     }
 
@@ -360,15 +362,15 @@ export default function CrearEvaluacionRM() {
       <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
         <div className="text-center">
           <p className="text-4xl mb-4">✅</p>
-          <h2 className="text-2xl font-bold">Evaluación creada</h2>
+          <h2 className="text-2xl font-bold">{t("evaluaciones.exitoTitulo")}</h2>
           <p className="text-zinc-400 mt-2">
             {tipoEvaluacion === "grupal"
-              ? `Se crearon ${alumnosIds.length} evaluaciones RM individuales.`
-              : "La evaluación RM quedó creada correctamente."}
+              ? t("evaluaciones.exitoGrupal", { count: alumnosIds.length })
+              : t("evaluaciones.exitoIndividual")}
           </p>
           <div className="flex gap-3 justify-center mt-6">
             <a href="/evaluaciones/realizar?tipo=rm" className="bg-white text-zinc-950 font-semibold px-5 py-2 rounded-lg hover:bg-zinc-200 transition">
-              Ir a realizar RM
+              {t("evaluaciones.irARealizar")}
             </a>
             <BackButton fallback="/evaluaciones" />
           </div>
@@ -386,14 +388,14 @@ export default function CrearEvaluacionRM() {
         </div>
 
         <header className="mb-8">
-          <h1 className="text-3xl font-bold">🏋️ Crear Test RM</h1>
+          <h1 className="text-3xl font-bold">{t("evaluaciones.crearTitulo")}</h1>
           <p className="text-zinc-400 mt-2">
-            Programá una evaluación de repetición máxima individual o grupal.
+            {t("evaluaciones.crearDescripcion")}
           </p>
         </header>
 
         <div className="mb-6 rounded-xl border border-blue-900/50 bg-blue-950/20 p-4 text-sm text-blue-300">
-          Esta evaluación se guarda como borrador local en este dispositivo hasta que la crees.
+          {t("evaluaciones.borradorInfo")}
         </div>
 
         <div className="space-y-6">
@@ -410,21 +412,21 @@ export default function CrearEvaluacionRM() {
           {/* Alumno */}
           {!tipoEvaluacion && (
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 text-sm text-zinc-400">
-              Primero elegí si querés crear una evaluación individual o grupal.
+              {t("evaluaciones.primeroElegirTipo")}
             </div>
           )}
 
           {tipoEvaluacion === "individual" && (
             <div>
               <label className="block text-sm font-medium text-zinc-400 mb-2">
-                Alumno *
+                {t("evaluaciones.alumnoLabel")}
               </label>
               <select
                 value={alumnoId}
                 onChange={(e) => setAlumnoId(e.target.value)}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-zinc-500"
               >
-                <option value="">Seleccioná un alumno</option>
+                <option value="">{t("evaluaciones.seleccionarAlumno")}</option>
                 {alumnos.map((a) => (
                   <option key={a.id} value={a.id}>{a.nombre}</option>
                 ))}
@@ -435,7 +437,7 @@ export default function CrearEvaluacionRM() {
           {tipoEvaluacion === "grupal" && (
             <div>
               <label className="block text-sm font-medium text-zinc-400 mb-2">
-                Alumnos *
+                {t("evaluaciones.alumnosLabel")}
               </label>
               <div className="max-h-64 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-900 p-3 space-y-2">
                 {alumnos.map((a) => {
@@ -466,8 +468,8 @@ export default function CrearEvaluacionRM() {
 
               <p className="text-xs text-zinc-500 mt-2">
                 {alumnosIds.length === 0
-                  ? "No hay alumnos seleccionados."
-                  : `${alumnosIds.length} alumno(s) seleccionados.`}
+                  ? t("evaluaciones.sinAlumnosSeleccionados")
+                  : t("evaluaciones.alumnosSeleccionadosCount", { count: alumnosIds.length })}
               </p>
             </div>
           )}
@@ -475,8 +477,8 @@ export default function CrearEvaluacionRM() {
           {tipoEvaluacion && !puedeMostrarFormulario && (
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 text-sm text-zinc-400">
               {tipoEvaluacion === "grupal"
-                ? "Elegí uno o más alumnos para continuar."
-                : "Elegí un alumno para continuar."}
+                ? t("evaluaciones.elegirAlumnos")
+                : t("evaluaciones.elegirAlumnoMsg")}
             </div>
           )}
 
@@ -485,7 +487,7 @@ export default function CrearEvaluacionRM() {
 
           {/* Fecha */}
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">Fecha *</label>
+            <label className="block text-sm font-medium text-zinc-400 mb-2">{t("evaluaciones.fechaLabel")}</label>
             <input
               type="date"
               value={fecha}
@@ -496,7 +498,7 @@ export default function CrearEvaluacionRM() {
 
           {/* Momento de evaluación */}
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">Momento de evaluación *</label>
+            <label className="block text-sm font-medium text-zinc-400 mb-2">{t("evaluaciones.momentoLabel")}</label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
@@ -507,8 +509,8 @@ export default function CrearEvaluacionRM() {
                     : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500"
                 }`}
               >
-                <span className="block font-semibold">Ahora</span>
-                <span className="block text-xs opacity-70 mt-1">Guardar y realizar</span>
+                <span className="block font-semibold">{t("evaluaciones.momentoAhora")}</span>
+                <span className="block text-xs opacity-70 mt-1">{t("evaluaciones.momentoAhoraDesc")}</span>
               </button>
 
               <button
@@ -520,8 +522,8 @@ export default function CrearEvaluacionRM() {
                     : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500"
                 }`}
               >
-                <span className="block font-semibold">Más tarde</span>
-                <span className="block text-xs opacity-70 mt-1">Por profesor</span>
+                <span className="block font-semibold">{t("evaluaciones.momentoDespues")}</span>
+                <span className="block text-xs opacity-70 mt-1">{t("evaluaciones.momentoDespuesDesc")}</span>
               </button>
 
               <button
@@ -533,8 +535,8 @@ export default function CrearEvaluacionRM() {
                     : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500"
                 }`}
               >
-                <span className="block font-semibold">Alumno</span>
-                <span className="block text-xs opacity-70 mt-1">Carga más tarde</span>
+                <span className="block font-semibold">{t("evaluaciones.momentoAlumno")}</span>
+                <span className="block text-xs opacity-70 mt-1">{t("evaluaciones.momentoAlumnoDesc")}</span>
               </button>
             </div>
           </div>
@@ -543,25 +545,25 @@ export default function CrearEvaluacionRM() {
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
               <label className="block text-sm font-medium text-zinc-400">
-                Ejercicios a evaluar *{" "}
-                <span className="text-zinc-600 font-normal">({ejerciciosSeleccionados.length} seleccionados)</span>
+                {t("evaluaciones.ejerciciosLabel")}{" "}
+                <span className="text-zinc-600 font-normal">{t("evaluaciones.ejerciciosSeleccionados", { count: ejerciciosSeleccionados.length })}</span>
               </label>
               <button
                 type="button"
                 onClick={abrirModalEjercicio}
                 className="bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-emerald-600 transition text-sm"
               >
-                + Agregar ejercicio
+                {t("evaluaciones.agregarEjercicioBtn")}
               </button>
             </div>
 
             {ejerciciosSeleccionados.length === 0 ? (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 text-zinc-400 text-sm">
-                Todavía no agregaste ejercicios para esta evaluación.
+                {t("evaluaciones.sinEjerciciosEvaluacion")}
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-xs uppercase tracking-wide text-zinc-500">Orden de evaluación</p>
+                <p className="text-xs uppercase tracking-wide text-zinc-500">{t("evaluaciones.ordenEvaluacion")}</p>
                 {ejerciciosSeleccionados.map((item) => {
                   const ejercicio = ejercicios.find((ej) => ej.id === item.ejercicio_id);
                   return (
@@ -570,7 +572,7 @@ export default function CrearEvaluacionRM() {
                       className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3"
                     >
                       <span className="text-sm text-zinc-300">
-                        #{item.orden} {ejercicio?.nombre || "Ejercicio"}
+                        #{item.orden} {ejercicio ? campoBilingue(ejercicio, "nombre", idioma) : "Ejercicio"}
                       </span>
                       <button
                         type="button"
@@ -584,7 +586,7 @@ export default function CrearEvaluacionRM() {
                   );
                 })}
                 <p className="text-xs text-zinc-500">
-                  El orden queda definido según se agregan. Más adelante se puede reemplazar por drag & drop.
+                  {t("evaluaciones.ordenInfo")}
                 </p>
               </div>
             )}
@@ -592,11 +594,11 @@ export default function CrearEvaluacionRM() {
 
           {/* Notas */}
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">Notas (opcional)</label>
+            <label className="block text-sm font-medium text-zinc-400 mb-2">{t("evaluaciones.notasLabel")}</label>
             <textarea
               value={notas}
               onChange={(e) => setNotas(e.target.value)}
-              placeholder="Condiciones especiales, contexto, observaciones..."
+              placeholder={t("evaluaciones.notasPlaceholder")}
               rows={3}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
             />
@@ -609,7 +611,7 @@ export default function CrearEvaluacionRM() {
               disabled={!puedeMostrarFormulario || ejerciciosSeleccionados.length === 0 || guardando}
               className="bg-white text-zinc-950 font-semibold px-6 py-3 rounded-lg hover:bg-zinc-200 transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {guardando ? "Guardando..." : "Crear evaluación"}
+              {guardando ? t("common.guardando") : t("evaluaciones.crearBtn")}
             </button>
             <BackButton fallback="/evaluaciones" />
           </div>
@@ -621,23 +623,23 @@ export default function CrearEvaluacionRM() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
             <div className="mb-5">
-              <h2 className="text-2xl font-bold">Agregar ejercicio</h2>
+              <h2 className="text-2xl font-bold">{t("evaluaciones.modalAgregarEjercicioTitulo")}</h2>
               <p className="text-zinc-400 text-sm mt-1">
-                Seleccioná un ejercicio del banco para agregarlo a la evaluación.
+                {t("evaluaciones.modalAgregarEjercicioDesc")}
               </p>
             </div>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-2">
-                  Seleccionar del banco de ejercicios
+                  {t("evaluaciones.modalSeleccionarBanco")}
                 </label>
                 <select
                   value={ejercicioModalId}
                   onChange={(e) => setEjercicioModalId(e.target.value)}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-zinc-500"
                 >
-                  <option value="">Seleccioná un ejercicio</option>
+                  <option value="">{t("evaluaciones.modalSeleccionarEjercicio")}</option>
                   {ejercicios.map((ejercicio) => {
                     const yaSeleccionado = ejerciciosSeleccionados.some(
                       (item) => item.ejercicio_id === ejercicio.id
@@ -645,7 +647,7 @@ export default function CrearEvaluacionRM() {
 
                     return (
                       <option key={ejercicio.id} value={ejercicio.id} disabled={yaSeleccionado}>
-                        {ejercicio.nombre}{yaSeleccionado ? " — ya agregado" : ""}
+                        {campoBilingue(ejercicio, "nombre", idioma)}{yaSeleccionado ? ` ${t("evaluaciones.modalYaAgregado")}` : ""}
                       </option>
                     );
                   })}
@@ -658,7 +660,7 @@ export default function CrearEvaluacionRM() {
                 disabled={!ejercicioModalId || tipoEvaluacion !== "individual"}
                 className="w-full border border-blue-700 text-blue-300 rounded-lg px-4 py-3 text-sm hover:bg-blue-950/30 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Ver RM actual del ejercicio
+                {t("evaluaciones.modalVerRM")}
               </button>
             </div>
 
@@ -668,7 +670,7 @@ export default function CrearEvaluacionRM() {
                 onClick={() => setModalEjercicioAbierto(false)}
                 className="border border-zinc-700 text-zinc-300 font-semibold px-5 py-3 rounded-lg hover:bg-zinc-800 transition"
               >
-                Cancelar
+                {t("common.cancelar")}
               </button>
               <button
                 type="button"
@@ -676,7 +678,7 @@ export default function CrearEvaluacionRM() {
                 disabled={!ejercicioModalId}
                 className="bg-emerald-500 text-white font-semibold px-5 py-3 rounded-lg hover:bg-emerald-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Guardar
+                {t("evaluaciones.modalGuardar")}
               </button>
             </div>
           </div>
@@ -687,7 +689,7 @@ export default function CrearEvaluacionRM() {
           <div className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">
-                RM actual - {historialEjercicioNombre}
+                {t("evaluaciones.modalRMTitulo", { nombre: historialEjercicioNombre })}
               </h2>
               <button
                 type="button"
@@ -699,15 +701,15 @@ export default function CrearEvaluacionRM() {
             </div>
 
             {historialLoading ? (
-              <p className="text-zinc-400">Cargando RM actual...</p>
+              <p className="text-zinc-400">{t("evaluaciones.modalRMCargando")}</p>
             ) : historialRMActual === null ? (
               <p className="text-zinc-400">
-                El alumno no tiene un RM vigente para este ejercicio.
+                {t("evaluaciones.modalRMSinRegistro")}
               </p>
             ) : (
               <div className="rounded-xl border border-emerald-800 bg-emerald-950/30 p-5 text-center">
-                <p className="text-sm text-emerald-300 mb-2">RM vigente</p>
-                <p className="text-4xl font-bold text-white">{historialRMActual} kg</p>
+                <p className="text-sm text-emerald-300 mb-2">{t("evaluaciones.modalRMVigente")}</p>
+                <p className="text-4xl font-bold text-white">{t("evaluaciones.modalRMValor", { valor: historialRMActual })}</p>
               </div>
             )}
           </div>

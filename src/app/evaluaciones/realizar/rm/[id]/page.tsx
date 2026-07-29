@@ -9,6 +9,7 @@ import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import BackButton from "@/components/BackButton";
 import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
 import { useIdioma } from "@/lib/i18n-context";
+import { campoBilingue } from "@/lib/utils/campoBilingue";
 import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
 
 type ModoCarga = "protocolo" | "rapida" | null;
@@ -98,16 +99,16 @@ function formatearPorcentajeSerie(serie: SerieAproximacion) {
   return serie.porcentajeLabel || String(serie.porcentaje);
 }
 
-function formatearPesoSugeridoSerie(rmReferencia: number | null | undefined, serie: SerieAproximacion) {
+function formatearPesoSugeridoSerie(rmReferencia: number | null | undefined, serie: SerieAproximacion, t?: (key: string, params?: Record<string, string | number>) => string) {
   const peso = calcularPesoSugerido(rmReferencia, serie.porcentaje);
 
   if (!peso) return "—";
 
   if (serie.porcentajeLabel === "90-95") {
-    return `${peso} kg desde 90%`;
+    return t ? t("evaluaciones.pesoSugeridoDesde", { peso: String(peso) }) : `${peso} kg desde 90%`;
   }
 
-  return `${peso} kg`;
+  return t ? t("evaluaciones.pesoSugerido", { peso: String(peso) }) : `${peso} kg`;
 }
 
 function contarIntentosFallados(intentos: IntentoProtocolo[]) {
@@ -139,7 +140,7 @@ function obtenerMejorIntento(intentos: IntentoProtocolo[]) {
 export default function RealizarEvaluacionRMDetalle() {
   const params = useParams();
   const evaluacionId = String(params.id || "");
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
 
   const [loading, setLoading] = useState(true);
   const [modoCarga, setModoCarga] = useState<ModoCarga>(null);
@@ -158,7 +159,7 @@ export default function RealizarEvaluacionRMDetalle() {
       const profesorActualId = sessionData.session?.user.id;
 
       if (!profesorActualId) {
-        alert("No se pudo identificar al profesor. Volvé a iniciar sesión.");
+        alert(t("evaluaciones.errorSinProfesor"));
         window.location.href = "/login";
         return;
       }
@@ -173,7 +174,7 @@ export default function RealizarEvaluacionRMDetalle() {
         .single();
 
       if (evaluacionError || !evaluacionData) {
-        alert(evaluacionError?.message || "No se pudo cargar la evaluación RM.");
+        alert(evaluacionError?.message || t("evaluaciones.errorCargarEvaluacion"));
         setLoading(false);
         return;
       }
@@ -191,7 +192,7 @@ export default function RealizarEvaluacionRMDetalle() {
           .single(),
         supabase
           .from("evaluaciones_rm_resultados")
-          .select("id, evaluacion_rm_id, ejercicio_id, orden, metodo, peso_usado, repeticiones, rm_estimado, rm_final, completado, observaciones, ejercicio:ejercicios(id, nombre)")
+          .select("id, evaluacion_rm_id, ejercicio_id, orden, metodo, peso_usado, repeticiones, rm_estimado, rm_final, completado, observaciones, ejercicio:ejercicios(id, nombre, nombre_es, nombre_en)")
           .eq("evaluacion_rm_id", evaluacionId)
           .order("orden", { ascending: true }),
         obtenerRMsActualesAlumno(evaluacionData.alumno_id),
@@ -243,7 +244,7 @@ export default function RealizarEvaluacionRMDetalle() {
   }, [evaluacionId]);
   async function validarEvaluacionPropia() {
     if (!evaluacion || !profesorId) {
-      alert("No se pudo validar la evaluación actual.");
+      alert(t("evaluaciones.errorSinPermiso"));
       return false;
     }
 
@@ -260,12 +261,12 @@ export default function RealizarEvaluacionRMDetalle() {
     }
 
     if (!evaluacionPropia) {
-      alert("No tenés permiso para modificar esta evaluación.");
+      alert(t("evaluaciones.errorSinPermiso"));
       return false;
     }
 
     if (evaluacionPropia.alumno_id !== evaluacion.alumno_id) {
-      alert("La evaluación no coincide con el alumno cargado.");
+      alert(t("evaluaciones.errorAlumnoNoCoincide"));
       return false;
     }
 
@@ -308,10 +309,10 @@ export default function RealizarEvaluacionRMDetalle() {
       (resultado) => !resultado.peso_usado || !resultado.repeticiones || !resultado.rm_final
     );
 
-    if (incompletos.length > 0) {
-      alert("Completá peso y repeticiones de todos los ejercicios.");
-      return;
-    }
+      if (incompletos.length > 0) {
+        alert(t("evaluaciones.errorCompletarEjercicios"));
+        return;
+      }
 
     setGuardando(true);
 
@@ -389,7 +390,7 @@ export default function RealizarEvaluacionRMDetalle() {
         });
       } catch (error) {
         setGuardando(false);
-        alert(error instanceof Error ? error.message : "No se pudo recalcular el RM actual.");
+        alert(error instanceof Error ? error.message : t("evaluaciones.errorRecalcularRM"));
         return;
       }
     }
@@ -466,7 +467,7 @@ export default function RealizarEvaluacionRMDetalle() {
     });
 
     if (incompletos.length > 0) {
-      alert("Completá RM de referencia y al menos un intento logrado por cada ejercicio.");
+      alert(t("evaluaciones.errorCompletarProtocolo"));
       return;
     }
 
@@ -487,7 +488,7 @@ export default function RealizarEvaluacionRMDetalle() {
 
       if (!mejorIntento || !mejorIntento.rm) {
         setGuardando(false);
-        alert("Hay ejercicios sin intento logrado.");
+        alert(t("evaluaciones.errorSinIntentoLogrado"));
         return;
       }
 
@@ -570,7 +571,7 @@ export default function RealizarEvaluacionRMDetalle() {
         });
       } catch (error) {
         setGuardando(false);
-        alert(error instanceof Error ? error.message : "No se pudo recalcular el RM actual.");
+        alert(error instanceof Error ? error.message : t("evaluaciones.errorRecalcularRM"));
         return;
       }
     }
@@ -599,7 +600,7 @@ export default function RealizarEvaluacionRMDetalle() {
   }
 
   if (!evaluacion) {
-    return <main className="min-h-screen bg-zinc-950 text-white p-8">No se encontró la evaluación RM.</main>;
+    return <main className="min-h-screen bg-zinc-950 text-white p-8">{t("evaluaciones.noEncontrada")}</main>;
   }
 
   if (exito) {
@@ -607,9 +608,9 @@ export default function RealizarEvaluacionRMDetalle() {
       <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
         <div className="text-center">
           <p className="text-4xl mb-4">✅</p>
-          <h2 className="text-2xl font-bold">Evaluación RM guardada</h2>
+          <h2 className="text-2xl font-bold">{t("evaluaciones.exitoGuardar")}</h2>
           <p className="text-zinc-400 mt-2">
-            Los resultados se guardaron y se recalcularon los RM actuales del alumno.
+            {t("evaluaciones.exitoGuardarDesc")}
           </p>
           <BackButton fallback="/evaluaciones/realizar?tipo=rm" />
         </div>
@@ -625,17 +626,17 @@ export default function RealizarEvaluacionRMDetalle() {
         </div>
 
         <header className="mb-8">
-          <p className="text-sm text-zinc-500 mb-2">Evaluación RM</p>
-          <h1 className="text-3xl font-bold">{alumno?.nombre || "Alumno"}</h1>
-          <p className="text-zinc-400 mt-2">Fecha a realizar: {formatearFechaCorta(evaluacion.fecha_asignacion) || "Sin fecha"}</p>
+          <p className="text-sm text-zinc-500 mb-2">{t("evaluaciones.realizarTitulo")}</p>
+          <h1 className="text-3xl font-bold">{alumno?.nombre || t("alumnos.sinNombre")}</h1>
+          <p className="text-zinc-400 mt-2">{t("evaluaciones.realizarFecha", { fecha: formatearFechaCorta(evaluacion.fecha_asignacion) || t("evaluaciones.realizarSinFecha") })}</p>
           {evaluacion.observaciones && <p className="text-zinc-500 mt-2">{evaluacion.observaciones}</p>}
         </header>
 
         {!modoCarga ? (
           <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-2xl font-bold mb-2">¿Cómo querés cargar esta evaluación?</h2>
+            <h2 className="text-2xl font-bold mb-2">{t("evaluaciones.realizarPregunta")}</h2>
             <p className="text-zinc-400 mb-6">
-              Elegí si vas a seguir el protocolo completo o si solo querés cargar los mejores datos obtenidos.
+              {t("evaluaciones.realizarDescripcion")}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -644,9 +645,9 @@ export default function RealizarEvaluacionRMDetalle() {
                 onClick={() => setModoCarga("protocolo")}
                 className="text-left bg-zinc-950 border border-zinc-700 rounded-xl p-5 hover:border-white transition"
               >
-                <p className="text-xl font-bold mb-2">Protocolo completo</p>
+                <p className="text-xl font-bold mb-2">{t("evaluaciones.protocolo")}</p>
                 <p className="text-sm text-zinc-400">
-                  Para cargar series de aproximación, intentos, mejor intento y cálculo guiado.
+                  {t("evaluaciones.protocoloDesc")}
                 </p>
               </button>
 
@@ -655,9 +656,9 @@ export default function RealizarEvaluacionRMDetalle() {
                 onClick={() => setModoCarga("rapida")}
                 className="text-left bg-zinc-950 border border-zinc-700 rounded-xl p-5 hover:border-white transition"
               >
-                <p className="text-xl font-bold mb-2">Carga rápida</p>
+                <p className="text-xl font-bold mb-2">{t("evaluaciones.cargaRapida")}</p>
                 <p className="text-sm text-zinc-400">
-                  Para cargar directamente el peso, repeticiones y el mejor resultado de cada ejercicio.
+                  {t("evaluaciones.cargaRapidaDesc")}
                 </p>
               </button>
             </div>
@@ -667,33 +668,33 @@ export default function RealizarEvaluacionRMDetalle() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-bold">
-                  {modoCarga === "protocolo" ? "Protocolo completo" : "Carga rápida"}
+                  {modoCarga === "protocolo" ? t("evaluaciones.protocolo") : t("evaluaciones.cargaRapida")}
                 </h2>
-                <p className="text-zinc-400">{resultados.length} ejercicios asignados</p>
+                <p className="text-zinc-400">{t("evaluaciones.ejerciciosAsignados", { count: resultados.length })}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setModoCarga(null)}
                 className="border border-zinc-700 text-zinc-300 px-4 py-2 rounded-lg hover:bg-zinc-800 transition"
               >
-                Cambiar modo
+                {t("evaluaciones.cambiarModo")}
               </button>
             </div>
 
             {resultados.map((resultado, index) => (
               <div key={resultado.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-                <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">Ejercicio {resultado.orden || index + 1}</p>
+                <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">{t("evaluaciones.ejercicioLabel", { orden: resultado.orden || index + 1 })}</p>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <h3 className="text-xl font-semibold">{resultado.ejercicio?.nombre || "Ejercicio"}</h3>
+                  <h3 className="text-xl font-semibold">{resultado.ejercicio ? campoBilingue(resultado.ejercicio, "nombre", idioma) : t("alumnos.ejercicioSinNombre")}</h3>
                   <span className="rounded-full border border-zinc-700 bg-zinc-950 px-3 py-1 text-sm text-zinc-300">
-                    {resultado.rm_actual ? `RM actual: ${resultado.rm_actual} kg` : "Sin RM actual"}
+                    {resultado.rm_actual ? t("evaluaciones.rmActualLabel", { valor: resultado.rm_actual }) : t("evaluaciones.sinRMActual")}
                   </span>
                 </div>
 
                 {modoCarga === "protocolo" ? (
                   <div className="mt-4 space-y-4">
                     <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                      <label className="block text-xs text-zinc-500 mb-1">RM de referencia</label>
+                      <label className="block text-xs text-zinc-500 mb-1">{t("evaluaciones.rmReferencia")}</label>
                       <input
                         type="number"
                         placeholder="kg"
@@ -702,18 +703,18 @@ export default function RealizarEvaluacionRMDetalle() {
                         className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-500"
                       />
                       <p className="text-xs text-zinc-500 mt-2">
-                        Se usa el RM actual como referencia inicial. Si no existe, ingresalo manualmente.
+                        {t("evaluaciones.rmReferenciaInfo")}
                       </p>
                     </div>
 
                     <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                      <p className="text-xs uppercase tracking-wide text-zinc-500 mb-3">Series de aproximación sugeridas</p>
+                      <p className="text-xs uppercase tracking-wide text-zinc-500 mb-3">{t("evaluaciones.seriesAproximacion")}</p>
                       <div className="space-y-2 text-sm">
                         {SERIES_APROXIMACION.map((serie) => (
                           <div key={serie.numero} className="flex items-center justify-between border-b border-zinc-800 pb-2 last:border-0 last:pb-0">
-                            <span>S{serie.numero}: {serie.repeticiones} rep · {formatearPorcentajeSerie(serie)}% · descanso {serie.descanso}</span>
+                            <span>{t("evaluaciones.serieInfo", { numero: serie.numero, reps: serie.repeticiones, porcentaje: formatearPorcentajeSerie(serie), descanso: serie.descanso })}</span>
                             <span className="text-zinc-300">
-                              {formatearPesoSugeridoSerie(resultado.rm_referencia, serie)}
+                              {formatearPesoSugeridoSerie(resultado.rm_referencia, serie, t)}
                             </span>
                           </div>
                         ))}
@@ -721,16 +722,16 @@ export default function RealizarEvaluacionRMDetalle() {
                     </div>
 
                     <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                      <p className="text-xs uppercase tracking-wide text-zinc-500 mb-3">Intentos máximos</p>
+                      <p className="text-xs uppercase tracking-wide text-zinc-500 mb-3">{t("evaluaciones.intentosMaximos")}</p>
                       <div className="space-y-3">
                         {(resultado.intentos_protocolo || crearIntentosIniciales()).map((intento, intentoIndex) => {
                           const bloqueado = intentoBloqueado(resultado.intentos_protocolo || [], intentoIndex);
                           return (
                             <div key={intento.numero} className={`grid grid-cols-1 sm:grid-cols-4 gap-3 rounded-lg border border-zinc-800 p-3 ${bloqueado ? "opacity-40" : ""}`}>
-                              <div className="font-semibold text-zinc-300">Intento {intento.numero}</div>
+                              <div className="font-semibold text-zinc-300">{t("evaluaciones.intentoLabel", { numero: intento.numero })}</div>
                               <input
                                 type="number"
-                                placeholder="Peso kg"
+                                placeholder={t("evaluaciones.pesoLabel")}
                                 value={intento.peso ?? ""}
                                 disabled={bloqueado}
                                 onChange={(e) => actualizarIntentoProtocolo(resultado.id, intento.numero, "peso", e.target.value)}
@@ -738,7 +739,7 @@ export default function RealizarEvaluacionRMDetalle() {
                               />
                               <input
                                 type="number"
-                                placeholder="Reps"
+                                placeholder={t("evaluaciones.repsLabel")}
                                 value={intento.repeticiones ?? ""}
                                 disabled={bloqueado}
                                 onChange={(e) => actualizarIntentoProtocolo(resultado.id, intento.numero, "repeticiones", e.target.value)}
@@ -750,16 +751,16 @@ export default function RealizarEvaluacionRMDetalle() {
                                 onChange={(e) => actualizarIntentoProtocolo(resultado.id, intento.numero, "resultado", e.target.value)}
                                 className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-500 disabled:cursor-not-allowed"
                               >
-                                <option value="">Resultado</option>
-                                <option value="logrado">Logrado</option>
-                                <option value="fallado">Fallado</option>
+                                <option value="">{t("evaluaciones.resultadoLabel")}</option>
+                                <option value="logrado">{t("evaluaciones.logrado")}</option>
+                                <option value="fallado">{t("evaluaciones.fallado")}</option>
                               </select>
                             </div>
                           );
                         })}
                       </div>
                       <p className="text-xs text-zinc-500 mt-3">
-                        Descanso sugerido entre intentos máximos: 3-5 min. Después de 2 intentos fallados, los intentos siguientes quedan bloqueados.
+                        {t("evaluaciones.descansoIntentos")}
                       </p>
                     </div>
 
@@ -767,11 +768,15 @@ export default function RealizarEvaluacionRMDetalle() {
                       {(() => {
                         const mejorIntento = obtenerMejorIntento(resultado.intentos_protocolo || []);
                         return mejorIntento ? (
-                          <p className="text-emerald-300">
-                            Mejor intento: {mejorIntento.peso} kg x {mejorIntento.repeticiones} rep(s) · RM final: <strong>{mejorIntento.rm} kg</strong>
-                          </p>
+                          <p className="text-emerald-300" dangerouslySetInnerHTML={{
+                            __html: t("evaluaciones.mejorIntento", {
+                              peso: mejorIntento.peso ?? 0,
+                              reps: mejorIntento.repeticiones ?? 0,
+                              rm: mejorIntento.rm ?? 0
+                            })
+                          }} />
                         ) : (
-                          <p className="text-zinc-400">Todavía no hay intentos logrados.</p>
+                          <p className="text-zinc-400">{t("evaluaciones.sinIntentosLogrados")}</p>
                         );
                       })()}
                     </div>
@@ -779,7 +784,7 @@ export default function RealizarEvaluacionRMDetalle() {
                 ) : (
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs text-zinc-500 mb-1">Peso usado</label>
+                      <label className="block text-xs text-zinc-500 mb-1">{t("evaluaciones.pesoUsado")}</label>
                       <input
                         type="number"
                         placeholder="kg"
@@ -789,7 +794,7 @@ export default function RealizarEvaluacionRMDetalle() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-zinc-500 mb-1">Repeticiones</label>
+                      <label className="block text-xs text-zinc-500 mb-1">{t("evaluaciones.repsLabel")}</label>
                       <input
                         type="number"
                         placeholder="reps"
@@ -799,7 +804,7 @@ export default function RealizarEvaluacionRMDetalle() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-zinc-500 mb-1">RM final</label>
+                      <label className="block text-xs text-zinc-500 mb-1">{t("evaluaciones.rmFinal")}</label>
                       <div className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-white min-h-[42px] flex items-center">
                         {resultado.rm_final ? `${resultado.rm_final} kg` : "—"}
                       </div>
@@ -816,7 +821,7 @@ export default function RealizarEvaluacionRMDetalle() {
                 disabled={guardando || !modoCarga}
                 className="bg-white text-zinc-950 font-semibold px-6 py-3 rounded-lg hover:bg-zinc-200 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {guardando ? "Guardando..." : "Guardar evaluación"}
+                {guardando ? t("common.guardando") : t("evaluaciones.guardarEvaluacion")}
               </button>
             </div>
           </section>
