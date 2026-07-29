@@ -876,7 +876,6 @@ export default function ConfiguracionPage() {
               </div>
 
               <p className="text-zinc-500 text-sm mt-3">
-                {t("configuracion.idiomaInfo")}
               </p>
 
               <div className="mt-4 flex justify-end">
