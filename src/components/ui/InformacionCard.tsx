@@ -3,7 +3,7 @@
 import { useIdioma } from "@/lib/i18n-context";
 
 export const APP_VERSION = "4.0.3";
-export const LAST_UPDATE = "29/07/2026";
+export const LAST_UPDATE = "2026-07-30";
 
 export default function InformacionCard() {
   const { t } = useIdioma();

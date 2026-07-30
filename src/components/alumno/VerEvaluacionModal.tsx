@@ -65,6 +65,7 @@ export default function VerEvaluacionModal({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const { formatearFechaCorta } = useFormatoFecha();
+  const { t } = useIdioma();
   const [evaluacion, setEvaluacion] = useState<EvaluacionRM | EvaluacionFMS | null>(null);
   const [resultadosRM, setResultadosRM] = useState<ResultadoRM[]>([]);
   const [resultadosFMS, setResultadosFMS] = useState<ResultadoFMS[]>([]);
@@ -160,7 +161,7 @@ export default function VerEvaluacionModal({
 
   const esRM = subtipo === "rm";
   const esProfesor = vista === "profesor";
-  const titulo = esRM ? "Evaluación RM" : "Evaluación FMS";
+  const titulo = esRM ? t("verEvaluacionModal.tituloRM") : t("verEvaluacionModal.tituloFMS");
   const items = esRM
     ? resultadosRM.map((r) => r.ejercicio).filter(Boolean)
     : resultadosFMS.map((t) => t.test_nombre).filter(Boolean);
@@ -170,7 +171,7 @@ export default function VerEvaluacionModal({
     if (puntaje === 0) return "bg-red-900/40 border-red-700 text-red-400";
     if (puntaje === 1) return "bg-orange-900/40 border-orange-700 text-orange-400";
     if (puntaje === 2) return "bg-yellow-900/40 border-yellow-700 text-yellow-400";
-    return "bg-emerald-900/40 border-emerald-700 text-emerald-400";
+    return "bg-[#08A66C]/20 border-[#08A66C]/30 text-[#08A66C]";
   }
 
   function irARealizar() {
@@ -185,13 +186,13 @@ export default function VerEvaluacionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-      <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl max-h-[85vh] flex flex-col">
+      <div className="w-full max-w-lg rounded-2xl border border-white/[0.07] bg-[#161616] p-6 shadow-2xl max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between mb-4 shrink-0">
-          <h3 className="text-xl font-bold text-zinc-100">{titulo}</h3>
+          <h3 className="text-xl font-bold text-[#F0F0F0]">{titulo}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+            className="rounded-lg border border-white/[0.07] px-3 py-1 text-sm text-[#7a7a7a] hover:bg-[#1E1E1E]"
           >
             ✕
           </button>
@@ -200,53 +201,53 @@ export default function VerEvaluacionModal({
         <div className="overflow-y-auto flex-1 pr-1 space-y-4">
           {loading ? (
             <div className="space-y-3 animate-pulse">
-              <div className="h-4 w-32 rounded bg-zinc-800" />
-              <div className="h-4 w-48 rounded bg-zinc-800" />
-              <div className="h-4 w-40 rounded bg-zinc-800" />
-              <div className="h-20 w-full rounded-xl bg-zinc-800" />
+              <div className="h-4 w-32 rounded bg-[#1E1E1E]" />
+              <div className="h-4 w-48 rounded bg-[#1E1E1E]" />
+              <div className="h-4 w-40 rounded bg-[#1E1E1E]" />
+              <div className="h-20 w-full rounded-xl bg-[#1E1E1E]" />
             </div>
           ) : evaluacion ? (
             <>
               <div className="space-y-2">
                 <div>
-                  <p className="text-xs text-zinc-500 mb-1">Tipo</p>
-                  <p className="text-sm text-zinc-200">{esRM ? "Evaluación RM" : "Evaluación FMS"}</p>
+                  <p className="text-xs text-[#4a4a4a] mb-1">{t("verEvaluacionModal.tipo")}</p>
+                  <p className="text-sm text-[#F0F0F0]">{esRM ? t("verEvaluacionModal.tituloRM") : t("verEvaluacionModal.tituloFMS")}</p>
                 </div>
 
                 <div>
-                  <p className="text-xs text-zinc-500 mb-1">
-                    {completada ? "Fecha completada" : "Fecha a realizar"}
+                  <p className="text-xs text-[#4a4a4a] mb-1">
+                    {completada ? t("verEvaluacionModal.fechaCompletada") : t("verEvaluacionModal.fechaRealizar")}
                   </p>
-                  <p className="text-sm text-zinc-200">
+                  <p className="text-sm text-[#F0F0F0]">
                     {formatearFechaCorta(
                       completada
                         ? evaluacion.fecha_realizacion
                         : (evaluacion as any).fecha_asignacion
-                    ) || "Sin fecha"}
+                    ) || t("verEvaluacionModal.sinFecha")}
                   </p>
                 </div>
 
                 {evaluacion.observaciones && (
                   <div>
-                    <p className="text-xs text-zinc-500 mb-1">Observaciones</p>
-                    <p className="text-sm text-zinc-300 whitespace-pre-wrap">{evaluacion.observaciones}</p>
+                    <p className="text-xs text-[#4a4a4a] mb-1">{t("verEvaluacionModal.observaciones")}</p>
+                    <p className="text-sm text-[#F0F0F0] whitespace-pre-wrap">{evaluacion.observaciones}</p>
                   </div>
                 )}
               </div>
 
               <div>
-                <p className="text-xs text-zinc-500 mb-2 font-semibold uppercase tracking-wide">
-                  {esRM ? "Ejercicios" : "Tests"}
+                <p className="text-xs text-[#4a4a4a] mb-2 font-semibold uppercase tracking-wide">
+                  {esRM ? t("verEvaluacionModal.ejercicios") : t("verEvaluacionModal.tests")}
                 </p>
 
                 {!completada && items.length === 0 && (
-                  <p className="text-sm text-zinc-500">Sin items cargados.</p>
+                  <p className="text-sm text-[#4a4a4a]">{t("verEvaluacionModal.sinItems")}</p>
                 )}
 
                 {!completada && items.length > 0 && (
                   <ul className="space-y-1">
                     {items.map((nombre, index) => (
-                      <li key={index} className="text-sm text-zinc-300">
+                      <li key={index} className="text-sm text-[#F0F0F0]">
                         {index + 1}. {nombre}
                       </li>
                     ))}
@@ -258,14 +259,14 @@ export default function VerEvaluacionModal({
                     {resultadosRM.map((r) => (
                       <div
                         key={r.id}
-                        className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
+                        className="rounded-xl border border-white/[0.07] bg-[#0E0E0E]/40 p-4"
                       >
-                        <p className="font-semibold text-zinc-200">{r.ejercicio}</p>
-                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-400">
-                          <span>Peso: {r.peso_usado ?? "-"} kg</span>
-                          <span>Reps: {r.repeticiones ?? "-"}</span>
-                          <span className="text-emerald-400 font-semibold">
-                            RM: {r.rm_final ?? "-"} kg
+                        <p className="font-semibold text-[#F0F0F0]">{r.ejercicio}</p>
+                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-[#7a7a7a]">
+                          <span>{t("verEvaluacionModal.peso")} {r.peso_usado ?? "-"} kg</span>
+                          <span>{t("verEvaluacionModal.reps")} {r.repeticiones ?? "-"}</span>
+                          <span className="text-[#08A66C] font-semibold">
+                            {t("verEvaluacionModal.rm")} {r.rm_final ?? "-"} kg
                           </span>
                         </div>
                       </div>
@@ -275,29 +276,29 @@ export default function VerEvaluacionModal({
 
                 {completada && !esRM && resultadosFMS.length > 0 && (
                   <div className="space-y-3">
-                    {resultadosFMS.map((t) => {
-                      const bilateral = t.puntaje_derecho !== null || t.puntaje_izquierdo !== null;
+                    {resultadosFMS.map((test) => {
+                      const bilateral = test.puntaje_derecho !== null || test.puntaje_izquierdo !== null;
                       return (
                         <div
-                          key={t.id}
-                          className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
+                          key={test.id}
+                          className="rounded-xl border border-white/[0.07] bg-[#0E0E0E]/40 p-4"
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <p className="font-semibold text-zinc-200">{t.test_nombre}</p>
-                            {t.puntaje !== null && (
-                              <span className={`shrink-0 text-sm font-bold px-3 py-1 rounded-full border ${PUNTAJE_COLORS(t.puntaje)}`}>
-                                {t.puntaje}
+                            <p className="font-semibold text-[#F0F0F0]">{test.test_nombre}</p>
+                            {test.puntaje !== null && (
+                              <span className={`shrink-0 text-sm font-bold px-3 py-1 rounded-full border ${PUNTAJE_COLORS(test.puntaje)}`}>
+                                {test.puntaje}
                               </span>
                             )}
                           </div>
                           {bilateral && (
-                            <div className="mt-2 flex gap-3 text-sm text-zinc-500">
-                              <span>D: {t.puntaje_derecho ?? "-"}</span>
-                              <span>I: {t.puntaje_izquierdo ?? "-"}</span>
+                            <div className="mt-2 flex gap-3 text-sm text-[#7a7a7a]">
+                              <span>{t("verEvaluacionModal.ladoDerecho")} {test.puntaje_derecho ?? "-"}</span>
+                              <span>{t("verEvaluacionModal.ladoIzquierdo")} {test.puntaje_izquierdo ?? "-"}</span>
                             </div>
                           )}
-                          {t.observaciones && (
-                            <p className="text-xs text-zinc-500 mt-2">{t.observaciones}</p>
+                          {test.observaciones && (
+                            <p className="text-xs text-[#7a7a7a] mt-2">{test.observaciones}</p>
                           )}
                         </div>
                       );
@@ -306,68 +307,66 @@ export default function VerEvaluacionModal({
                 )}
 
                 {completada && items.length === 0 && (
-                  <p className="text-sm text-zinc-500">Sin resultados registrados.</p>
+                  <p className="text-sm text-[#4a4a4a]">{t("verEvaluacionModal.sinResultados")}</p>
                 )}
               </div>
 
               {!completada && !esProfesor && (
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                <div className="rounded-lg border border-white/[0.07] bg-[#0E0E0E] p-4">
                   {permitirCargaAlumno ? (
                     <div className="flex flex-col items-center gap-3 text-center">
-                      <p className="text-sm text-zinc-300">
-                        Esta evaluación está lista para ser realizada. Podés cargar los resultados ahora.
+                      <p className="text-sm text-[#F0F0F0]">
+                        {t("verEvaluacionModal.listaRealizar")}
                       </p>
                       <button
                         type="button"
                         onClick={irARealizar}
-                        className="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 transition-colors"
+                        className="rounded-xl bg-[#08A66C] px-6 py-2.5 text-sm font-bold text-[#0E0E0E] hover:brightness-110 transition-colors"
                       >
-                        Realizar evaluación
+                        {t("verEvaluacionModal.realizarEvaluacion")}
                       </button>
                     </div>
                   ) : (
-                    <p className="text-sm text-zinc-300">
-                      Esta evaluación fue asignada para ser realizada por tu profesor. Podés ver los{" "}
-                      {esRM ? "ejercicios" : "tests"}, pero no podés cargar resultados.
+                    <p className="text-sm text-[#F0F0F0]">
+                      {t("verEvaluacionModal.noCargarResultados", { items: esRM ? t("verEvaluacionModal.ejercicios").toLowerCase() : t("verEvaluacionModal.tests").toLowerCase() })}
                     </p>
                   )}
                 </div>
               )}
 
               {!completada && esProfesor && (
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="text-sm text-zinc-300">
-                    <span className="font-semibold text-zinc-200">{items.length}</span>{" "}
-                    {esRM ? "ejercicio" : "test"}
-                    {items.length !== 1 ? "s" : ""} a evaluar.
+                <div className="rounded-lg border border-white/[0.07] bg-[#0E0E0E] p-4">
+                  <p className="text-sm text-[#F0F0F0]">
+                    <span className="font-semibold text-[#F0F0F0]">{items.length}</span>{" "}
+                    {t("verEvaluacionModal.itemsAEvaluar", { count: items.length, item: esRM ? t("verEvaluacionModal.ejercicios").toLowerCase() : t("verEvaluacionModal.tests").toLowerCase() })}
                   </p>
                 </div>
               )}
 
               {completada && esProfesor && (
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                <div className="rounded-lg border border-white/[0.07] bg-[#0E0E0E] p-4">
                   <button
                     type="button"
                     onClick={irAModificar}
                     className="w-full rounded-xl border border-amber-700 bg-amber-950/30 px-4 py-2.5 text-sm font-semibold text-amber-300 hover:border-amber-500 hover:bg-amber-950/50 transition-colors"
                   >
-                    Modificar resultados
+                    {t("verEvaluacionModal.modificarResultados")}
                   </button>
                 </div>
               )}
             </>
           ) : (
-            <p className="text-zinc-400 text-sm">No se pudo cargar la información de la evaluación.</p>
+            <p className="text-[#7a7a7a] text-sm">{t("verEvaluacionModal.errorCarga")}</p>
           )}
         </div>
 
-        <div className="mt-4 flex justify-end shrink-0 border-t border-zinc-800 pt-4">
+        <div className="mt-4 flex justify-end shrink-0 border-t border-white/[0.07] pt-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-800"
+            className="rounded-xl border border-white/[0.07] px-4 py-2 text-sm font-semibold text-[#F0F0F0] hover:bg-[#1E1E1E]"
           >
-            Cerrar
+            {t("verEvaluacionModal.cerrar")}
           </button>
         </div>
       </div>

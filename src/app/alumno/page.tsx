@@ -72,69 +72,69 @@ export default function AlumnoHome() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
+      <main className="min-h-screen bg-[#0E0E0E] text-white p-6 pb-28">
         <div className="max-w-5xl mx-auto animate-pulse">
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-20 h-20 rounded-full bg-zinc-800 shrink-0" />
-            <div className="space-y-3"><div className="h-8 w-48 rounded bg-zinc-800" /><div className="h-4 w-32 rounded bg-zinc-800" /></div>
+            <div className="w-20 h-20 rounded-full bg-[#1E1E1E] shrink-0" />
+            <div className="space-y-3"><div className="h-8 w-48 rounded bg-[#1E1E1E]" /><div className="h-4 w-32 rounded bg-[#1E1E1E]" /></div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">{[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-2xl bg-zinc-900 border border-zinc-800" />)}</div>
-          <div className="h-40 rounded-2xl bg-zinc-900 border border-zinc-800 mb-4" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />)}</div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">{[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-2xl bg-[#161616] border border-white/[0.07]" />)}</div>
+          <div className="h-40 rounded-2xl bg-[#161616] border border-white/[0.07] mb-4" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-32 rounded-xl bg-[#161616] border border-white/[0.07]" />)}</div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
+    <main className="min-h-screen bg-[#0E0E0E] text-white p-6 pb-28">
       <div className="max-w-5xl mx-auto">
         <header className="flex items-center gap-4 mb-8">
-          <img src={alumno?.foto_url || "https://placehold.co/120x120/png?text=👤"} alt={t("perfil.fotoPerfil")} className="w-20 h-20 rounded-full object-cover border-2 border-zinc-700" />
+          <img src={alumno?.foto_url || "https://placehold.co/120x120/png?text=👤"} alt={t("perfil.fotoPerfil")} className="w-20 h-20 rounded-full object-cover border-2 border-white/[0.07]" />
           <div>
             <h1 className="text-3xl font-bold">{t("alumno.hola", { nombre: alumno?.nombre || profile?.nombre || "" })}</h1>
-            <p className="text-zinc-400 mt-1">{t("alumno.listoEntrenar")}</p>
+            <p className="text-[#7a7a7a] mt-1">{t("alumno.listoEntrenar")}</p>
           </div>
         </header>
 
         {estadoCard && <EstadoAlumnoCard {...estadoCard} />}
 
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-          <Link href="/alumno/rutina" className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:border-zinc-700 hover:bg-zinc-800/70 transition">
+          <Link href="/alumno/rutina" className="rounded-xl border border-white/[0.07] bg-[#161616] p-6 hover:border-[#08A66C]/20 hover:bg-[#1E1E1E] transition">
             <h2 className="text-xl font-semibold">{t("alumno.miRutina")}</h2>
-            <p className="text-zinc-400 mt-2 text-sm">{t("alumno.miRutinaDesc")}</p>
+            <p className="text-[#7a7a7a] mt-2 text-sm">{t("alumno.miRutinaDesc")}</p>
           </Link>
-          <Link href="/alumno/progreso" className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:border-zinc-700 hover:bg-zinc-800/70 transition">
+          <Link href="/alumno/progreso" className="rounded-xl border border-white/[0.07] bg-[#161616] p-6 hover:border-[#08A66C]/20 hover:bg-[#1E1E1E] transition">
             <h2 className="text-xl font-semibold">{t("alumno.misProgresos")}</h2>
-            <p className="text-zinc-400 mt-2 text-sm">{t("alumno.misProgresosDesc")}</p>
+            <p className="text-[#7a7a7a] mt-2 text-sm">{t("alumno.misProgresosDesc")}</p>
           </Link>
-          <Link href="/alumno/perfil" className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:border-zinc-700 hover:bg-zinc-800/70 transition">
+          <Link href="/alumno/perfil" className="rounded-xl border border-white/[0.07] bg-[#161616] p-6 hover:border-[#08A66C]/20 hover:bg-[#1E1E1E] transition">
             <h2 className="text-xl font-semibold">{t("alumno.miPerfil")}</h2>
-            <p className="text-zinc-400 mt-2 text-sm">{t("alumno.miPerfilDesc")}</p>
+            <p className="text-[#7a7a7a] mt-2 text-sm">{t("alumno.miPerfilDesc")}</p>
           </Link>
-          <Link href="/alumno/configuracion" className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:border-zinc-700 hover:bg-zinc-800/70 transition">
+          <Link href="/alumno/configuracion" className="rounded-xl border border-white/[0.07] bg-[#161616] p-6 hover:border-[#08A66C]/20 hover:bg-[#1E1E1E] transition">
             <h2 className="text-xl font-semibold">⚙️ {t("navbar.configuracion")}</h2>
-            <p className="text-zinc-400 mt-2 text-sm">{t("configuracion.descripcion")}</p>
+            <p className="text-[#7a7a7a] mt-2 text-sm">{t("configuracion.descripcion")}</p>
           </Link>
         </section>
 
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-            <p className="text-zinc-400 text-sm">{t("alumno.rutinasCompletadas")}</p>
+          <div className="rounded-2xl border border-white/[0.07] bg-[#161616] p-4">
+            <p className="text-[#7a7a7a] text-sm">{t("alumno.rutinasCompletadas")}</p>
             <p className="text-2xl font-bold mt-1">{rutinasCompletadas}</p>
           </div>
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-            <p className="text-zinc-400 text-sm">{t("alumno.ejerciciosCompletados")}</p>
+          <div className="rounded-2xl border border-white/[0.07] bg-[#161616] p-4">
+            <p className="text-[#7a7a7a] text-sm">{t("alumno.ejerciciosCompletados")}</p>
             <p className="text-2xl font-bold mt-1">{ejerciciosCompletados}</p>
           </div>
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-            <p className="text-zinc-400 text-sm">{t("alumno.evaluaciones")}</p>
+          <div className="rounded-2xl border border-white/[0.07] bg-[#161616] p-4">
+            <p className="text-[#7a7a7a] text-sm">{t("alumno.evaluaciones")}</p>
             <p className="text-2xl font-bold mt-1">{evaluacionesCompletadas}</p>
           </div>
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-            <p className="text-zinc-400 text-sm">{t("alumno.mejorRM")}</p>
+          <div className="rounded-2xl border border-white/[0.07] bg-[#161616] p-4">
+            <p className="text-[#7a7a7a] text-sm">{t("alumno.mejorRM")}</p>
             <p className="text-2xl font-bold mt-1">{mejorRM?.peso ? `${mejorRM.peso} kg` : t("alumno.sinRegistros")}</p>
-            {mejorRM?.nombre && <p className="text-xs text-zinc-500 truncate">{mejorRM.nombre}</p>}
+            {mejorRM?.nombre && <p className="text-xs text-[#4a4a4a] truncate">{mejorRM.nombre}</p>}
           </div>
         </section>
       </div>

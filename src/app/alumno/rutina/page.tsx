@@ -121,18 +121,18 @@ export default function NuevaRutinaPage() {
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto py-8 px-4 space-y-8 animate-pulse">
-        <div className="h-8 w-24 rounded bg-zinc-800" />
-        <div className="h-32 rounded-xl bg-zinc-900 border border-zinc-800" />
-        <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
-          <div className="h-6 w-48 rounded bg-zinc-800" />
-          <div className="space-y-2"><div className="h-4 w-32 rounded bg-zinc-800" /><div className="h-6 w-64 rounded bg-zinc-800" /><div className="h-4 w-40 rounded bg-zinc-800" /><div className="h-10 w-40 rounded-lg bg-zinc-800 mt-4" /></div>
+        <div className="h-8 w-24 rounded bg-[#1E1E1E]" />
+        <div className="h-32 rounded-xl bg-[#161616] border border-white/[0.07]" />
+        <div className="bg-[#161616] rounded-xl p-6 space-y-3">
+          <div className="h-6 w-48 rounded bg-[#1E1E1E]" />
+          <div className="space-y-2"><div className="h-4 w-32 rounded bg-[#1E1E1E]" /><div className="h-6 w-64 rounded bg-[#1E1E1E]" /><div className="h-4 w-40 rounded bg-[#1E1E1E]" /><div className="h-10 w-40 rounded-lg bg-[#1E1E1E] mt-4" /></div>
         </div>
-        <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
-          <div className="h-6 w-36 rounded bg-zinc-800" />
-          <div className="space-y-2"><div className="h-4 w-56 rounded bg-zinc-800" /><div className="h-4 w-56 rounded bg-zinc-800" /><div className="h-10 w-28 rounded-lg bg-zinc-800 mt-3" /></div>
+        <div className="bg-[#161616] rounded-xl p-6 space-y-3">
+          <div className="h-6 w-36 rounded bg-[#1E1E1E]" />
+          <div className="space-y-2"><div className="h-4 w-56 rounded bg-[#1E1E1E]" /><div className="h-4 w-56 rounded bg-[#1E1E1E]" /><div className="h-10 w-28 rounded-lg bg-[#1E1E1E] mt-3" /></div>
         </div>
-        <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
-          <div className="h-6 w-28 rounded bg-zinc-800" /><div className="h-4 w-72 rounded bg-zinc-800" /><div className="h-10 w-32 rounded-lg bg-zinc-800 mt-3" />
+        <div className="bg-[#161616] rounded-xl p-6 space-y-3">
+          <div className="h-6 w-28 rounded bg-[#1E1E1E]" /><div className="h-4 w-72 rounded bg-[#1E1E1E]" /><div className="h-10 w-32 rounded-lg bg-[#1E1E1E] mt-3" />
         </div>
       </div>
     );
@@ -152,8 +152,8 @@ export default function NuevaRutinaPage() {
 
       <div className="md:grid md:grid-cols-3 md:gap-6 space-y-6 md:space-y-0">
         <div className="md:col-span-2 space-y-6">
-          <div className="bg-zinc-900 rounded-xl p-6 shadow space-y-3">
-            <h2 className="text-xl font-semibold text-zinc-100 mb-2">
+          <div className="bg-[#161616] rounded-xl p-6 space-y-3">
+            <h2 className="text-xl font-semibold text-[#F0F0F0] mb-2">
               {formatearFechaCorta(selectedDateKey) || "Hoy"}
             </h2>
             {error ? (
@@ -161,26 +161,26 @@ export default function NuevaRutinaPage() {
             ) : actividadesDelDia.length > 0 ? (
               <div className="space-y-3">
                 {actividadesDelDia.map((actividad) => (
-                  <div key={`${actividad.tipo}-${actividad.subtipo || ""}-${actividad.id}`} className="border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition">
+                  <div key={`${actividad.tipo}-${actividad.subtipo || ""}-${actividad.id}`} className="border border-white/[0.07] rounded-xl p-4 hover:border-[#08A66C]/20 transition">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-xs uppercase tracking-wide text-zinc-500 mb-0.5">{getTipoDisplay(actividad)}</div>
-                        <div className="text-lg font-bold text-zinc-100">{actividad.nombre}</div>
-                        {actividad.fecha && <div className="text-sm text-zinc-400 mt-1">{formatearFechaCorta(actividad.fecha)}</div>}
+                        <div className="text-xs uppercase tracking-wide text-[#4a4a4a] mb-0.5">{getTipoDisplay(actividad)}</div>
+                        <div className="text-lg font-bold text-[#F0F0F0]">{actividad.nombre}</div>
+                        {actividad.fecha && <div className="text-sm text-[#7a7a7a] mt-1">{formatearFechaCorta(actividad.fecha)}</div>}
                       </div>
                       <div className="shrink-0">
                         {actividad.tipo === "rutina" ? (
                           sePuedeRealizar(actividad.fecha) ? (
-                            <Link href={`/alumno/rutina/${actividad.id}`} className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-sm">{t("alumno.comenzar")}</Link>
+                            <Link href={`/alumno/rutina/${actividad.id}`} className="inline-block px-4 py-2 rounded-lg bg-[#08A66C] text-[#0E0E0E] font-bold hover:brightness-110 transition text-sm">{t("alumno.comenzar")}</Link>
                           ) : (
-                            <span className="inline-block px-4 py-2 rounded-lg bg-zinc-800 text-zinc-500 text-sm cursor-pointer hover:bg-zinc-700 transition"
+                            <span className="inline-block px-4 py-2 rounded-lg bg-[#1E1E1E] text-[#4a4a4a] text-sm cursor-pointer hover:bg-[#252525] transition"
                               onClick={() => mostrarToast(t("alumno.completarPendientesPrimero"), "info")}>{t("alumno.pendiente")}</span>
                           )
                         ) : actividad.puedeCargarAlumno ? (
-                          <Link href={actividad.href} className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition text-sm">{t("alumno.realizar")}</Link>
+                          <Link href={actividad.href} className="inline-block px-4 py-2 rounded-lg bg-[#08A66C] text-[#0E0E0E] font-bold hover:brightness-110 transition text-sm">{t("alumno.realizar")}</Link>
                         ) : (
                           <button type="button" onClick={() => setModalEvaluacion({ open: true, id: actividad.id, subtipo: (actividad.subtipo as "rm" | "fms") || "rm" })}
-                            className="inline-block px-4 py-2 rounded-lg bg-zinc-700 text-white font-semibold hover:bg-zinc-600 transition text-sm">{t("alumno.ver")}</button>
+                            className="inline-block px-4 py-2 rounded-lg bg-[#1E1E1E] text-[#F0F0F0] font-semibold hover:bg-[#252525] transition text-sm">{t("alumno.ver")}</button>
                         )}
                       </div>
                     </div>
@@ -188,33 +188,33 @@ export default function NuevaRutinaPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-zinc-500 text-sm">{t("alumno.sinActividades")}</div>
+              <div className="text-[#4a4a4a] text-sm">{t("alumno.sinActividades")}</div>
             )}
           </div>
         </div>
 
         {!error && (
           <div className="space-y-4">
-            <div className="bg-zinc-900 rounded-xl p-4 shadow space-y-2">
+            <div className="bg-[#161616] rounded-xl p-4 space-y-2">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-zinc-100">{t("alumno.planificacion")}</h2>
+                <h2 className="text-lg font-semibold text-[#F0F0F0]">{t("alumno.planificacion")}</h2>
                 {hayVencidas && (
                   <button type="button" onClick={() => setMostrarVencidasModal(true)} className="text-red-400 hover:text-red-300 transition text-sm leading-none border border-red-500/50 px-2 py-0.5 rounded-lg" title={t("alumno.rutinasVencidas")}>❗</button>
                 )}
               </div>
-              <div className="flex flex-col gap-0.5 text-sm text-zinc-300">
-                <span>{t("alumno.rutinasPendientes")} <span className="font-semibold text-zinc-100">({rutinasPendientes})</span></span>
-                <span>{t("alumno.evaluacionesPendientes")} <span className="font-semibold text-zinc-100">({evaluacionesPendientes})</span></span>
+              <div className="flex flex-col gap-0.5 text-sm text-[#7a7a7a]">
+                <span>{t("alumno.rutinasPendientes")} <span className="font-semibold text-[#F0F0F0]">({rutinasPendientes})</span></span>
+                <span>{t("alumno.evaluacionesPendientes")} <span className="font-semibold text-[#F0F0F0]">({evaluacionesPendientes})</span></span>
               </div>
-              <Link href="/alumno/rutina/planificacion" className={`inline-block mt-1 px-3 py-1.5 rounded-lg font-semibold border transition text-sm ${hayVencidas ? "bg-red-950/20 text-red-300 border-red-800/60 hover:bg-red-950/40" : "bg-zinc-800 text-zinc-200 border-zinc-700 hover:bg-zinc-700"}`}>
+              <Link href="/alumno/rutina/planificacion" className={`inline-block mt-1 px-3 py-1.5 rounded-lg font-semibold border transition text-sm ${hayVencidas ? "bg-red-950/20 text-red-300 border-red-800/60 hover:bg-red-950/40" : "bg-[#1E1E1E] text-[#F0F0F0] border-white/[0.07] hover:bg-[#252525]"}`}>
                 {t("alumno.verMas")}
               </Link>
             </div>
 
-            <div className="bg-zinc-900 rounded-xl p-4 shadow space-y-2">
-              <h2 className="text-lg font-semibold text-zinc-100">{t("alumno.historial.titulo")}</h2>
-              <p className="text-xs text-zinc-400">{t("alumno.historialDesc")}</p>
-              <Link href="/alumno/rutina/historial" className="inline-block mt-1 px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 font-semibold border border-zinc-700 hover:bg-zinc-700 transition text-sm">
+            <div className="bg-[#161616] rounded-xl p-4 space-y-2">
+              <h2 className="text-lg font-semibold text-[#F0F0F0]">{t("alumno.historial.titulo")}</h2>
+              <p className="text-xs text-[#7a7a7a]">{t("alumno.historialDesc")}</p>
+              <Link href="/alumno/rutina/historial" className="inline-block mt-1 px-3 py-1.5 rounded-lg bg-[#1E1E1E] text-[#F0F0F0] font-semibold border border-white/[0.07] hover:bg-[#252525] transition text-sm">
                 {t("alumno.verHistorial")}
               </Link>
             </div>
@@ -228,12 +228,12 @@ export default function NuevaRutinaPage() {
 
       {mostrarVencidasModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md bg-zinc-900 border border-red-800/60 rounded-2xl p-6 shadow-2xl">
+          <div className="w-full max-w-md bg-[#161616] border border-red-800/60 rounded-2xl p-6 shadow-2xl">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-3xl">❗</span>
               <h2 className="text-2xl font-bold text-red-400">{t("alumno.rutinasVencidasTitulo")}</h2>
             </div>
-            <p className="text-zinc-300 text-sm leading-relaxed mb-4">{t("alumno.rutinasVencidasDesc", { count: overdueDates.length })}</p>
+            <p className="text-[#F0F0F0] text-sm leading-relaxed mb-4" dangerouslySetInnerHTML={{ __html: t("alumno.rutinasVencidasDesc", { count: `<strong>${overdueDates.length}</strong>` }) }} />
             <div className="rounded-xl border border-red-900/40 bg-red-950/20 p-4 mb-5">
               <p className="text-xs text-red-300/90 leading-relaxed">{t("alumno.rutinasVencidasInfo")}</p>
             </div>

@@ -11,7 +11,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Rutas públicas que no requieren sesión
-  const publicRoutes = ["/login"];
+  const publicRoutes = ["/login", "/info"];
   const isPublicRoute = publicRoutes.some(
     (route) => pathname === route || pathname.startsWith(route + "/")
   );
