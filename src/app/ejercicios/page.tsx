@@ -306,7 +306,7 @@ export default function EjerciciosPage() {
       <div className="max-w-5xl mx-auto">
         <header className="flex items-start justify-between mb-6">
           <div>
-            <BackButton fallback="/" />
+            <BackButton fallback="/home" />
             <h1 className="text-3xl font-bold mt-4">{t("ejercicios.titulo")}</h1>
             <p className="text-zinc-400 mt-1">
               {totalEjercicios > 0

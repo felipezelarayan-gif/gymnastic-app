@@ -44,6 +44,9 @@ export default function SoporteAlumnosPage() {
   const [mostrarAcciones, setMostrarAcciones] = useState(false);
   const [mostrarConfirmarPausar, setMostrarConfirmarPausar] = useState(false);
   const [mostrarConfirmarBorrar, setMostrarConfirmarBorrar] = useState(false);
+  const [mostrarTransferir, setMostrarTransferir] = useState(false);
+  const [profesoresDisponibles, setProfesoresDisponibles] = useState<Profesor[]>([]);
+  const [profeSeleccionado, setProfeSeleccionado] = useState("");
   const [procesando, setProcesando] = useState(false);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
 
@@ -81,6 +84,67 @@ export default function SoporteAlumnosPage() {
   }
 
   function abrirAccionesAlumno(alumno: AlumnoConProfesor) { setAlumnoSeleccionado(alumno); setErrorAccion(null); setMostrarAcciones(true); }
+
+  async function abrirTransferir() {
+    setErrorAccion(null);
+    // Cargar todos los profesores y admins disponibles
+    const { data: perfiles } = await supabase
+      .from("profiles")
+      .select("id, nombre, email, rol")
+      .in("rol", ["profe", "admin"])
+      .order("nombre", { ascending: true });
+
+    const disponibles = (perfiles || []).map((p) => ({
+      id: p.id,
+      nombre: p.nombre,
+      email: p.email,
+    }));
+    setProfesoresDisponibles(disponibles);
+    setProfeSeleccionado("");
+    setMostrarTransferir(true);
+  }
+
+  async function transferirAlumno() {
+    if (!alumnoSeleccionado || !profeSeleccionado) {
+      mostrarToast(t("soporte.alumnosPage.seleccionarProfe"), "error");
+      return;
+    }
+
+    setProcesando(true);
+    setErrorAccion(null);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) {
+        setErrorAccion("No autorizado.");
+        setProcesando(false);
+        return;
+      }
+
+      const res = await fetch("/api/transferir-alumno", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+        },
+        body: JSON.stringify({
+          alumnoId: alumnoSeleccionado.id,
+          nuevoProfesorId: profeSeleccionado,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al transferir");
+
+      mostrarToast(t("soporte.alumnosPage.alumnoTransferido"), "exito");
+      setMostrarTransferir(false);
+      setMostrarAcciones(false);
+      await cargarAlumnos();
+    } catch (err: any) {
+      setErrorAccion(err.message);
+    }
+    setProcesando(false);
+  }
 
   async function togglePausarAlumno() {
     if (!alumnoSeleccionado) return;
@@ -191,6 +255,7 @@ export default function SoporteAlumnosPage() {
       {alumnoSeleccionado && (
         <ModalAccionesAdmin abierto={mostrarAcciones} onCerrar={() => { setMostrarAcciones(false); setErrorAccion(null); }} titulo={t("common.accionesTitulo", { nombre: alumnoSeleccionado.nombre || t("common.sinNombre") })} error={errorAccion}
           acciones={[
+            { id: "transferir", icono: "🔄", titulo: t("soporte.alumnosPage.transferirBtn"), descripcion: t("soporte.alumnosPage.transferirDesc"), color: "blue", onClick: () => abrirTransferir() },
             { id: "pausar", icono: alumnoSeleccionado.pausado ? "▶️" : "⏸️", titulo: alumnoSeleccionado.pausado ? t("common.reanudarUsuario") : t("common.pausarUsuario"), descripcion: alumnoSeleccionado.pausado ? t("soporte.alumnosPage.reanudarDesc") : t("soporte.alumnosPage.pausarDesc"), color: "yellow", onClick: () => setMostrarConfirmarPausar(true) },
             { id: "borrar", icono: "🗑️", titulo: t("common.eliminarUsuario"), descripcion: t("soporte.alumnosPage.borrarDesc"), color: "red", onClick: () => setMostrarConfirmarBorrar(true) },
           ]}
@@ -225,6 +290,72 @@ export default function SoporteAlumnosPage() {
             <div className="flex gap-3">
               <button type="button" onClick={() => { setMostrarConfirmarBorrar(false); setErrorAccion(null); }} disabled={procesando} className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm hover:bg-zinc-800 disabled:opacity-50">{t("common.cancelarBtn")}</button>
               <button type="button" onClick={borrarAlumno} disabled={procesando} className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50">{procesando ? t("common.eliminando") : t("common.siEliminar")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mostrarTransferir && alumnoSeleccionado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-bold">{t("soporte.alumnosPage.transferirTitulo")}</h3>
+              <button
+                type="button"
+                onClick={() => { setMostrarTransferir(false); setErrorAccion(null); }}
+                className="rounded-lg border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-zinc-400 text-sm mb-4" dangerouslySetInnerHTML={{
+              __html: t("soporte.alumnosPage.transferirDescripcion", { nombre: alumnoSeleccionado.nombre || t("common.sinNombre") }) + ":"
+            }} />
+
+            {errorAccion && (
+              <p className="text-red-400 text-sm mb-4 bg-red-950/50 border border-red-800 rounded-xl p-3">{errorAccion}</p>
+            )}
+
+            <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
+              {profesoresDisponibles.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setProfeSeleccionado(p.id)}
+                  className={`w-full flex items-center gap-3 rounded-xl border p-3 text-left transition ${
+                    profeSeleccionado === p.id
+                      ? "border-emerald-600 bg-emerald-500/10"
+                      : "border-zinc-700 bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{p.nombre || t("common.sinNombre")}</p>
+                    {p.email && <p className="text-xs text-zinc-500 truncate">{p.email}</p>}
+                  </div>
+                  {profeSeleccionado === p.id && (
+                    <span className="text-emerald-400 text-lg">✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setMostrarTransferir(false); setErrorAccion(null); }}
+                className="flex-1 rounded-xl border border-zinc-700 py-3 text-sm text-zinc-300 hover:bg-zinc-800"
+              >
+                {t("common.cancelarBtn")}
+              </button>
+              <button
+                type="button"
+                onClick={transferirAlumno}
+                disabled={procesando || !profeSeleccionado}
+                className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+              >
+                {procesando ? t("soporte.alumnosPage.transfiriendo") : t("soporte.alumnosPage.transferirBtn")}
+              </button>
             </div>
           </div>
         </div>

@@ -198,7 +198,7 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              <Link href="/" className={getDesktopLinkClass("/")} onClick={(e) => { handleNavClick(e, "/"); if (isActive("/")) e.preventDefault(); }}>
+              <Link href="/home" className={getDesktopLinkClass("/home")} onClick={(e) => { handleNavClick(e, "/home"); if (isActive("/home")) e.preventDefault(); }}>
                 🏠 <span>{t("navbar.home")}</span>
               </Link>
 
@@ -251,7 +251,7 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              <MobileTab href="/" exact icon="🏠" label={t("navbar.inicio")} isActive={isCurrentPage("/", true)} onNavClick={handleNavClick} />
+              <MobileTab href="/home" exact icon="🏠" label={t("navbar.inicio")} isActive={isCurrentPage("/home", true)} onNavClick={handleNavClick} />
               <MobileTab href="/alumnos" icon="👥" label={t("navbar.alumnos")} isActive={isCurrentPage("/alumnos")} onNavClick={handleNavClick} />
               <MobileTab href="/rutinas" icon="📋" label={t("navbar.rutinas")} isActive={isCurrentPage("/rutinas")} onNavClick={handleNavClick} />
               <MobileTab href="/ejercicios" icon="💪" label={t("navbar.ejercicios")} isActive={isCurrentPage("/ejercicios")} onNavClick={handleNavClick} />

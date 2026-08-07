@@ -17,14 +17,10 @@ export async function obtenerMetricasResumen(
     evaluacionesRMCount,
     evaluacionesFMSCount,
   ] = await Promise.all([
-    // Total ejercicios completados (ejercicio único por rutina_asignacion)
-    cliente
-      .from("registros_entrenamiento")
-      .select("ejercicio_id, rutina_asignacion_id")
-      .eq("alumno_id", alumnoId)
-      .eq("completado", true)
-      .not("ejercicio_id", "is", null)
-      .not("rutina_asignacion_id", "is", null),
+    // Total ejercicios completados únicos (COUNT DISTINCT en el servidor via RPC)
+    cliente.rpc("contar_ejercicios_completados_unicos", {
+      p_alumno_id: alumnoId,
+    }),
     // Total rutinas completadas (desde rutina_asignaciones)
     cliente
       .from("rutina_asignaciones")
@@ -46,14 +42,8 @@ export async function obtenerMetricasResumen(
       .not("estado", "in", "(pendiente,incompleta)"),
   ]);
 
-  // Contar pares únicos (ejercicio_id + rutina_asignacion_id)
-  const ejerciciosData = ejerciciosCount.data || [];
-  const paresUnicos = new Set(
-    ejerciciosData.map((r: any) => `${r.ejercicio_id}_${r.rutina_asignacion_id}`)
-  );
-
   return {
-    ejerciciosCompletados: paresUnicos.size,
+    ejerciciosCompletados: ejerciciosCount.data ?? 0,
     rutinasCompletadas: rutinasCount.count ?? 0,
     evaluacionesCompletadas:
       (evaluacionesRMCount.count ?? 0) + (evaluacionesFMSCount.count ?? 0),

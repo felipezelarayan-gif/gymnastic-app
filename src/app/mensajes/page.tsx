@@ -39,7 +39,7 @@ export default function MensajesPage() {
 
     // Solo profesores pueden acceder a esta página
     if (perfil?.rol !== "profe") {
-      router.push("/");
+      router.push("/home");
       return;
     }
 
@@ -76,7 +76,7 @@ export default function MensajesPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-3xl mx-auto">
-        <BackButton fallback="/" />
+        <BackButton fallback="/home" />
 
         <header className="mt-6 mb-6 flex items-center justify-between">
           <div>

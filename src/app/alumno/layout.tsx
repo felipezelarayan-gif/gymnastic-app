@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useIdioma } from "@/lib/i18n-context";
+import { getAlumnoCached } from "@/lib/alumno/alumno-cache";
 
 export default function AlumnoLayout({ children }: { children: React.ReactNode }) {
   const { t } = useIdioma();
@@ -23,11 +24,7 @@ export default function AlumnoLayout({ children }: { children: React.ReactNode }
       return;
     }
 
-    const { data: alumno } = await supabase
-      .from("alumnos")
-      .select("activo")
-      .eq("user_id", sessionData.session.user.id)
-      .maybeSingle();
+    const alumno = await getAlumnoCached(sessionData.session.user.id);
 
     setPausado(alumno?.activo === false);
     setLoading(false);

@@ -7,6 +7,7 @@ import { borrarRutina as borrarRutinaLib } from "@/lib/rutinas/borrarRutina";
 import BackButton from "@/components/BackButton";
 import VerRutinaPlantillaModal from "@/components/rutinas/VerRutinaPlantillaModal";
 import CrearRutinaModal from "@/components/rutinas/CrearRutinaModal";
+import MenuAccionesRutina from "@/components/rutinas/MenuAccionesRutina";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
 import { OPCIONES_TIPO } from "@/lib/rutinas/opciones-tipo";
@@ -309,15 +310,8 @@ export default function RutinasPage() {
         supabase,
         rutinaId,
         profesorId,
-        onConfirm: (pendientes, completadas) =>
-          confirm(
-            `Esta rutina tiene:\n\n` +
-            `• ${pendientes} asignación(es) pendiente(s)\n` +
-            `• ${completadas} asignación(es) completada(s)\n\n` +
-            `Las asignaciones pendientes serán eliminadas.\n` +
-            `Las asignaciones completadas permanecerán disponibles en el historial del alumno.\n\n` +
-            `¿Deseás continuar?`
-          ),
+        // El modal custom de MenuAccionesRutina ya confirmó el borrado
+        onConfirm: () => true,
       });
       if (!result.ok) {
         if (result.error !== "Operación cancelada por el usuario.") {
@@ -362,7 +356,7 @@ export default function RutinasPage() {
       <div className="max-w-6xl mx-auto">
         <header className="flex items-start justify-between mb-6">
           <div>
-            <BackButton fallback="/" />
+            <BackButton fallback="/home" />
             <h1 className="text-3xl font-bold mt-4">{t("rutinas.titulo")}</h1>
             <p className="text-zinc-400 mt-1">
               {totalRutinas > 0
@@ -465,7 +459,7 @@ export default function RutinasPage() {
               {rutinas.map((rutina) => (
                 <div
                   key={rutina.id}
-                  className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition overflow-hidden"
+                  className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
                 >
                   {/* Mobile */}
                   <div className="md:hidden flex items-center justify-between gap-2">
@@ -479,29 +473,12 @@ export default function RutinasPage() {
                         )}
                       </h3>
                     </a>
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setVerRutinaId(rutina.id)}
-                        className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                      >
-                        {t("rutinas.verAsignar")}
-                      </button>
-                      <a
-                        href={`/rutinas/${rutina.id}`}
-                        className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                      >
-                        ✏️
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => borrarRutina(rutina.id)}
-                        disabled={borrandoId === rutina.id}
-                        className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50"
-                      >
-                        🗑️
-                      </button>
-                    </div>
+                    <MenuAccionesRutina
+                      rutina={rutina}
+                      onVerAsignar={() => setVerRutinaId(rutina.id)}
+                      onBorrar={() => borrarRutina(rutina.id)}
+                      borrando={borrandoId === rutina.id}
+                    />
                   </div>
 
                   {/* Desktop */}
@@ -516,29 +493,12 @@ export default function RutinasPage() {
                         )}
                       </h3>
                     </a>
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setVerRutinaId(rutina.id)}
-                        className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                      >
-                        {t("rutinas.verAsignar")}
-                      </button>
-                      <a
-                        href={`/rutinas/${rutina.id}`}
-                        className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                      >
-                        {t("rutinas.editar")}
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => borrarRutina(rutina.id)}
-                        disabled={borrandoId === rutina.id}
-                        className="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {borrandoId === rutina.id ? "..." : t("rutinas.borrar")}
-                      </button>
-                    </div>
+                    <MenuAccionesRutina
+                      rutina={rutina}
+                      onVerAsignar={() => setVerRutinaId(rutina.id)}
+                      onBorrar={() => borrarRutina(rutina.id)}
+                      borrando={borrandoId === rutina.id}
+                    />
                   </div>
                 </div>
               ))}

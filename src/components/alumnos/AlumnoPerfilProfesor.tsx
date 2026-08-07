@@ -10,6 +10,7 @@ import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
 import { useToast } from "@/components/ui/ToastProvider";
 import ModalAccionesAlumno from "@/components/shared/ModalAccionesAlumno";
 import { useIdioma } from "@/lib/i18n-context";
+import { useAccionesAlumno } from "@/lib/alumno/useAccionesAlumno";
 
 type Alumno = {
   id: string;
@@ -28,13 +29,6 @@ type Alumno = {
   sin_lesiones?: boolean | null;
   observaciones_fisicas?: string | null;
   activo?: boolean | null;
-};
-
-type ProfeDisponible = {
-  id: string;
-  nombre: string | null;
-  email: string | null;
-  tipo: string;
 };
 
 const card = "bg-zinc-900 border border-zinc-800 rounded-2xl p-5";
@@ -77,14 +71,26 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
   const [nuevoObsFisicas, setNuevoObsFisicas] = useState("");
   const [guardando, setGuardando] = useState(false);
 
-  // Estados para acciones
-  const [mostrarAcciones, setMostrarAcciones] = useState(false);
-  const [mostrarTransferir, setMostrarTransferir] = useState(false);
-  const [mostrarConfirmarBorrar, setMostrarConfirmarBorrar] = useState(false);
-  const [profesoresDisponibles, setProfesoresDisponibles] = useState<ProfeDisponible[]>([]);
-  const [profeSeleccionado, setProfeSeleccionado] = useState("");
-  const [procesando, setProcesando] = useState(false);
-  const [errorAccion, setErrorAccion] = useState<string | null>(null);
+  // Estados para acciones (usando hook reutilizable)
+  const {
+    mostrarAcciones,
+    setMostrarAcciones,
+    mostrarTransferir,
+    setMostrarTransferir,
+    mostrarConfirmarBorrar,
+    setMostrarConfirmarBorrar,
+    profesoresDisponibles,
+    profeSeleccionado,
+    setProfeSeleccionado,
+    procesando,
+    errorAccion,
+    setErrorAccion,
+    abrirModalAcciones,
+    transferirAlumno,
+    pausarAlumno,
+    borrarAlumno,
+    acciones,
+  } = useAccionesAlumno(id, alumno, cargarAlumno);
 
   useEffect(() => {
     cargarAlumno();
@@ -191,181 +197,19 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
     return `${alumno?.nombre || ""} ${alumno?.apellido || ""}`.trim();
   }
 
-  // --- Acciones ---
+  // --- Acciones (usando hook reutilizable) ---
 
-  async function abrirModalAcciones() {
-    setMostrarAcciones(true);
-    setErrorAccion(null);
-
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData?.session) return;
-
-    const userId = sessionData.session.user.id;
-
-    const { data: profeActual } = await supabase
-      .from("profiles")
-      .select("id, creado_por")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (!profeActual) return;
-
-    const disponibles: ProfeDisponible[] = [];
-    const idsVistos = new Set<string>();
-
-    const { data: soportes } = await supabase
-      .from("profiles")
-      .select("id, nombre, email")
-      .eq("rol", "admin");
-
-    if (soportes) {
-      soportes.forEach((s) => {
-        if (!idsVistos.has(s.id)) {
-          idsVistos.add(s.id);
-          disponibles.push({ id: s.id, nombre: s.nombre, email: s.email, tipo: "🛠️ Soporte" });
-        }
-      });
-    }
-
-    if (profeActual.creado_por) {
-      const { data: admin } = await supabase
-        .from("profiles")
-        .select("id, nombre, email")
-        .eq("id", profeActual.creado_por)
-        .maybeSingle();
-
-      if (admin && !idsVistos.has(admin.id)) {
-        idsVistos.add(admin.id);
-        disponibles.push({ id: admin.id, nombre: admin.nombre, email: admin.email, tipo: "👑 Mi admin" });
-      }
-
-      const { data: otrosProfes } = await supabase
-        .from("profiles")
-        .select("id, nombre, email")
-        .eq("rol", "profe")
-        .eq("creado_por", profeActual.creado_por)
-        .neq("id", userId);
-
-      if (otrosProfes) {
-        otrosProfes.forEach((p) => {
-          if (!idsVistos.has(p.id)) {
-            idsVistos.add(p.id);
-            disponibles.push({ id: p.id, nombre: p.nombre, email: p.email, tipo: "👨‍🏫 Profesor" });
-          }
-        });
-      }
-    }
-
-    setProfesoresDisponibles(disponibles);
+  async function handleTransferir() {
+    await transferirAlumno();
   }
 
-  async function transferirAlumno() {
-    if (!profeSeleccionado) {
-      mostrarToast(t("alumnos.seleccionarProfe"), "error");
-      return;
-    }
-
-    setProcesando(true);
-    setErrorAccion(null);
-
-    const { error } = await supabase
-      .from("alumnos")
-      .update({ profesor_id: profeSeleccionado })
-      .eq("id", id);
-
-    setProcesando(false);
-
-    if (error) {
-      setErrorAccion(error.message);
-      return;
-    }
-
-    mostrarToast(t("alumnos.alumnoTransferido"), "exito");
-    setMostrarTransferir(false);
-    setMostrarAcciones(false);
-    await cargarAlumno();
+  async function handlePausar() {
+    await pausarAlumno();
   }
 
-  async function pausarAlumno() {
-    setProcesando(true);
-    setErrorAccion(null);
-
-    const nuevoEstado = !alumno?.activo;
-
-    const { error } = await supabase
-      .from("alumnos")
-      .update({ activo: nuevoEstado })
-      .eq("id", id);
-
-    setProcesando(false);
-
-    if (error) {
-      setErrorAccion(error.message);
-      return;
-    }
-
-    mostrarToast(
-      nuevoEstado ? t("alumnos.alumnoReanudado") : t("alumnos.alumnoPausado"),
-      "exito"
-    );
-    setMostrarAcciones(false);
-    await cargarAlumno();
+  async function handleBorrar() {
+    await borrarAlumno();
   }
-
-  async function borrarAlumno() {
-    setProcesando(true);
-    setErrorAccion(null);
-
-    try {
-      const res = await fetch("/api/borrar-alumno", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ alumnoId: id }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Error al borrar el alumno.");
-      }
-
-      window.location.href = "/alumnos";
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error al borrar el alumno.";
-      setErrorAccion(msg);
-      setProcesando(false);
-    }
-  }
-
-  const acciones = [
-    {
-      id: "transferir",
-      icono: "🔄",
-      titulo: t("alumnos.transferir"),
-      descripcion: t("alumnos.transferirDesc"),
-      color: "blue" as const,
-      onClick: () => { setMostrarTransferir(true); setErrorAccion(null); },
-    },
-    {
-      id: "pausar",
-      icono: alumno?.activo === false ? "▶️" : "⏸️",
-      titulo: alumno?.activo === false ? t("alumnos.reanudar") : t("alumnos.pausar"),
-      descripcion: alumno?.activo === false
-        ? t("alumnos.reanudarDesc")
-        : t("alumnos.pausarDesc"),
-      color: "yellow" as const,
-      onClick: pausarAlumno,
-      disabled: procesando,
-    },
-    {
-      id: "borrar",
-      icono: "🗑️",
-      titulo: t("alumnos.borrarAlumno"),
-      descripcion: t("alumnos.borrarAlumnoDesc"),
-      color: "red" as const,
-      onClick: () => { setMostrarConfirmarBorrar(true); setErrorAccion(null); },
-    },
-  ];
 
   if (loading) {
     return (
@@ -553,7 +397,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
                 </button>
                 <button
                   type="button"
-                  onClick={transferirAlumno}
+                  onClick={handleTransferir}
                   disabled={procesando || !profeSeleccionado}
                   className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
                 >
@@ -594,7 +438,7 @@ export default function AlumnoPerfilProfesor({ params }: { params: Promise<{ id:
                 </button>
                 <button
                   type="button"
-                  onClick={borrarAlumno}
+                  onClick={handleBorrar}
                   disabled={procesando}
                   className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
                 >

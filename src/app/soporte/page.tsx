@@ -61,7 +61,7 @@ export default function SoportePage() {
       if (perfil?.rol === "alumno") {
         router.push("/alumno");
       } else {
-        router.push("/");
+        router.push("/home");
       }
       return;
     }

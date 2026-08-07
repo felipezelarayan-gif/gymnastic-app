@@ -21,7 +21,7 @@ export default function SoporteCard({
   destinatarioRol: initialDestinatario = "soporte",
 }: SoporteCardProps) {
   const { mostrarToast } = useToast();
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
   const [motivo, setMotivo] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -72,14 +72,8 @@ export default function SoporteCard({
 
       // Enviar notificación por email (edge function)
       try {
-        const functionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/enviar-email-mensaje`;
-        await fetch(functionUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ""}`,
-          },
-          body: JSON.stringify({
+        await supabase.functions.invoke("enviar-email-mensaje", {
+          body: {
             remitenteId,
             remitenteNombre,
             remitenteEmail,
@@ -87,7 +81,8 @@ export default function SoporteCard({
             destinatarioRol,
             motivo,
             mensaje: mensaje.trim(),
-          }),
+            idioma,
+          },
         });
       } catch (emailErr) {
         // El email es secundario, no bloqueamos el envío del mensaje

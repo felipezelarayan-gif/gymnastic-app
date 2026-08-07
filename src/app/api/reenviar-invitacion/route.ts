@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   const siteUrl = clientSiteUrl ||
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    "https://gymnastic-app-u64l.vercel.app";
+    "https://gymnastic-app-u64l-gymnasticapp.vercel.app";
 
   let query = supabaseAdmin
     .from("profiles")

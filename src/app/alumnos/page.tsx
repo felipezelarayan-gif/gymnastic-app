@@ -227,7 +227,7 @@ export default function AlumnosPage() {
       <div className="max-w-6xl mx-auto">
         <header className="flex items-start justify-between mb-6">
           <div>
-            <BackButton fallback="/" />
+            <BackButton fallback="/home" />
             <h1 className="text-3xl font-bold mt-4">{t("alumnos.titulo")}</h1>
             <p className="text-zinc-400 mt-1">
               {alumnos.length} {alumnos.length === 1 ? t("alumnos.registrado") : t("alumnos.registrados")}
@@ -292,7 +292,7 @@ export default function AlumnosPage() {
           <>
             <div className="grid gap-3">
               {alumnosPaginados.map((alumno) => (
-                <AlumnoCard key={alumno.id} alumno={alumno} pendientes={pendientesPorAlumno.get(alumno.id) || 0} finalizados={finalizadosPorAlumno.get(alumno.id) || 0} ultimoEntrenamiento={ultimoEntrenamientoPorAlumno.get(alumno.id) || t("alumnos.sinEntrenamientos")} metricasLoading={metricasLoading} />
+                <AlumnoCard key={alumno.id} alumno={alumno} pendientes={pendientesPorAlumno.get(alumno.id) || 0} finalizados={finalizadosPorAlumno.get(alumno.id) || 0} ultimoEntrenamiento={ultimoEntrenamientoPorAlumno.get(alumno.id) || t("alumnos.sinEntrenamientos")} metricasLoading={metricasLoading} onCambio={cargarDatos} />
               ))}
             </div>
             {totalPaginas > 1 && (

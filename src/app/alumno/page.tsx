@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { supabase } from "@/lib/supabase";
 import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
 import EstadoAlumnoCard from "@/components/alumno/EstadoAlumnoCard";
@@ -9,6 +10,7 @@ import { obtenerEstadoAlumno, type EstadoAlumnoCardData } from "@/lib/alumno/obt
 import { obtenerPendientesAlumno, type ResumenPendientesAlumno } from "@/lib/alumno/obtenerPendientesAlumnos";
 import { obtenerRMsActualesAlumno } from "@/lib/rmActual";
 import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
+import { getAlumnoCached } from "@/lib/alumno/alumno-cache";
 import { useIdioma } from "@/lib/i18n-context";
 
 type Profile = { id: string; nombre: string; email: string; rol: string; };
@@ -18,6 +20,7 @@ type RutinaRelacion = RutinaAsignada["rutinas"] | NonNullable<RutinaAsignada["ru
 function obtenerRelacionUnica<T>(relacion: T | T[] | undefined | null): T | undefined { if (!relacion) return undefined; return Array.isArray(relacion) ? relacion[0] : relacion; }
 
 export default function AlumnoHome() {
+  usePageTitle("home");
   const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -38,15 +41,31 @@ export default function AlumnoHome() {
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session) { window.location.href = "/login"; return; }
     const user = sessionData.session.user;
-    const { data: perfil } = await supabase.from("profiles").select("id, nombre, email, rol").eq("id", user.id).maybeSingle();
+
+    // Paso 1: perfil y datos del alumno en paralelo (ambos necesitan user.id)
+    const [perfilResult, alumnoData] = await Promise.all([
+      supabase.from("profiles").select("id, nombre, email, rol").eq("id", user.id).maybeSingle(),
+      getAlumnoCached(user.id),
+    ]);
+
+    const perfil = perfilResult.data;
     if (!perfil || perfil.rol !== "alumno") { window.location.href = "/"; return; }
     setProfile(perfil);
-    const { data: alumnoData } = await supabase.from("alumnos").select("id, nombre, apellido, email, user_id, foto_url").eq("user_id", user.id).maybeSingle();
-    if (alumnoData) setAlumno(alumnoData);
-    const resumenData = await obtenerPendientesAlumno(supabase, alumnoData!.id);
-    setResumen(resumenData);
 
-    const metricas = await obtenerMetricasResumen(supabase, alumnoData!.id);
+    if (alumnoData) setAlumno(alumnoData);
+    if (!alumnoData) { setLoading(false); return; }
+
+    // Marcar como cargado el contenido principal (header + métricas) apenas se tengan datos esenciales
+    setLoading(false);
+
+    // Paso 2: pendientes, métricas y RMs en paralelo (todos necesitan alumnoData.id)
+    const [resumenData, metricas, rmsResult] = await Promise.all([
+      obtenerPendientesAlumno(supabase, alumnoData.id),
+      obtenerMetricasResumen(supabase, alumnoData.id),
+      obtenerRMsActualesAlumno(alumnoData.id),
+    ]);
+
+    setResumen(resumenData);
     setRutinasCompletadas(metricas.rutinasCompletadas);
     setEjerciciosCompletados(metricas.ejerciciosCompletados);
     setEvaluacionesCompletadas(metricas.evaluacionesCompletadas);
@@ -54,10 +73,11 @@ export default function AlumnoHome() {
     const tieneHistorial = metricas.rutinasCompletadas > 0 || metricas.evaluacionesCompletadas > 0;
     const estadoData = obtenerEstadoAlumno({ pendientes: resumenData, tieneHistorial, t });
     setEstadoCard(estadoData);
-    const rmsResult = await obtenerRMsActualesAlumno(alumnoData!.id);
+
+    // Paso 3: nombre del mejor RM (los RMs ya vienen ordenados por rm_calculado desc)
     const rms = rmsResult.data || [];
     if (rms.length > 0) {
-      const mejor = rms.reduce((max, rm) => (rm.rm_calculado || 0) > (max.rm_calculado || 0) ? rm : max);
+      const mejor = rms[0];
       const ids = Array.from(new Set(rms.map((rm) => rm.ejercicio_id).filter(Boolean)));
       let nombreEj = "";
       if (ids.length > 0) {
@@ -67,7 +87,6 @@ export default function AlumnoHome() {
       }
       setMejorRM({ peso: mejor.rm_calculado, reps: mejor.repeticiones, nombre: nombreEj });
     }
-    setLoading(false);
   }
 
   if (loading) {

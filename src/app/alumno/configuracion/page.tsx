@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
@@ -23,6 +24,7 @@ type Alumno = {
 };
 
 export default function AlumnoConfiguracionPage() {
+  usePageTitle("alumnoConfiguracion");
   const router = useRouter();
   const { mostrarToast } = useToast();
   const { t, idioma, cambiarIdioma } = useIdioma();
@@ -41,7 +43,7 @@ export default function AlumnoConfiguracionPage() {
     if (!sessionData.session) { router.push("/login"); return; }
     const user = sessionData.session.user;
     const rol = await getRolCached(user.id);
-    if (rol !== "alumno") { router.push("/"); return; }
+    if (rol !== "alumno") { router.push("/home"); return; }
     const { data, error } = await supabase.from("alumnos").select("*").eq("user_id", user.id).maybeSingle();
     if (error || !data) { mostrarToast(error?.message || "No se pudo cargar la configuración.", "error"); setLoading(false); return; }
     setAlumno(data);

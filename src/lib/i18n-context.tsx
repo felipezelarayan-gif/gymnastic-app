@@ -1,26 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { useEffect, useState, useCallback, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
-import { t as translateFn, type Idioma } from "@/lib/translations";
+import { t as translateFn } from "@/lib/translations";
+import { I18nContext, type Idioma } from "@/lib/i18n-types";
 
-type I18nContextType = {
-  t: (key: string, params?: Record<string, string | number>) => string;
-  idioma: Idioma;
-  cambiarIdioma: (nuevoIdioma: Idioma) => Promise<void>;
-  cargando: boolean;
-};
-
-const I18nContext = createContext<I18nContextType>({
-  t: (key) => key,
-  idioma: "es",
-  cambiarIdioma: async () => {},
-  cargando: true,
-});
-
-export function useIdioma() {
-  return useContext(I18nContext);
-}
+export { I18nContext, useIdioma } from "@/lib/i18n-types";
+export type { I18nContextType } from "@/lib/i18n-types";
 
 function detectarIdiomaNavegador(): Idioma {
   if (typeof navigator === "undefined") return "en";
@@ -62,7 +48,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
         // Prioridad: DB > localStorage > browser > "en"
         const idiomaFinal = langFromDB ?? (langLSValid ? langFromLS : browserLang);
-        
+
         setIdioma(idiomaFinal);
         localStorage.setItem("language", idiomaFinal);
       } catch {

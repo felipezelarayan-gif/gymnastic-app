@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import BackButton from "@/components/BackButton";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { supabase } from "@/lib/supabase";
 import {
   obtenerPendientesAlumno,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/alumno/obtenerPendientesAlumnos";
 import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
+import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 import WeeklyDatePicker from "@/components/alumno/WeeklyDatePicker";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
@@ -40,6 +42,7 @@ function hoyKey(): string {
 }
 
 export default function NuevaRutinaPage() {
+  usePageTitle("alumnoRutina");
   const { mostrarToast } = useToast();
   const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
@@ -51,6 +54,10 @@ export default function NuevaRutinaPage() {
     open: boolean;
     id: string;
     subtipo: "rm" | "fms";
+    completada?: boolean;
+  } | null>(null);
+  const [modalRutinaCompletada, setModalRutinaCompletada] = useState<{
+    asignacionId: string;
   } | null>(null);
   const [mostrarVencidasModal, setMostrarVencidasModal] = useState(false);
 
@@ -107,6 +114,8 @@ export default function NuevaRutinaPage() {
   const selectedDateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
 
   const actividadesDelDia = useMemo(() => pendientes.filter((p) => normalizarFecha(p.fecha) === selectedDateKey), [pendientes, selectedDateKey]);
+
+  const completadasDelDia = useMemo(() => completadas.filter((c) => normalizarFecha(c.fecha) === selectedDateKey), [completadas, selectedDateKey]);
 
   const pendientesOrdenados = [...pendientes].sort((a, b) => obtenerTimestampActividad(a) - obtenerTimestampActividad(b));
   const rutinasPendientes = pendientesOrdenados.filter(p => p.tipo === "rutina").length;
@@ -190,6 +199,38 @@ export default function NuevaRutinaPage() {
             ) : (
               <div className="text-[#4a4a4a] text-sm">{t("alumno.sinActividades")}</div>
             )}
+
+            {completadasDelDia.length > 0 && (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs uppercase tracking-wide text-[#4a4a4a] font-semibold">{t("alumno.completadas")}</p>
+                {completadasDelDia.map((actividad) => (
+                  <div key={`${actividad.tipo}-${actividad.subtipo || ""}-${actividad.id}`} className="border border-white/[0.07] rounded-xl p-4 opacity-80">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-[#4a4a4a] mb-0.5">{getTipoDisplay(actividad)}</div>
+                        <div className="text-lg font-bold text-[#F0F0F0]">{actividad.nombre}</div>
+                        {actividad.fecha && <div className="text-sm text-[#7a7a7a] mt-1">{formatearFechaCorta(actividad.fecha)}</div>}
+                      </div>
+                      <div className="shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (actividad.tipo === "rutina") {
+                              setModalRutinaCompletada({ asignacionId: actividad.id });
+                            } else {
+                              setModalEvaluacion({ open: true, id: actividad.id, subtipo: (actividad.subtipo as "rm" | "fms") || "rm", completada: true });
+                            }
+                          }}
+                          className="inline-block px-4 py-2 rounded-lg bg-[#1E1E1E] text-[#F0F0F0] font-semibold hover:bg-[#252525] transition text-sm"
+                        >
+                          {t("alumno.ver")}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -223,7 +264,11 @@ export default function NuevaRutinaPage() {
       </div>
 
       {modalEvaluacion?.open && (
-        <VerEvaluacionModal open={modalEvaluacion.open} onClose={() => setModalEvaluacion(null)} evaluacionId={modalEvaluacion.id} subtipo={modalEvaluacion.subtipo} />
+        <VerEvaluacionModal open={modalEvaluacion.open} onClose={() => setModalEvaluacion(null)} evaluacionId={modalEvaluacion.id} subtipo={modalEvaluacion.subtipo} completada={modalEvaluacion.completada} vista="alumno" />
+      )}
+
+      {modalRutinaCompletada && (
+        <VerRutinaModal open={true} onClose={() => setModalRutinaCompletada(null)} asignacionId={modalRutinaCompletada.asignacionId} completada={true} />
       )}
 
       {mostrarVencidasModal && (

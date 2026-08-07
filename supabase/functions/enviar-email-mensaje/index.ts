@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { emailLayout, dataCard } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,27 @@ interface Payload {
   destinatarioRol: string;
   motivo: string;
   mensaje: string;
+  idioma?: string;
+}
+
+function getLabels(idioma: string) {
+  const es = {
+    titulo: "Nuevo mensaje recibido",
+    descripcion: "Tenés un mensaje de {{nombre}}",
+    motivo: "Motivo",
+    mensaje: "Mensaje",
+    verMensaje: "Ver mensaje en la app →",
+    noRespondas: "Forza Zone · No respondas a este email",
+  };
+  const en = {
+    titulo: "New message received",
+    descripcion: "You have a message from {{nombre}}",
+    motivo: "Reason",
+    mensaje: "Message",
+    verMensaje: "View message in the app →",
+    noRespondas: "Forza Zone · Do not reply to this email",
+  };
+  return idioma === "en" ? en : es;
 }
 
 serve(async (req) => {
@@ -62,7 +84,6 @@ serve(async (req) => {
     let destinatarioNombre = "";
 
     if (payload.destinatarioRol === "soporte" || payload.destinatarioRol === "admin") {
-      // Buscar un usuario con rol=admin o es_admin=true
       const { data: admins } = await supabaseAdmin
         .from("profiles")
         .select("email, nombre")
@@ -74,7 +95,6 @@ serve(async (req) => {
         destinatarioNombre = admins[0].nombre || "Soporte";
       }
     } else if (payload.destinatarioRol === "profe") {
-      // Buscar el profesor del alumno remitente
       const { data: alumno } = await supabaseAdmin
         .from("alumnos")
         .select("profesor_id")
@@ -102,13 +122,26 @@ serve(async (req) => {
       );
     }
 
-    // Determinar nombre del remitente para el asunto
     const remitenteLabel = payload.remitenteRol === "alumno" ? "Alumno" : payload.remitenteRol === "profe" ? "Profesor" : "Usuario";
 
-    // Determinar la URL de la app y el link según el destinatario
     const appUrl = Deno.env.get("APP_URL") || "http://localhost:3000";
     const linkDestino = payload.destinatarioRol === "profe" ? "/mensajes" : "/soporte/mensajes";
     const linkCompleto = `${appUrl}${linkDestino}`;
+
+    const L = getLabels(payload.idioma || "es");
+
+    // Generar el HTML usando el EmailLayout compartido
+    const html = emailLayout({
+      titulo: L.titulo,
+      descripcion: L.descripcion.replace("{{nombre}}", payload.remitenteNombre),
+      bodyHtml:
+        dataCard(payload.remitenteNombre, `${remitenteLabel} · ${payload.remitenteEmail}`) +
+        dataCard(L.motivo, payload.motivo) +
+        dataCard(L.mensaje, payload.mensaje),
+      ctaText: L.verMensaje,
+      ctaUrl: linkCompleto,
+      footerText: "Forza Zone",
+    });
 
     // Enviar email via Brevo API
     const brevoResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -119,7 +152,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         sender: {
-          name: "Gymnastic App",
+          name: "Forza Zone",
           email: "entrenamiento-app@hotmail.com",
         },
         to: [
@@ -129,61 +162,7 @@ serve(async (req) => {
           },
         ],
         subject: `Nuevo mensaje de ${payload.remitenteNombre} (${remitenteLabel}) - ${payload.motivo}`,
-        htmlContent: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #09090b;">
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 32px 24px; text-align: center;">
-              <div style="font-size: 48px; margin-bottom: 8px;">💬</div>
-              <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700;">Nuevo mensaje recibido</h1>
-              <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0 0; font-size: 14px;">Tenés un mensaje de ${payload.remitenteNombre}</p>
-            </div>
-
-            <!-- Body -->
-            <div style="padding: 24px; background-color: #18181b; border: 1px solid #27272a; border-top: none; border-radius: 0 0 12px 12px;">
-              <!-- Remitente info -->
-              <div style="display: flex; align-items: center; gap: 12px; padding: 16px; background-color: #27272a; border-radius: 10px; margin-bottom: 16px;">
-                <div style="width: 44px; height: 44px; border-radius: 50%; background-color: #059669; display: flex; align-items: center; justify-content: center; font-size: 20px; color: white; flex-shrink: 0;">
-                  ${payload.remitenteRol === "alumno" ? "👤" : "👨‍🏫"}
-                </div>
-                <div style="flex: 1;">
-                  <p style="color: #e4e4e7; margin: 0; font-size: 15px; font-weight: 600;">${payload.remitenteNombre}</p>
-                  <p style="color: #a1a1aa; margin: 2px 0 0 0; font-size: 13px;">${remitenteLabel} · ${payload.remitenteEmail}</p>
-                </div>
-              </div>
-
-              <!-- Motivo -->
-              <div style="margin-bottom: 16px;">
-                <p style="color: #a1a1aa; margin: 0 0 4px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Motivo</p>
-                <div style="display: inline-block; padding: 4px 12px; background-color: #05966915; border: 1px solid #05966940; border-radius: 20px; color: #34d399; font-size: 13px; font-weight: 500;">
-                  ${payload.motivo}
-                </div>
-              </div>
-
-              <!-- Mensaje -->
-              <div style="margin-bottom: 20px;">
-                <p style="color: #a1a1aa; margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Mensaje</p>
-                <div style="padding: 16px; background-color: #27272a; border-radius: 10px; border: 1px solid #3f3f46;">
-                  <p style="color: #e4e4e7; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${payload.mensaje}</p>
-                </div>
-              </div>
-
-              <!-- Botón -->
-              <div style="text-align: center; margin-top: 24px;">
-                <a href="${linkCompleto}"
-                   style="display: inline-block; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 14px;">
-                  Ver mensaje en la app →
-                </a>
-              </div>
-
-              <!-- Footer -->
-              <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #27272a; text-align: center;">
-                <p style="color: #52525b; margin: 0; font-size: 12px;">
-                  Gymnastic App · No respondas a este email
-                </p>
-              </div>
-            </div>
-          </div>
-        `,
+        htmlContent: html,
       }),
     });
 

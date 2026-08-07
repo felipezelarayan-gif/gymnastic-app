@@ -374,7 +374,7 @@ export default function ConfiguracionPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-4xl mx-auto">
-        <BackButton fallback="/" />
+        <BackButton fallback="/home" />
 
         <header className="mt-6 mb-6">
           <h1 className="text-3xl font-bold">{t("configuracion.titulo")}</h1>

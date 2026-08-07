@@ -1,18 +1,35 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { mostrarToast } = useToast();
   const { t } = useIdioma();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [resetCooldown, setResetCooldown] = useState(0);
+
+  // Detectar si venimos de un link de invitación expirado
+  const errorParam = searchParams.get("error");
+  const nextParam = searchParams.get("next");
+  const typeParam = searchParams.get("type");
+  const esInvitacionExpirada =
+    (typeParam === "invite" || nextParam === "/bienvenida") && !!errorParam;
 
   async function login() {
     if (cargando) return;
@@ -29,23 +46,79 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
+    router.push("/home");
+  }
+
+  function iniciarCooldown() {
+    setResetCooldown(60);
+    const interval = setInterval(() => {
+      setResetCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   }
 
   async function recuperarPassword() {
+    if (resetCooldown > 0) return;
+
     if (!email) {
       mostrarToast(t("login.emailRequerido"), "error");
       return;
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    iniciarCooldown();
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
 
     if (error) {
       mostrarToast(error.message, "error");
+      setResetCooldown(0);
       return;
     }
 
     mostrarToast(t("login.emailEnviado"), "exito");
+  }
+
+  // Pantalla de invitación expirada (muy clara, imposible de no ver)
+  if (esInvitacionExpirada) {
+    return (
+      <main className="min-h-screen bg-[#0E0E0E] text-[#F0F0F0] flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-2xl border border-red-900/60 bg-[#161616] p-8 text-center">
+          <div className="text-6xl mb-4">⏰</div>
+          <h1 className="text-3xl font-bold text-red-400 mb-3">
+            {t("bienvenida.invitacionExpiradaTitulo")}
+          </h1>
+          <p className="text-[#F0F0F0] mb-2">
+            {t("bienvenida.invitacionExpiradaDesc")}
+          </p>
+          <p className="text-[#7a7a7a] mb-6">
+            {t("bienvenida.invitacionExpiradaAccion")}
+          </p>
+          <button
+            type="button"
+            onClick={() => { window.location.href = "/login"; }}
+            className="w-full rounded-xl bg-[#08A66C] py-3 font-semibold text-[#0E0E0E] hover:brightness-110 transition"
+          >
+            {t("bienvenida.irAlLogin")}
+          </button>
+          <p className="text-xs text-[#4a4a4a] mt-4">
+            {t("bienvenida.ayudaContactar")}{" "}
+            <a
+              href="/#contacto"
+              className="text-[#08A66C] hover:underline font-semibold"
+            >
+              {t("bienvenida.contactanos")}
+            </a>
+          </p>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -53,43 +126,10 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <a
-          href="/info"
+          href="/"
           className="flex items-center justify-center gap-2.5 no-underline mb-8"
         >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <g transform="skewX(-12)">
-              <rect
-                x="4"
-                y="3"
-                width="4.5"
-                height="18"
-                rx="1"
-                fill="#08A66C"
-              />
-              <rect
-                x="8.5"
-                y="3"
-                width="11.5"
-                height="3.5"
-                rx="1"
-                fill="#08A66C"
-              />
-              <rect
-                x="8.5"
-                y="9.5"
-                width="8.5"
-                height="3.5"
-                rx="1"
-                fill="#08A66C"
-              />
-            </g>
-          </svg>
+          <img src="/logo.jpg" alt="Forza Zone" className="w-8 h-8 rounded-lg" />
           <span className="text-xl tracking-tight">
             <span className="font-extrabold">FORZA</span>{" "}
             <span className="font-light text-[#7a7a7a]">ZONE</span>
@@ -129,15 +169,22 @@ export default function LoginPage() {
 
           <button
             onClick={recuperarPassword}
-            className="w-full text-sm text-[#7a7a7a] hover:text-[#08A66C] transition-colors font-light"
+            disabled={resetCooldown > 0}
+            className={`w-full text-sm transition-colors font-light ${
+              resetCooldown > 0
+                ? "text-[#4a4a4a] cursor-not-allowed"
+                : "text-[#7a7a7a] hover:text-[#08A66C]"
+            }`}
           >
-            {t("login.olvidePassword")}
+            {resetCooldown > 0
+              ? `Reenviar en ${resetCooldown}s`
+              : t("login.olvidePassword")}
           </button>
         </div>
 
         {/* Link a landing */}
         <p className="text-center mt-6 text-xs text-[#4a4a4a] font-light">
-          <a href="/info" className="text-[#7a7a7a] hover:text-[#08A66C] transition-colors no-underline">
+          <a href="/" className="text-[#7a7a7a] hover:text-[#08A66C] transition-colors no-underline">
             Forza Zone
           </a>{" "}
           — Plataforma para entrenadores y atletas

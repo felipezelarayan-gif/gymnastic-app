@@ -11,10 +11,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Rutas públicas que no requieren sesión
-  const publicRoutes = ["/login", "/info"];
-  const isPublicRoute = publicRoutes.some(
-    (route) => pathname === route || pathname.startsWith(route + "/")
-  );
+  const publicRoutes = ["/login", "/info", "/inscripcion"];
+  const isPublicRoute =
+    pathname === "/" ||
+    publicRoutes.some(
+      (route) => pathname === route || pathname.startsWith(route + "/")
+    );
 
   // Archivos estáticos, API routes y favicon — salir inmediatamente sin tocar auth
   const isSkippableRoute =
@@ -64,10 +66,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Si hay sesión y está en /login → redirect a /
+  // Si hay sesión y está en /login → redirect a /home
   if (session && pathname === "/login") {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/home";
     return NextResponse.redirect(url);
   }
 

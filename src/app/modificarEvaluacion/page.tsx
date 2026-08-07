@@ -333,7 +333,7 @@ function ModificarEvaluacionContent() {
     return (
       <main className="min-h-screen bg-zinc-950 text-white p-6">
         <div className="max-w-2xl mx-auto space-y-4">
-          <BackButton fallback="/" />
+          <BackButton fallback="/home" />
           <div className="rounded-2xl border border-red-900/50 bg-red-950/20 p-5">
             <p className="text-red-300 font-semibold">{error}</p>
           </div>
@@ -345,7 +345,7 @@ function ModificarEvaluacionContent() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
       <div className="max-w-2xl mx-auto space-y-5">
-        <BackButton fallback="/" />
+        <BackButton fallback="/home" />
 
         <header>
           <p className="text-sm text-zinc-500">Profesor</p>

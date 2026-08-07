@@ -1,6 +1,7 @@
 import React from "react";
 import { obtenerEstadoAlumnoProfesor } from "@/lib/alumno/obtenerEstadoAlumnoProfesor";
 import { useIdioma } from "@/lib/i18n-context";
+import MenuAccionesAlumno from "@/components/alumnos/MenuAccionesAlumno";
 
 type Alumno = {
   id: string;
@@ -18,6 +19,7 @@ type AlumnoCardProps = {
   finalizados: number;
   ultimoEntrenamiento: string;
   metricasLoading: boolean;
+  onCambio?: () => void;
 };
 
 export const AlumnoCard = React.memo(function AlumnoCard({
@@ -26,6 +28,7 @@ export const AlumnoCard = React.memo(function AlumnoCard({
   finalizados,
   ultimoEntrenamiento,
   metricasLoading,
+  onCambio,
 }: AlumnoCardProps) {
   const { t } = useIdioma();
 
@@ -55,11 +58,7 @@ export const AlumnoCard = React.memo(function AlumnoCard({
             <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium ${estado.colorClasses}`}>{estado.icono} {estado.label}</span>
           </div>
         </a>
-        <div className="flex gap-2 shrink-0">
-          <a href={`/alumnos/${alumno.id}/historial`} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition">📋</a>
-          <a href={`/alumnos/${alumno.id}/rutinas`} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition">🏋️</a>
-          <a href={`/alumnos/${alumno.id}`} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition">👤</a>
-        </div>
+        <MenuAccionesAlumno alumno={alumno} onCambio={onCambio} />
       </div>
 
       <div className="hidden md:flex items-center gap-4">
@@ -83,11 +82,7 @@ export const AlumnoCard = React.memo(function AlumnoCard({
           <p className="text-xs text-zinc-500 leading-tight">{t("alumnos.pendientes")}</p>
         </div>
 
-        <div className="flex gap-2 shrink-0">
-          <a href={`/alumnos/${alumno.id}`} className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition">{t("alumnos.perfil")}</a>
-          <a href={`/alumnos/${alumno.id}/rutinas`} className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition">{t("alumnos.rutina")}</a>
-          <a href={`/alumnos/${alumno.id}/historial`} className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition">{t("alumnos.historial")}</a>
-        </div>
+        <MenuAccionesAlumno alumno={alumno} onCambio={onCambio} />
       </div>
     </div>
   );

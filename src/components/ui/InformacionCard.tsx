@@ -2,8 +2,8 @@
 
 import { useIdioma } from "@/lib/i18n-context";
 
-export const APP_VERSION = "4.0.3";
-export const LAST_UPDATE = "2026-07-30";
+export const APP_VERSION = "4.3.0";
+export const LAST_UPDATE = "2026-08-06";
 
 export default function InformacionCard() {
   const { t } = useIdioma();

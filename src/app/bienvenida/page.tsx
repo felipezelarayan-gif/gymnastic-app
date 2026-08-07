@@ -13,6 +13,7 @@ export default function BienvenidaPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [expirada, setExpirada] = useState(false);
 
   useEffect(() => {
     // createBrowserClient de @supabase/ssr consume automáticamente
@@ -30,6 +31,8 @@ export default function BienvenidaPage() {
       if (data.session) {
         verificarInvitacion(data.session.user.id);
       } else {
+        // No hay sesión: el link de invitación expiró o es inválido
+        setExpirada(true);
         setLoading(false);
       }
     });
@@ -94,6 +97,36 @@ export default function BienvenidaPage() {
     }
 
     router.push("/alumno/perfil");
+  }
+
+  // Pantalla de invitación expirada (muy clara, imposible de no ver)
+  if (expirada) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-2xl border border-red-900/60 bg-zinc-900 p-8 text-center">
+          <div className="text-6xl mb-4">⏰</div>
+          <h1 className="text-3xl font-bold text-red-400 mb-3">
+            {t("bienvenida.invitacionExpiradaTitulo")}
+          </h1>
+          <p className="text-zinc-300 mb-2">
+            {t("bienvenida.invitacionExpiradaDesc")}
+          </p>
+          <p className="text-zinc-400 mb-6">
+            {t("bienvenida.invitacionExpiradaAccion")}
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push("/login")}
+            className="w-full rounded-xl bg-emerald-500 py-3 font-semibold text-black hover:bg-emerald-600 transition"
+          >
+            {t("bienvenida.irAlLogin")}
+          </button>
+          <p className="text-xs text-zinc-500 mt-4">
+            {t("bienvenida.ayudaContactar")}
+          </p>
+        </div>
+      </main>
+    );
   }
 
   return (

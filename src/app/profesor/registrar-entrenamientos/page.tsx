@@ -589,7 +589,7 @@ export default function RegistrarEntrenamientosPage() {
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 text-zinc-100">
       <section className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5 shadow-lg">
         <div className="mb-3">
-          <BackButton fallback="/" />
+          <BackButton fallback="/home" />
         </div>
         <div className="flex items-center justify-between gap-2">
           <div>

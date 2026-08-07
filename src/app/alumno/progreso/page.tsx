@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import BackButton from "@/components/BackButton";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { obtenerRMsActualesAlumno, type RMActualCalculado } from "@/lib/rmActual";
 import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
@@ -34,6 +35,7 @@ type RutinaReciente = {
 };
 
 export default function MisProgresosPage() {
+  usePageTitle("alumnoProgreso");
   const [loading, setLoading] = useState(true);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const [rmsActuales, setRmsActuales] = useState<RMActualCalculado[]>([]);

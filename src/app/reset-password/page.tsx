@@ -22,7 +22,7 @@ export default function ResetPasswordPage() {
       if (data.session) {
         setLoading(false);
       } else {
-        mostrarToast(t("resetPassword.sesionInvalida"), "error");
+        mostrarToast(t("resetPassword.linkExpirado"), "error");
         setLoading(false);
       }
     }
@@ -79,6 +79,10 @@ export default function ResetPasswordPage() {
         <p className="text-sm text-zinc-400 mb-6">
           {t("resetPassword.subtitulo")}
         </p>
+
+        <div className="mb-4 rounded-lg border border-amber-700/60 bg-amber-500/10 p-3 text-sm text-amber-300">
+          ⏰ {t("resetPassword.linkExpira")}
+        </div>
 
         <input
           className="w-full mb-3 rounded bg-zinc-800 p-3 outline-none"

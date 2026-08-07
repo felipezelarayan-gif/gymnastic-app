@@ -57,7 +57,8 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
     .eq("origen", "evaluacion_rm")
     .not("rm_calculado", "is", null)
     .gte("fecha", fechaLimiteISO)
-    .order("fecha", { ascending: false });
+    .order("fecha", { ascending: false })
+    .limit(100);
 
   let historialEntrenamientosQuery = supabase
     .from("rms_historial")
@@ -66,7 +67,8 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
     .eq("origen", "entrenamiento")
     .not("rm_calculado", "is", null)
     .gte("fecha", fechaLimiteISO)
-    .order("fecha", { ascending: false });
+    .order("fecha", { ascending: false })
+    .limit(100);
 
   if (ejercicioId) {
     evaluacionesQuery = evaluacionesQuery.eq("ejercicio_id", ejercicioId);

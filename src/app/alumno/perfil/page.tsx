@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
+import { usePageTitle } from "@/lib/usePageTitle";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
@@ -31,6 +32,7 @@ type Alumno = {
 };
 
 export default function AlumnoPerfilPage() {
+  usePageTitle("alumnoPerfil");
   const router = useRouter();
   const { mostrarToast } = useToast();
   const { t } = useIdioma();
@@ -53,7 +55,7 @@ export default function AlumnoPerfilPage() {
     setUserId(user.id);
     const { data: profile, error: profileError } = await supabase.from("profiles").select("rol,onboarding_completo").eq("id", user.id).maybeSingle();
     if (profileError) { mostrarToast(profileError.message, "error"); setLoading(false); return; }
-    if (!profile || profile.rol !== "alumno") { router.push("/"); return; }
+    if (!profile || profile.rol !== "alumno") { router.push("/home"); return; }
     setMostrarOnboarding(!profile.onboarding_completo);
     const { data, error } = await supabase.from("alumnos").select("*").eq("user_id", user.id).maybeSingle();
     if (error) { mostrarToast(error.message, "error"); setLoading(false); return; }

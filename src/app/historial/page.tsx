@@ -128,7 +128,7 @@ export default function HistorialPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-6xl mx-auto">
-        <BackButton fallback="/" />
+        <BackButton fallback="/home" />
 
         <header className="mt-6 mb-6">
           <h1 className="text-3xl font-bold">{t("historial.titulo")}</h1>
