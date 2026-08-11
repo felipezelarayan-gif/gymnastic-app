@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { useIdioma } from "@/lib/i18n-context";
+import { campoBilingue } from "@/lib/utils/campoBilingue";
 
 type VerEvaluacionModalProps = {
   open: boolean;
@@ -19,6 +20,8 @@ type VerEvaluacionModalProps = {
 type ResultadoRM = {
   id: string;
   ejercicio: string;
+  nombre_es?: string | null;
+  nombre_en?: string | null;
   peso_usado: number | null;
   repeticiones: number | null;
   rm_final: number | null;
@@ -65,7 +68,7 @@ export default function VerEvaluacionModal({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const { formatearFechaCorta } = useFormatoFecha();
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
   const [evaluacion, setEvaluacion] = useState<EvaluacionRM | EvaluacionFMS | null>(null);
   const [resultadosRM, setResultadosRM] = useState<ResultadoRM[]>([]);
   const [resultadosFMS, setResultadosFMS] = useState<ResultadoFMS[]>([]);
@@ -100,7 +103,7 @@ export default function VerEvaluacionModal({
 
           const { data: ejerciciosData } = await supabase
             .from("evaluaciones_rm_resultados")
-            .select("id, peso_usado, repeticiones, rm_final, ejercicio:ejercicios(nombre)")
+            .select("id, peso_usado, repeticiones, rm_final, ejercicio:ejercicios(nombre, nombre_es, nombre_en)")
             .eq("evaluacion_rm_id", evaluacionId)
             .order("orden", { ascending: true });
 
@@ -108,6 +111,8 @@ export default function VerEvaluacionModal({
             const resultados = (ejerciciosData || []).map((r: any) => ({
               id: r.id,
               ejercicio: r.ejercicio?.nombre || "Ejercicio",
+              nombre_es: r.ejercicio?.nombre_es || r.ejercicio?.nombre || "Ejercicio",
+              nombre_en: r.ejercicio?.nombre_en || r.ejercicio?.nombre || "Ejercicio",
               peso_usado: r.peso_usado,
               repeticiones: r.repeticiones,
               rm_final: r.rm_final,
@@ -163,7 +168,7 @@ export default function VerEvaluacionModal({
   const esProfesor = vista === "profesor";
   const titulo = esRM ? t("verEvaluacionModal.tituloRM") : t("verEvaluacionModal.tituloFMS");
   const items = esRM
-    ? resultadosRM.map((r) => r.ejercicio).filter(Boolean)
+    ? resultadosRM.map((r) => campoBilingue(r, "nombre", idioma) || r.ejercicio).filter(Boolean)
     : resultadosFMS.map((t) => t.test_nombre).filter(Boolean);
 
   function PUNTAJE_COLORS(puntaje: number | null) {
@@ -175,7 +180,11 @@ export default function VerEvaluacionModal({
   }
 
   function irARealizar() {
-    router.push(`/evaluaciones/realizar/${subtipo}/${evaluacionId}`);
+    if (vista === "alumno") {
+      router.push(`/alumno/evaluaciones/${subtipo}/${evaluacionId}`);
+    } else {
+      router.push(`/evaluaciones/realizar/${subtipo}/${evaluacionId}`);
+    }
     onClose();
   }
 
@@ -261,7 +270,7 @@ export default function VerEvaluacionModal({
                         key={r.id}
                         className="rounded-xl border border-white/[0.07] bg-[#0E0E0E]/40 p-4"
                       >
-                        <p className="font-semibold text-[#F0F0F0]">{r.ejercicio}</p>
+                        <p className="font-semibold text-[#F0F0F0]">{campoBilingue(r, "nombre", idioma) || r.ejercicio}</p>
                         <div className="mt-2 flex flex-wrap gap-3 text-sm text-[#7a7a7a]">
                           <span>{t("verEvaluacionModal.peso")} {r.peso_usado ?? "-"} kg</span>
                           <span>{t("verEvaluacionModal.reps")} {r.repeticiones ?? "-"}</span>

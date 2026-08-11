@@ -3,6 +3,7 @@ import React, { useMemo, useRef } from "react";
 import DescansoTimer, { DescansoTimerHandle } from "./DescansoTimer";
 import TemporizadorSeries from "@/components/rutinas/TemporizadorSeries";
 import { useIdioma } from "@/lib/i18n-context";
+import { campoBilingue } from "@/lib/utils/campoBilingue";
 
 type CompletarEjercicioModalProps = {
   open: boolean;
@@ -191,7 +192,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
     () => obtenerDescansoSegundos(ejercicio),
     [ejercicio],
   );
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
   const timerRef = useRef<DescansoTimerHandle>(null);
   const manejarEstadoTimer = () => undefined;
   // Verificar si todas las series están completas
@@ -258,7 +259,7 @@ const CompletarEjercicioModal: React.FC<CompletarEjercicioModalProps> = ({
               {t("alumno.modal.registrarEjercicio")}
             </p>
             <h2 className="text-lg font-bold leading-snug text-zinc-100">
-              {ejercicio?.nombre_ejercicio || ejercicio?.nombre || t("alumnos.ejercicioSinNombre")}
+              {campoBilingue(ejercicio, "nombre", idioma) || ejercicio?.nombre_ejercicio || ejercicio?.nombre || t("alumnos.ejercicioSinNombre")}
             </h2>
           </div>
           {/* Video card */}

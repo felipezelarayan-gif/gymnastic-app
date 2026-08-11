@@ -11,6 +11,7 @@ import BackButton from "@/components/BackButton";
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
+import { campoBilingue } from "@/lib/utils/campoBilingue";
 
 type ModoCarga = "protocolo" | "rapida" | null;
 
@@ -65,6 +66,8 @@ type ResultadoRM = {
   ejercicio?: {
     id: string;
     nombre: string;
+    nombre_es?: string | null;
+    nombre_en?: string | null;
   } | null;
 };
 
@@ -139,7 +142,7 @@ function obtenerMejorIntento(intentos: IntentoProtocolo[]) {
 }
 
 export default function RealizarEvaluacionRMDetalle() {
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
   const params = useParams();
   const evaluacionId = String(params.id || "");
 
@@ -550,7 +553,7 @@ export default function RealizarEvaluacionRMDetalle() {
           .single(),
         supabase
           .from("evaluaciones_rm_resultados")
-          .select("id, evaluacion_rm_id, ejercicio_id, orden, metodo, peso_usado, repeticiones, rm_estimado, rm_final, completado, observaciones, ejercicio:ejercicios(id, nombre)")
+          .select("id, evaluacion_rm_id, ejercicio_id, orden, metodo, peso_usado, repeticiones, rm_estimado, rm_final, completado, observaciones, ejercicio:ejercicios(id, nombre, nombre_es, nombre_en)")
           .eq("evaluacion_rm_id", evaluacionId)
           .order("orden", { ascending: true }),
         obtenerRMsActualesAlumno(evaluacionData.alumno_id),
@@ -691,7 +694,7 @@ export default function RealizarEvaluacionRMDetalle() {
                     key={resultado.id}
                     className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-zinc-300"
                   >
-                    {index + 1}. {resultado.ejercicio?.nombre || "Ejercicio"}
+                    {index + 1}. {resultado.ejercicio ? campoBilingue(resultado.ejercicio, "nombre", idioma) : "Ejercicio"}
                   </li>
                 ))}
               </ul>
@@ -754,7 +757,7 @@ export default function RealizarEvaluacionRMDetalle() {
                   <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">
                     Ejercicio {resultado.orden || index + 1}
                   </p>
-                  <h3 className="text-xl font-semibold">{resultado.ejercicio?.nombre || "Ejercicio"}</h3>
+                  <h3 className="text-xl font-semibold">{resultado.ejercicio ? campoBilingue(resultado.ejercicio, "nombre", idioma) : "Ejercicio"}</h3>
 
                   {modoCarga === "protocolo" ? (
                     <div className="mt-4 space-y-4">

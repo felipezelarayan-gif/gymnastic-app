@@ -45,25 +45,27 @@ import { campoBilingue } from "@/lib/utils/campoBilingue";
    rutinas?: RutinaRelacion;
  };
  
- type RutinaEjercicio = {
-   id: string;
-   rutina_id: string;
-   rutina_asignacion_id?: string | null;
-   ejercicio_id?: string | null;
-   nombre_ejercicio: string;
-   series?: number | null;
-   tipo_prescripcion?: string | null;
-   repeticiones?: string | null;
-   duracion?: string | null;
-   peso?: string | null;
-   porcentaje_rm?: string | null;
-   rir?: string | null;
-   descanso?: string | null;
-   observaciones?: string | null;
-   orden?: number | null;
-   tipo_configuracion?: "simple" | "avanzado" | null;
-   youtube_url?: string | null;
- };
+type RutinaEjercicio = {
+  id: string;
+  rutina_id: string;
+  rutina_asignacion_id?: string | null;
+  ejercicio_id?: string | null;
+  nombre_ejercicio: string;
+  nombre_es?: string | null;
+  nombre_en?: string | null;
+  series?: number | null;
+  tipo_prescripcion?: string | null;
+  repeticiones?: string | null;
+  duracion?: string | null;
+  peso?: string | null;
+  porcentaje_rm?: string | null;
+  rir?: string | null;
+  descanso?: string | null;
+  observaciones?: string | null;
+  orden?: number | null;
+  tipo_configuracion?: "simple" | "avanzado" | null;
+  youtube_url?: string | null;
+};
  
   type RutinaEjercicioSerie = {
     id: string;
@@ -1403,10 +1405,14 @@ export default function RutinaEntrenamientoView({
            ? String(pesoSugerido).replace(" kg", "")
            : item.peso || "";
  
-     setEjercicioSeleccionado({
-       ...item,
-       rutina_asignacion_id: asignacionActual.asignacion_id,
-     } as RutinaEjercicio);
+    const datosBilingues = ejerciciosBilingues[item.ejercicio_id || ""] || {};
+
+    setEjercicioSeleccionado({
+      ...item,
+      rutina_asignacion_id: asignacionActual.asignacion_id,
+      nombre_es: datosBilingues.nombre_es || item.nombre_ejercicio,
+      nombre_en: datosBilingues.nombre_en || item.nombre_ejercicio,
+    } as RutinaEjercicio);
  
      setPesoSugeridoModal(pesoSugerido);
  
