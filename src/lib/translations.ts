@@ -973,6 +973,13 @@ export const translations = {
       errorCompletarProtocolo: "Completá RM de referencia y al menos un intento logrado por cada ejercicio.",
       errorSinIntentoLogrado: "Hay ejercicios sin intento logrado.",
       errorRecalcularRM: "No se pudo recalcular el RM actual.",
+      // Vista alumno RM
+      vistaAlumnoTitulo: "Vista alumno · Evaluación RM",
+      habilitadaAlumno: "Esta evaluación está habilitada para que la completes como alumno.",
+      asignadaProfesor: "Esta evaluación fue asignada para ser realizada por tu profesor. Podés ver los ejercicios, pero no cargar resultados.",
+      ejerciciosAEvaluar: "Ejercicios a evaluar",
+      volverMisRutinas: "Volver a mis rutinas",
+      guardando: "Guardando...",
     },
     historial: {
       titulo: "📈 Historial",
@@ -2480,6 +2487,13 @@ export const translations = {
       errorCompletarProtocolo: "Complete reference RM and at least one successful attempt for each exercise.",
       errorSinIntentoLogrado: "There are exercises without a successful attempt.",
       errorRecalcularRM: "Could not recalculate the current RM.",
+      // Vista alumno RM
+      vistaAlumnoTitulo: "Student view · RM Evaluation",
+      habilitadaAlumno: "This evaluation is enabled for you to complete as a student.",
+      asignadaProfesor: "This evaluation was assigned to be performed by your coach. You can view the exercises, but you cannot submit results.",
+      ejerciciosAEvaluar: "Exercises to evaluate",
+      volverMisRutinas: "Back to my routines",
+      guardando: "Saving...",
     },
     historial: {
       titulo: "📈 History",
