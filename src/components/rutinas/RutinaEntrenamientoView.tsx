@@ -1312,10 +1312,10 @@ export default function RutinaEntrenamientoView({
        (asignacion) => asignacion.asignacion_id === asignacionId
      );
  
-     if (!asignacionActual) {
-       mostrarToast("No se encontró la asignación de esta rutina.");
-       return;
-     }
+      if (!asignacionActual) {
+        mostrarToast(t("alumno.noSeEncontroAsignacion"));
+        return;
+      }
  
      const idCarga = `entrada-${entradaId}`;
      setDeshaciendoId(idCarga);
@@ -1386,7 +1386,7 @@ export default function RutinaEntrenamientoView({
      );
  
      if (!asignacionActual) {
-       mostrarToast("No se encontró la asignación de esta rutina.");
+       mostrarToast(t("alumno.noSeEncontroAsignacion"));
        return;
      }
  
@@ -1460,11 +1460,11 @@ export default function RutinaEntrenamientoView({
          asignacion.asignacion_id === ejercicioSeleccionado.rutina_asignacion_id
      );
  
-     if (!asignacionActual) {
-       mostrarToast("No se encontró la asignación de esta rutina.");
-       setGuardandoEjercicio(false);
-       return;
-     }
+      if (!asignacionActual) {
+        mostrarToast(t("alumno.noSeEncontroAsignacion"));
+        setGuardandoEjercicio(false);
+        return;
+      }
  
      if (
        ejercicioEstaCompletado(
@@ -1669,7 +1669,7 @@ export default function RutinaEntrenamientoView({
      );
  
      if (!asignacionActual) {
-       mostrarToast("No se encontró la asignación de esta rutina.");
+       mostrarToast(t("alumno.noSeEncontroAsignacion"));
        return;
      }
  

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -47,6 +47,7 @@ export default function AlumnoPerfilPage() {
   const [editandoObservaciones, setEditandoObservaciones] = useState(false);
   const [mostrarOnboarding, setMostrarOnboarding] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function cargarPerfil() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -151,8 +152,56 @@ export default function AlumnoPerfilPage() {
 
   if (loading || !alumno || !form) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white p-6">
-        {t("perfil.cargando")}
+      <main className="min-h-screen bg-zinc-950 text-white p-6 pb-24">
+        <div className="max-w-4xl mx-auto animate-pulse">
+          {/* Back button skeleton */}
+          <div className="h-5 w-20 rounded bg-zinc-800 mb-6" />
+
+          {/* Perfil skeleton */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mb-5">
+            <div className="flex items-center gap-4">
+              <div className="h-20 w-20 rounded-full bg-zinc-800 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-8 w-48 rounded bg-zinc-800" />
+                <div className="h-4 w-32 rounded bg-zinc-800" />
+                <div className="mt-3 flex gap-2">
+                  <div className="h-9 w-28 rounded-xl bg-zinc-800" />
+                  <div className="h-9 w-24 rounded-xl bg-zinc-800" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Datos personales skeleton */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mb-5">
+            <div className="h-6 w-28 rounded bg-zinc-800 mb-4" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="h-4 w-40 rounded bg-zinc-800" />
+              <div className="h-4 w-36 rounded bg-zinc-800" />
+              <div className="h-4 w-28 rounded bg-zinc-800" />
+              <div className="h-4 w-32 rounded bg-zinc-800" />
+              <div className="h-4 w-24 rounded bg-zinc-800" />
+              <div className="h-4 w-44 rounded bg-zinc-800 md:col-span-2" />
+            </div>
+          </div>
+
+          {/* Datos físicos skeleton */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mb-5">
+            <div className="h-6 w-24 rounded bg-zinc-800 mb-4" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="h-4 w-32 rounded bg-zinc-800" />
+              <div className="h-4 w-28 rounded bg-zinc-800" />
+              <div className="h-4 w-36 rounded bg-zinc-800" />
+              <div className="h-4 w-40 rounded bg-zinc-800 md:col-span-2" />
+            </div>
+          </div>
+
+          {/* Observaciones generales skeleton */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+            <div className="h-6 w-32 rounded bg-zinc-800 mb-4" />
+            <div className="h-32 rounded-xl bg-zinc-800" />
+          </div>
+        </div>
       </main>
     );
   }
@@ -182,10 +231,20 @@ export default function AlumnoPerfilPage() {
               <h1 className="text-3xl font-bold">{alumno.nombre} {alumno.apellido || ""}</h1>
               <p className="text-zinc-400 mt-1">{t("perfil.alumno")}</p>
               <div className="mt-3 flex flex-col gap-2 items-start">
-                <label className="cursor-pointer rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="cursor-pointer rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+                >
                   📷 {t("perfil.cambiarFoto")}
-                  <input type="file" accept="image/*" onChange={cambiarFoto} className="hidden" />
-                </label>
+                </button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={cambiarFoto}
+                  ref={fileInputRef}
+                  className="hidden"
+                />
                 {alumno.foto_url && (
                   <button type="button" onClick={eliminarFoto} className="rounded-xl border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-950">
                     🗑️ {t("perfil.eliminarFoto")}

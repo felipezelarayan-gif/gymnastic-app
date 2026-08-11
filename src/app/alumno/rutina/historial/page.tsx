@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
@@ -12,6 +11,7 @@ import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha
 import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
 import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
+import CalendarioFiltro from "@/components/alumno/CalendarioFiltro";
 
 type HistorialActividad = {
   id: string;
@@ -21,28 +21,6 @@ type HistorialActividad = {
   fecha: string | null;
   estado: string | null;
   rutina_id?: string | null;
-};
-
-type DetalleEntrenamiento = {
-  id: string;
-  ejercicio: string;
-  serie?: number | null;
-  repeticiones?: number | null;
-  peso?: number | null;
-  rpe?: number | null;
-  rir?: number | null;
-};
-
-type DetalleEjercicio = {
-  ejercicio: string;
-  series: DetalleEntrenamiento[];
-};
-
-type DetalleFms = {
-  id: string;
-  test: string;
-  puntaje: number | null;
-  comentario: string | null;
 };
 
 function ordenarPorFechaDesc<T extends { fecha?: string | null }>(items: T[]) {
@@ -64,34 +42,14 @@ function obtenerIconoActividad(actividad: HistorialActividad) {
   return actividad.tipo === "rutina" ? "🏋️" : "📋";
 }
 
-function agruparDetallePorEjercicio(detalle: DetalleEntrenamiento[]): DetalleEjercicio[] {
-  const grupos = new Map<string, DetalleEntrenamiento[]>();
-
-  detalle.forEach((item) => {
-    const nombreEjercicio = item.ejercicio || "Ejercicio";
-    const seriesActuales = grupos.get(nombreEjercicio) || [];
-    grupos.set(nombreEjercicio, [...seriesActuales, item]);
-  });
-
-  return Array.from(grupos.entries()).map(([ejercicio, series]) => ({
-    ejercicio,
-    series: [...series].sort((a, b) => (a.serie ?? 0) - (b.serie ?? 0)),
-  }));
-}
-
 export default function NuevaRutinaHistorialPage() {
   const { mostrarToast } = useToast();
   const { t } = useIdioma();
   const [cargando, setCargando] = useState(true);
+  const [cargandoFiltro, setCargandoFiltro] = useState(false);
   const [historial, setHistorial] = useState<HistorialActividad[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const [modalAbierto, setModalAbierto] = useState(false);
-  const [cargandoDetalle, setCargandoDetalle] = useState(false);
-  const [detalleRutina, setDetalleRutina] = useState<DetalleEntrenamiento[]>([]);
-  const [detalleFms, setDetalleFms] = useState<DetalleFms[]>([]);
-  const [rutinaSeleccionada, setRutinaSeleccionada] = useState<HistorialActividad | null>(null);
-  const [errorDetalle, setErrorDetalle] = useState<string | null>(null);
   const [modalRutina, setModalRutina] = useState<{
     open: boolean;
     id: string;
@@ -114,11 +72,202 @@ export default function NuevaRutinaHistorialPage() {
   const [confirmarModificar, setConfirmarModificar] = useState<HistorialActividad | null>(null);
   const [modificando, setModificando] = useState(false);
 
+  // Paginación por cursor de fecha
+  const LIMITE_POR_PAGINA = 15;
+  const [hayMas, setHayMas] = useState(true);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [cursorFecha, setCursorFecha] = useState<string | null>(null);
+  const [idsCargados, setIdsCargados] = useState<Set<string>>(new Set());
+
+  // Filtros
+  const [filtroFecha, setFiltroFecha] = useState<string | null>(null);
+  const [filtroRango, setFiltroRango] = useState<"semana" | "mes" | "3meses" | null>(null);
+  const [fechasConActividades, setFechasConActividades] = useState<string[]>([]);
+  const [calendarioExpandido, setCalendarioExpandido] = useState(false);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const cargandoRef = useRef(false);
+
   useEffect(() => {
     cargarDatos();
   }, []);
 
+  // Scroll infinito: cargar más cuando el sentinel entra en viewport
+  useEffect(() => {
+    if (!hayMas || cargandoMas || cargando || cargandoFiltro || cargandoRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !cargandoRef.current) {
+          cargarMas();
+        }
+      },
+      { root: null, rootMargin: "200px", threshold: 0 },
+    );
+
+    if (sentinelRef.current) observer.observe(sentinelRef.current);
+
+    return () => observer.disconnect();
+  }, [sentinelRef.current, hayMas, cargandoMas, cargando, cargandoFiltro]);
+
+  function obtenerRangoFechas(rango: "semana" | "mes" | "3meses"): { desde: string; hasta: string } {
+    const hoy = new Date();
+    const hasta = hoy.toISOString().split("T")[0];
+    const desde = new Date(hoy);
+    if (rango === "semana") desde.setDate(hoy.getDate() - 7);
+    if (rango === "mes") desde.setMonth(hoy.getMonth() - 1);
+    if (rango === "3meses") desde.setMonth(hoy.getMonth() - 3);
+    return { desde: desde.toISOString().split("T")[0], hasta };
+  }
+
+  // Suma un día a una fecha en formato YYYY-MM-DD (zona horaria local)
+  function sumarUnDia(fecha: string): string {
+    const [año, mes, dia] = fecha.split("-").map(Number);
+    const date = new Date(año, mes - 1, dia);
+    date.setDate(date.getDate() + 1);
+    const nuevoAño = date.getFullYear();
+    const nuevoMes = String(date.getMonth() + 1).padStart(2, "0");
+    const nuevoDia = String(date.getDate()).padStart(2, "0");
+    return `${nuevoAño}-${nuevoMes}-${nuevoDia}`;
+  }
+
+  function aplicarFiltro(
+    rango: "semana" | "mes" | "3meses" | null,
+    fecha: string | null,
+  ) {
+    cargandoRef.current = false;
+    setHayMas(true);
+    setHistorial([]);
+    setCursorFecha(null);
+    setIdsCargados(new Set());
+    // Solo recargar el historial, no las métricas ni fechas
+    cargarSoloHistorial(rango, fecha);
+  }
+
+  async function cargarSoloHistorial(
+    rango: "semana" | "mes" | "3meses" | null,
+    fecha: string | null,
+  ) {
+    if (cargandoRef.current) return;
+    cargandoRef.current = true;
+    setCargandoFiltro(true);
+    setError(null);
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !authData.user) {
+      setError(t("alumno.historial.errorSesion"));
+      setCargandoFiltro(false);
+      setCargando(false);
+      cargandoRef.current = false;
+      return;
+    }
+
+    const { data: alumnoData, error: alumnoError } = await supabase
+      .from("alumnos")
+      .select("id")
+      .eq("user_id", authData.user.id)
+      .maybeSingle();
+
+    if (alumnoError) {
+      setError(alumnoError.message);
+      setCargandoFiltro(false);
+      setCargando(false);
+      cargandoRef.current = false;
+      return;
+    }
+
+    if (!alumnoData) {
+      setError(t("alumno.historial.errorAlumnoNoEncontrado"));
+      setCargandoFiltro(false);
+      setCargando(false);
+      cargandoRef.current = false;
+      return;
+    }
+
+    // Solo cargar el historial, sin métricas ni fechas
+    const { items, nuevoCursor, hayMasResultado, idsActualizados } = await cargarHistorial(
+      alumnoData.id,
+      rango,
+      fecha,
+      new Set<string>(),
+      null,
+    );
+
+    setHistorial(items);
+    setCursorFecha(nuevoCursor);
+    setHayMas(hayMasResultado);
+    setIdsCargados(idsActualizados);
+
+    setCargandoFiltro(false);
+    cargandoRef.current = false;
+  }
+
+  // Cargar siguiente página cuando el sentinel del scroll infinito entra en viewport
+  async function cargarMas() {
+    if (cargandoRef.current) return;
+    cargandoRef.current = true;
+    setCargandoMas(true);
+    setError(null);
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !authData.user) {
+      setError(t("alumno.historial.errorSesion"));
+      setCargandoMas(false);
+      cargandoRef.current = false;
+      return;
+    }
+
+    const { data: alumnoData, error: alumnoError } = await supabase
+      .from("alumnos")
+      .select("id")
+      .eq("user_id", authData.user.id)
+      .maybeSingle();
+
+    if (alumnoError) {
+      setError(alumnoError.message);
+      setCargandoMas(false);
+      cargandoRef.current = false;
+      return;
+    }
+
+    if (!alumnoData) {
+      setError(t("alumno.historial.errorAlumnoNoEncontrado"));
+      setCargandoMas(false);
+      cargandoRef.current = false;
+      return;
+    }
+
+    // Solo cargar el historial con los filtros y cursor actuales
+    const { items, nuevoCursor, hayMasResultado, idsActualizados } = await cargarHistorial(
+      alumnoData.id,
+      filtroRango,
+      filtroFecha,
+      idsCargados,
+      cursorFecha,
+    );
+
+    // Acumular los nuevos items a los ya cargados
+    setHistorial((prev) => [...prev, ...items]);
+    setCursorFecha(nuevoCursor);
+    setHayMas(hayMasResultado);
+    setIdsCargados(idsActualizados);
+
+    setCargandoMas(false);
+    cargandoRef.current = false;
+  }
+
+  function limpiarFiltros() {
+    setFiltroFecha(null);
+    setFiltroRango(null);
+    setCalendarioExpandido(true);
+    aplicarFiltro(null, null);
+  }
+
   async function cargarDatos() {
+    if (cargandoRef.current) return;
+    cargandoRef.current = true;
     setCargando(true);
     setError(null);
 
@@ -127,6 +276,7 @@ export default function NuevaRutinaHistorialPage() {
     if (authError || !authData.user) {
       setError(t("alumno.historial.errorSesion"));
       setCargando(false);
+      cargandoRef.current = false;
       return;
     }
 
@@ -139,44 +289,87 @@ export default function NuevaRutinaHistorialPage() {
     if (alumnoError) {
       setError(alumnoError.message);
       setCargando(false);
+      cargandoRef.current = false;
       return;
     }
 
     if (!alumnoData) {
       setError(t("alumno.historial.errorAlumnoNoEncontrado"));
       setCargando(false);
+      cargandoRef.current = false;
       return;
     }
 
-    // Cargar historial y métricas en paralelo
-    const [historialActividades, metricas] = await Promise.all([
-      cargarHistorial(alumnoData.id),
+    // Cargar historial, métricas y fechas con actividades en paralelo
+    const [historialResultado, metricas, fechas] = await Promise.all([
+      cargarHistorial(alumnoData.id, filtroRango, filtroFecha, idsCargados, null),
       obtenerMetricasResumen(supabase, alumnoData.id),
+      obtenerFechasConActividades(alumnoData.id),
     ]);
 
-    setHistorial(historialActividades);
+    setHistorial(historialResultado.items);
+    setCursorFecha(historialResultado.nuevoCursor);
+    setHayMas(historialResultado.hayMasResultado);
+    setIdsCargados(historialResultado.idsActualizados);
+    setFechasConActividades(fechas);
+
     setRutinasCompletadas(metricas.rutinasCompletadas);
     setEvaluacionesCompletadas(metricas.evaluacionesCompletadas);
     setEjerciciosCompletados(metricas.ejerciciosCompletados);
     setCargando(false);
+    cargandoRef.current = false;
   }
 
-  async function cargarHistorial(alumnoId: string): Promise<HistorialActividad[]> {
+  async function cargarHistorial(
+    alumnoId: string,
+    rango: "semana" | "mes" | "3meses" | null,
+    fecha: string | null,
+    idsPreCargados: Set<string>,
+    cursor: string | null,
+  ): Promise<{ items: HistorialActividad[]; nuevoCursor: string | null; hayMasResultado: boolean; idsActualizados: Set<string> }> {
     const [rutinasCompletadas, evaluacionesRm, evaluacionesFms] = await Promise.all([
-      cargarHistorialRutinas(alumnoId),
-      cargarHistorialRm(alumnoId),
-      cargarHistorialFms(alumnoId),
+      cargarHistorialRutinas(alumnoId, rango, fecha, cursor),
+      cargarHistorialRm(alumnoId, rango, fecha, cursor),
+      cargarHistorialFms(alumnoId, rango, fecha, cursor),
     ]);
 
-    return ordenarPorFechaDesc([
+    const fusionado = ordenarPorFechaDesc([
       ...rutinasCompletadas,
       ...evaluacionesRm,
       ...evaluacionesFms,
     ]);
+
+    // Deduplicar por id (evita repetir items con la misma fecha que el cursor)
+    const vistos = new Set(idsPreCargados);
+    const unicos: HistorialActividad[] = [];
+    for (const item of fusionado) {
+      if (!vistos.has(item.id)) {
+        vistos.add(item.id);
+        unicos.push(item);
+      }
+    }
+
+    const items = unicos.slice(0, LIMITE_POR_PAGINA);
+    const hayMasResultado = unicos.length > LIMITE_POR_PAGINA;
+
+    // Actualizar el set de ids cargados
+    const nuevosIds = new Set(idsPreCargados);
+    items.forEach((item) => nuevosIds.add(item.id));
+
+    // El cursor es la fecha del último item mostrado
+    const ultimo = items[items.length - 1];
+    const nuevoCursor = ultimo?.fecha ?? null;
+
+    return { items, nuevoCursor, hayMasResultado, idsActualizados: nuevosIds };
   }
 
-  async function cargarHistorialRutinas(alumnoId: string): Promise<HistorialActividad[]> {
-    const { data, error } = await supabase
+  async function cargarHistorialRutinas(
+    alumnoId: string,
+    rango: "semana" | "mes" | "3meses" | null,
+    fecha: string | null,
+    cursor: string | null,
+  ): Promise<HistorialActividad[]> {
+    let query = supabase
       .from("rutina_asignaciones")
       .select(
         `
@@ -193,7 +386,21 @@ export default function NuevaRutinaHistorialPage() {
       )
       .eq("alumno_id", alumnoId)
       .eq("completada", true)
-      .order("fecha_completada", { ascending: false });
+      .order("fecha_completada", { ascending: false })
+      .limit(LIMITE_POR_PAGINA + 1);
+
+    if (fecha) {
+      query = query.gte("fecha_completada", fecha).lt("fecha_completada", sumarUnDia(fecha));
+    }
+    if (rango) {
+      const { desde: fechaDesde, hasta: fechaHasta } = obtenerRangoFechas(rango);
+      query = query.gte("fecha_completada", fechaDesde).lte("fecha_completada", fechaHasta);
+    }
+    if (cursor) {
+      query = query.lte("fecha_completada", cursor);
+    }
+
+    const { data, error } = await query;
 
     if (error || !data) return [];
 
@@ -213,14 +420,33 @@ export default function NuevaRutinaHistorialPage() {
     });
   }
 
-  async function cargarHistorialRm(alumnoId: string): Promise<HistorialActividad[]> {
-    const { data, error } = await supabase
+  async function cargarHistorialRm(
+    alumnoId: string,
+    rango: "semana" | "mes" | "3meses" | null,
+    fecha: string | null,
+    cursor: string | null,
+  ): Promise<HistorialActividad[]> {
+    let query = supabase
       .from("evaluaciones_rm")
       .select("id, nombre, estado, fecha_realizacion, created_at")
       .eq("alumno_id", alumnoId)
       .is("deleted_at", null)
       .not("estado", "in", "(pendiente,incompleta)")
-      .order("fecha_realizacion", { ascending: false });
+      .order("fecha_realizacion", { ascending: false })
+      .limit(LIMITE_POR_PAGINA + 1);
+
+    if (fecha) {
+      query = query.gte("fecha_realizacion", fecha).lt("fecha_realizacion", sumarUnDia(fecha));
+    }
+    if (rango) {
+      const { desde: fechaDesde, hasta: fechaHasta } = obtenerRangoFechas(rango);
+      query = query.gte("fecha_realizacion", fechaDesde).lte("fecha_realizacion", fechaHasta);
+    }
+    if (cursor) {
+      query = query.lte("fecha_realizacion", cursor);
+    }
+
+    const { data, error } = await query;
 
     if (error || !data) return [];
 
@@ -234,14 +460,33 @@ export default function NuevaRutinaHistorialPage() {
     }));
   }
 
-  async function cargarHistorialFms(alumnoId: string): Promise<HistorialActividad[]> {
-    const { data, error } = await supabase
+  async function cargarHistorialFms(
+    alumnoId: string,
+    rango: "semana" | "mes" | "3meses" | null,
+    fecha: string | null,
+    cursor: string | null,
+  ): Promise<HistorialActividad[]> {
+    let query = supabase
       .from("evaluaciones_fms")
       .select("id, estado, fecha_realizacion, created_at")
       .eq("alumno_id", alumnoId)
       .is("deleted_at", null)
       .not("estado", "in", "(pendiente,incompleta)")
-      .order("fecha_realizacion", { ascending: false });
+      .order("fecha_realizacion", { ascending: false })
+      .limit(LIMITE_POR_PAGINA + 1);
+
+    if (fecha) {
+      query = query.gte("fecha_realizacion", fecha).lt("fecha_realizacion", sumarUnDia(fecha));
+    }
+    if (rango) {
+      const { desde: fechaDesde, hasta: fechaHasta } = obtenerRangoFechas(rango);
+      query = query.gte("fecha_realizacion", fechaDesde).lte("fecha_realizacion", fechaHasta);
+    }
+    if (cursor) {
+      query = query.lte("fecha_realizacion", cursor);
+    }
+
+    const { data, error } = await query;
 
     if (error || !data) return [];
 
@@ -255,106 +500,45 @@ export default function NuevaRutinaHistorialPage() {
     }));
   }
 
-  async function abrirDetalleActividad(actividad: HistorialActividad) {
-    setModalAbierto(true);
-    setRutinaSeleccionada(actividad);
-    setDetalleRutina([]);
-    setDetalleFms([]);
-    setErrorDetalle(null);
-    setCargandoDetalle(true);
+  async function obtenerFechasConActividades(alumnoId: string): Promise<string[]> {
+    const [rutinas, evaluacionesRm, evaluacionesFms] = await Promise.all([
+      supabase
+        .from("rutina_asignaciones")
+        .select("fecha_completada")
+        .eq("alumno_id", alumnoId)
+        .eq("completada", true)
+        .not("fecha_completada", "is", null),
+      supabase
+        .from("evaluaciones_rm")
+        .select("fecha_realizacion")
+        .eq("alumno_id", alumnoId)
+        .is("deleted_at", null)
+        .not("estado", "in", "(pendiente,incompleta)")
+        .not("fecha_realizacion", "is", null),
+      supabase
+        .from("evaluaciones_fms")
+        .select("fecha_realizacion")
+        .eq("alumno_id", alumnoId)
+        .is("deleted_at", null)
+        .not("estado", "in", "(pendiente,incompleta)")
+        .not("fecha_realizacion", "is", null),
+    ]);
 
-    if (actividad.tipo === "rutina") {
-      const { data, error } = await supabase
-        .from("registros_entrenamiento")
-        .select(
-          "id,rutina_ejercicio_id,nombre_ejercicio,numero_serie,peso_kg,repeticiones,rpe,rir,created_at"
-        )
-        .eq("rutina_asignacion_id", actividad.id)
-        .not("rutina_ejercicio_id", "is", null)
-        .order("rutina_ejercicio_id", { ascending: true })
-        .order("numero_serie", { ascending: true })
-        .order("created_at", { ascending: true });
+    const fechas = new Set<string>();
 
-      if (error) {
-        setErrorDetalle(error.message);
-        setCargandoDetalle(false);
-        return;
-      }
+    (rutinas.data || []).forEach((r: any) => {
+      if (r.fecha_completada) fechas.add(r.fecha_completada);
+    });
 
-      const detalle = (data || []).map((registro: any, index: number) => ({
-        id: registro.id || `${actividad.id}-${index}`,
-        ejercicio: registro.nombre_ejercicio || "Ejercicio",
-        serie: registro.numero_serie ?? index + 1,
-        repeticiones: registro.repeticiones ?? null,
-        peso: registro.peso_kg ?? null,
-        rpe: registro.rpe ?? null,
-        rir: registro.rir ?? null,
-      }));
+    (evaluacionesRm.data || []).forEach((e: any) => {
+      if (e.fecha_realizacion) fechas.add(e.fecha_realizacion);
+    });
 
-      setDetalleRutina(detalle);
-      setCargandoDetalle(false);
-      return;
-    }
+    (evaluacionesFms.data || []).forEach((e: any) => {
+      if (e.fecha_realizacion) fechas.add(e.fecha_realizacion);
+    });
 
-    if (actividad.tipo === "evaluacion" && actividad.subtipo === "rm") {
-      const { data, error } = await supabase
-        .from("evaluaciones_rm_resultados")
-        .select("id, metodo, peso_directo, peso_usado, repeticiones, rm_estimado, rm_final, ejercicios(nombre)")
-        .eq("evaluacion_rm_id", actividad.id)
-        .order("orden", { ascending: true });
-
-      if (error) {
-        setErrorDetalle(error.message);
-        setCargandoDetalle(false);
-        return;
-      }
-
-      const detalle = (data || []).map((registro: any, index: number) => ({
-        id: registro.id || `${actividad.id}-${index}`,
-        ejercicio: registro.ejercicios?.nombre || "Ejercicio",
-        serie: 1,
-        peso: registro.peso_usado ?? registro.peso_directo ?? null,
-        repeticiones: registro.repeticiones ?? null,
-        rpe: null,
-        rir: null,
-      }));
-
-      setDetalleRutina(detalle);
-      setCargandoDetalle(false);
-      return;
-    }
-    if (actividad.tipo === "evaluacion" && actividad.subtipo === "fms") {
-      const { data, error } = await supabase
-        .from("evaluaciones_fms_tests")
-        .select("*")
-        .eq("evaluacion_fms_id", actividad.id)
-        .order("created_at", { ascending: true });
-
-      if (error) {
-        setErrorDetalle(error.message);
-        setCargandoDetalle(false);
-        return;
-      }
-
-      const detalle = (data || []).map((registro: any, index: number) => ({
-        id: registro.id || `${actividad.id}-${index}`,
-        test:
-          registro.test_nombre ||
-          registro.nombre_test ||
-          registro.nombre ||
-          registro.test ||
-          `Test ${index + 1}`,
-        puntaje: registro.puntaje ?? registro.score ?? registro.valor ?? null,
-        comentario: registro.comentario || registro.observaciones || registro.observacion || null,
-      }));
-
-      setDetalleFms(detalle);
-      setCargandoDetalle(false);
-      return;
-    }
-
-    setErrorDetalle(t("alumno.historial.errorDetalleNoDisponible"));
-    setCargandoDetalle(false);
+    return Array.from(fechas).sort().reverse();
   }
 
   async function modificarEntrenamiento() {
@@ -456,17 +640,6 @@ export default function NuevaRutinaHistorialPage() {
     }
   }
 
-  function cerrarModalDetalle() {
-    setModalAbierto(false);
-    setRutinaSeleccionada(null);
-    setDetalleRutina([]);
-    setDetalleFms([]);
-    setErrorDetalle(null);
-    setCargandoDetalle(false);
-  }
-
-  const detalleAgrupado = agruparDetallePorEjercicio(detalleRutina);
-
   if (cargando) {
     return (
       <main className="min-h-screen bg-black text-white p-6">
@@ -508,6 +681,82 @@ export default function NuevaRutinaHistorialPage() {
           </p>
         </header>
 
+        {/* Filtros de fecha */}
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 space-y-3">
+          <CalendarioFiltro
+            fechasConActividades={fechasConActividades}
+            fechaSeleccionada={filtroFecha}
+            onSeleccionarFecha={(fecha) => {
+              setFiltroFecha(fecha);
+              setFiltroRango(null);
+              aplicarFiltro(null, fecha);
+            }}
+            expandido={calendarioExpandido}
+            onToggle={() => setCalendarioExpandido(!calendarioExpandido)}
+          />
+
+          <div className="flex flex-wrap gap-2 px-3 md:px-4 pb-3 md:pb-4">
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroRango("semana");
+                setFiltroFecha(null);
+                setCalendarioExpandido(false);
+                aplicarFiltro("semana", null);
+              }}
+              className={`rounded-full border px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold transition ${
+                filtroRango === "semana"
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                  : "border-zinc-700 text-zinc-300 hover:border-zinc-500"
+              }`}
+            >
+              {t("alumno.historial.ultimaSemana")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroRango("mes");
+                setFiltroFecha(null);
+                setCalendarioExpandido(false);
+                aplicarFiltro("mes", null);
+              }}
+              className={`rounded-full border px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold transition ${
+                filtroRango === "mes"
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                  : "border-zinc-700 text-zinc-300 hover:border-zinc-500"
+              }`}
+            >
+              {t("alumno.historial.ultimoMes")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroRango("3meses");
+                setFiltroFecha(null);
+                setCalendarioExpandido(false);
+                aplicarFiltro("3meses", null);
+              }}
+              className={`rounded-full border px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold transition ${
+                filtroRango === "3meses"
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                  : "border-zinc-700 text-zinc-300 hover:border-zinc-500"
+              }`}
+            >
+              {t("alumno.historial.ultimos3Meses")}
+            </button>
+
+            {(filtroFecha || filtroRango) && (
+              <button
+                type="button"
+                onClick={limpiarFiltros}
+                className="rounded-full border border-zinc-700 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-semibold text-zinc-300 hover:border-zinc-500"
+              >
+                {t("alumno.historial.limpiar")}
+              </button>
+            )}
+          </div>
+        </section>
+
         <section className="grid grid-cols-3 gap-3">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
             <p className="text-sm text-zinc-400">{t("alumno.historial.rutinasCompletadas")}</p>
@@ -523,7 +772,12 @@ export default function NuevaRutinaHistorialPage() {
           </div>
         </section>
 
-        {historial.length === 0 ? (
+        {cargandoFiltro ? (
+          <section className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-8 flex flex-col items-center justify-center gap-3">
+            <div className="h-8 w-8 rounded-full border-2 border-zinc-700 border-t-emerald-500 animate-spin" />
+            <p className="text-sm text-zinc-400">{t("alumno.historial.cargandoMas")}</p>
+          </section>
+        ) : historial.length === 0 ? (
           <section className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-6">
             <h2 className="text-xl font-bold">{t("alumno.historial.sinHistorial")}</h2>
             <p className="text-zinc-400 mt-2">
@@ -559,254 +813,121 @@ export default function NuevaRutinaHistorialPage() {
                     </div>
                   </div>
 
-                  {(
-                    <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-                      {actividad.tipo === "rutina" ? (
+                  <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                    {actividad.tipo === "rutina" ? (
+                      <button
+                        type="button"
+                        onClick={() => setModalRutina({ open: true, id: actividad.id, completada: true })}
+                        className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
+                      >
+                        {t("alumno.historial.verDetalles")}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setModalEvaluacion({
+                          open: true,
+                          id: actividad.id,
+                          subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                        })}
+                        className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
+                      >
+                        {t("alumno.historial.verDetalles")}
+                      </button>
+                    )}
+                    {actividad.tipo === "rutina" && actividad.rutina_id !== null ? (
+                      <>
                         <button
                           type="button"
-                          onClick={() => setModalRutina({ open: true, id: actividad.id, completada: true })}
-                          className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
+                          onClick={() => setConfirmarModificar(actividad)}
+                          className="rounded-full border border-amber-800 px-4 py-2 text-sm font-semibold text-amber-300 hover:border-amber-500 hover:bg-amber-950/30"
                         >
-                          {t("alumno.historial.verDetalles")}
+                          {t("alumno.historial.modificar")}
                         </button>
-                      ) : (
                         <button
                           type="button"
-                          onClick={() => setModalEvaluacion({
-                            open: true,
-                            id: actividad.id,
-                            subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
-                          })}
-                          className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-emerald-500 hover:text-emerald-300"
+                          onClick={() => setConfirmarDeshacer(actividad)}
+                          className="rounded-full border border-red-900/60 px-4 py-2 text-sm font-semibold text-red-300 hover:border-red-500 hover:bg-red-950/30"
                         >
-                          {t("alumno.historial.verDetalles")}
+                          {t("alumno.historial.deshacer")}
                         </button>
-                      )}
-                      {actividad.tipo === "rutina" && actividad.rutina_id !== null ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmarModificar(actividad)}
-                            className="rounded-full border border-amber-800 px-4 py-2 text-sm font-semibold text-amber-300 hover:border-amber-500 hover:bg-amber-950/30"
-                          >
-                            {t("alumno.historial.modificar")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmarDeshacer(actividad)}
-                            className="rounded-full border border-red-900/60 px-4 py-2 text-sm font-semibold text-red-300 hover:border-red-500 hover:bg-red-950/30"
-                          >
-                            {t("alumno.historial.deshacer")}
-                          </button>
-                        </>
-                      ) : actividad.tipo === "rutina" && actividad.rutina_id === null ? (
-                        <p className="max-w-[220px] text-right text-xs text-zinc-500">
-                          {t("alumno.historial.rutinaEliminada")}
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
+                      </>
+                    ) : actividad.tipo === "rutina" && actividad.rutina_id === null ? (
+                      <p className="max-w-[220px] text-right text-xs text-zinc-500">
+                        {t("alumno.historial.rutinaEliminada")}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ))}
+            {cargandoMas && (
+              <div className="py-4 text-center text-sm text-zinc-500">
+                {t("alumno.historial.cargandoMas")}
+              </div>
+            )}
+            <div ref={sentinelRef} />
           </section>
         )}
       </div>
-      {modalAbierto && (
+      {/* Modal de confirmación para Modificar */}
+      {confirmarModificar && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
-          <section className="w-full max-w-2xl rounded-3xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-zinc-500">
-                  {rutinaSeleccionada?.tipo === "rutina" ? t("alumno.historial.detalleEntrenamiento") : t("alumno.historial.detalleEvaluacion")}
-                </p>
-                <h2 className="text-2xl font-bold mt-1">
-                  {rutinaSeleccionada?.nombre || "Rutina"}
-                </h2>
-                <p className="text-sm text-zinc-500 mt-1">
-                  {formatearFechaCorta(rutinaSeleccionada?.fecha)}
-                </p>
-              </div>
-
+          <section className="w-full max-w-md rounded-3xl border border-amber-900 bg-zinc-950 p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-amber-300 mb-2">{t("alumno.historial.confirmarModificarTitulo")}</h2>
+            <p className="text-zinc-300 mb-4">
+              {t("alumno.historial.confirmarModificarDesc")}
+            </p>
+            <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={cerrarModalDetalle}
-                className="rounded-full border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:border-zinc-500 hover:text-white"
+                onClick={() => setConfirmarModificar(null)}
+                className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-500"
+                disabled={modificando}
               >
-                {t("alumno.historial.cerrar")}
+                {t("alumno.historial.cancelar")}
               </button>
-            </div>
-
-            <div className="mt-5 max-h-[60vh] overflow-y-auto pr-1">
-              {cargandoDetalle ? (
-                <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-5 text-center">
-                  <p className="font-semibold text-emerald-300">
-                    {rutinaSeleccionada?.tipo === "rutina" ? t("alumno.historial.cargandoRutina") : t("alumno.historial.cargandoEvaluacion")}
-                  </p>
-                  <p className="text-sm text-zinc-400 mt-1">
-                    {t("alumno.historial.consultandoEjercicios")}
-                  </p>
-                </div>
-              ) : errorDetalle ? (
-                <div className="rounded-2xl border border-red-900/50 bg-red-950/20 p-5">
-                  <p className="font-semibold text-red-300">{t("alumno.historial.noPudimosCargarDetalle")}</p>
-                  <p className="text-sm text-zinc-400 mt-1">{errorDetalle}</p>
-                </div>
-              ) : rutinaSeleccionada?.subtipo === "fms" ? (
-                detalleFms.length === 0 ? (
-                  <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
-                    <p className="font-semibold text-zinc-200">{t("alumno.historial.sinResultados")}</p>
-                    <p className="text-sm text-zinc-400 mt-1">
-                      {t("alumno.historial.sinResultadosDesc")}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {detalleFms.map((item) => (
-                      <article
-                        key={item.id}
-                        className="rounded-2xl border border-zinc-800 bg-black/40 p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="font-semibold text-white">{item.test}</h3>
-                            {item.comentario && (
-                              <p className="text-sm text-zinc-400 mt-1">{item.comentario}</p>
-                            )}
-                          </div>
-                          <span className="rounded-full border border-zinc-700 px-3 py-1 text-sm font-bold text-emerald-300">
-                            {item.puntaje ?? "-"}
-                          </span>
-                        </div>
-                      </article>
-                    ))}
-                    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 flex items-center justify-between">
-                      <span className="text-zinc-400">{t("alumno.historial.total")}</span>
-                      <span className="text-xl font-bold text-white">
-                        {detalleFms.reduce((total, item) => total + Number(item.puntaje || 0), 0)}
-                      </span>
-                    </div>
-                  </div>
-                )
-              ) : detalleAgrupado.length === 0 ? (
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
-                  <p className="font-semibold text-zinc-200">
-                    {rutinaSeleccionada?.tipo === "rutina" ? t("alumno.historial.sinEjerciciosRegistrados") : t("alumno.historial.sinResultados")}
-                  </p>
-                  <p className="text-sm text-zinc-400 mt-1">
-                    {rutinaSeleccionada?.tipo === "rutina"
-                      ? t("alumno.historial.sinEjerciciosDesc")
-                      : t("alumno.historial.sinResultadosDesc")}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {detalleAgrupado.map((grupo) => (
-                    <article
-                      key={grupo.ejercicio}
-                      className="rounded-2xl border border-zinc-800 bg-black/40 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-lg font-semibold text-white">{grupo.ejercicio}</h3>
-                        <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-400">
-                          {grupo.series.length} {grupo.series.length === 1 ? t("alumno.historial.serieSingular") : t("alumno.historial.seriesPlural")}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800">
-                        <div className="grid grid-cols-5 bg-zinc-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                          <span>{t("alumno.historial.serieLabel")}</span>
-                          <span>{t("alumno.historial.repsLabel")}</span>
-                          <span>{t("alumno.historial.pesoLabel")}</span>
-                          <span>{t("alumno.historial.rpeLabel")}</span>
-                          <span>{t("alumno.historial.rirLabel")}</span>
-                        </div>
-
-                        <div className="divide-y divide-zinc-800">
-                          {grupo.series.map((serie, index) => (
-                            <div
-                              key={serie.id}
-                              className="grid grid-cols-5 px-3 py-3 text-sm text-zinc-200"
-                            >
-                              <span>{serie.serie ?? index + 1}</span>
-                              <span>{serie.repeticiones ?? "-"}</span>
-                              <span>
-                                {serie.peso !== null && serie.peso !== undefined
-                                  ? `${serie.peso} kg`
-                                  : "-"}
-                              </span>
-                              <span>{serie.rpe ?? "-"}</span>
-                              <span>{serie.rir ?? "-"}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={modificarEntrenamiento}
+                disabled={modificando}
+                className="rounded-full border border-amber-900 px-4 py-2 text-sm font-semibold text-amber-300 hover:border-amber-500 hover:bg-amber-950/30 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {modificando ? t("alumno.historial.abriendo") : t("alumno.historial.modificar")}
+              </button>
             </div>
           </section>
         </div>
       )}
-    {/* Modal de confirmación para Modificar */}
-    {confirmarModificar && (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
-        <section className="w-full max-w-md rounded-3xl border border-amber-900 bg-zinc-950 p-6 shadow-2xl">
-          <h2 className="text-xl font-bold text-amber-300 mb-2">{t("alumno.historial.confirmarModificarTitulo")}</h2>
-          <p className="text-zinc-300 mb-4">
-            {t("alumno.historial.confirmarModificarDesc")}
-          </p>
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setConfirmarModificar(null)}
-              className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-500"
-              disabled={modificando}
-            >
-              {t("alumno.historial.cancelar")}
-            </button>
-            <button
-              type="button"
-              onClick={modificarEntrenamiento}
-              disabled={modificando}
-              className="rounded-full border border-amber-900 px-4 py-2 text-sm font-semibold text-amber-300 hover:border-amber-500 hover:bg-amber-950/30 disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {modificando ? t("alumno.historial.abriendo") : t("alumno.historial.modificar")}
-            </button>
-          </div>
-        </section>
-      </div>
-    )}
-    {/* Modal de confirmación para Deshacer */}
-    {confirmarDeshacer && (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
-        <section className="w-full max-w-md rounded-3xl border border-red-900 bg-zinc-950 p-6 shadow-2xl">
-          <h2 className="text-xl font-bold text-red-300 mb-2">{t("alumno.historial.confirmarDeshacerTitulo")}</h2>
-          <p className="text-zinc-300 mb-4">
-            {t("alumno.historial.confirmarDeshacerDesc")}
-          </p>
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setConfirmarDeshacer(null)}
-              className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-500"
-              disabled={deshaciendo}
-            >
-              {t("alumno.historial.cancelar")}
-            </button>
-            <button
-              type="button"
-              onClick={deshacerEntrenamiento}
-              disabled={deshaciendo}
-              className="rounded-full border border-red-900 px-4 py-2 text-sm font-semibold text-red-300 hover:border-red-500 hover:bg-red-950/30 disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {deshaciendo ? t("alumno.historial.procesando") : t("alumno.historial.deshacer")}
-            </button>
-          </div>
-        </section>
-      </div>
-    )}
+      {/* Modal de confirmación para Deshacer */}
+      {confirmarDeshacer && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
+          <section className="w-full max-w-md rounded-3xl border border-red-900 bg-zinc-950 p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-red-300 mb-2">{t("alumno.historial.confirmarDeshacerTitulo")}</h2>
+            <p className="text-zinc-300 mb-4">
+              {t("alumno.historial.confirmarDeshacerDesc")}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmarDeshacer(null)}
+                className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-500"
+                disabled={deshaciendo}
+              >
+                {t("alumno.historial.cancelar")}
+              </button>
+              <button
+                type="button"
+                onClick={deshacerEntrenamiento}
+                disabled={deshaciendo}
+                className="rounded-full border border-red-900 px-4 py-2 text-sm font-semibold text-red-300 hover:border-red-500 hover:bg-red-950/30 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {deshaciendo ? t("alumno.historial.procesando") : t("alumno.historial.deshacer")}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {modalRutina?.open && (
         <VerRutinaModal
           open={modalRutina.open}

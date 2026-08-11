@@ -1,6 +1,6 @@
 "use client";
 // Limpieza y refactorización conservando toda la funcionalidad
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
 import InformacionCard from "@/components/ui/InformacionCard";
@@ -65,6 +65,7 @@ export default function ConfiguracionPage() {
   const [mostrarIdiomaModal, setMostrarIdiomaModal] = useState(false);
   const [guardandoUsuario, setGuardandoUsuario] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { formato, cambiarFormato } = useFormatoFecha();
   const { mostrarToast } = useToast();
   const { t, idioma: idiomaActual, cambiarIdioma: cambiarIdiomaHook } = useIdioma();
@@ -451,15 +452,20 @@ export default function ConfiguracionPage() {
                     <p className="text-zinc-500 text-xs mt-1">{profile.email}</p>
                   )}
                   <div className="mt-2 flex flex-wrap gap-2">
-                    <label className="cursor-pointer rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="cursor-pointer rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800"
+                    >
                       {t("configuracion.cambiarFoto")}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={cambiarFoto}
-                        className="hidden"
-                      />
-                    </label>
+                    </button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={cambiarFoto}
+                      ref={fileInputRef}
+                      className="hidden"
+                    />
                     {profile?.foto_url && (
                       <button
                         type="button"

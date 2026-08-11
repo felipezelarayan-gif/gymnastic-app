@@ -10,6 +10,7 @@ import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import AsignarModal from "@/components/shared/AsignarModal";
 import VerRutinaPlantillaModal from "@/components/rutinas/VerRutinaPlantillaModal";
 import CrearRutinaModal from "@/components/rutinas/CrearRutinaModal";
+import MenuAccionesRutinaAsignada from "@/components/alumnos/MenuAccionesRutinaAsignada";
 import { useIdioma } from "@/lib/i18n-context";
 
 type Alumno = {
@@ -718,7 +719,7 @@ export default function AlumnoRutinasProfesor({
                 return (
                   <div
                     key={asignacion.id}
-                    className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition overflow-hidden"
+                    className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-5 hover:border-zinc-700 hover:bg-zinc-800/70 transition"
                   >
                     {/* Mobile */}
                     <div className="md:hidden flex items-center justify-between gap-2">
@@ -735,30 +736,12 @@ export default function AlumnoRutinasProfesor({
                           )}
                         </p>
                       </div>
-                      <div className="flex gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setVerRutinaId(asignacion.rutina_id)}
-                          className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                        >
-                          {t("rutinas.verAsignar")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => editarRutinaParaAlumno(asignacion)}
-                          className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => quitarAsignacion(asignacion.id)}
-                          disabled={quitandoId === asignacion.id}
-                          className="rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50"
-                        >
-                          🗑️
-                        </button>
-                      </div>
+                      <MenuAccionesRutinaAsignada
+                        onVer={() => setVerRutinaId(asignacion.rutina_id)}
+                        onEditar={() => editarRutinaParaAlumno(asignacion)}
+                        onQuitar={() => quitarAsignacion(asignacion.id)}
+                        quitando={quitandoId === asignacion.id}
+                      />
                     </div>
 
                     {/* Desktop */}
@@ -783,30 +766,12 @@ export default function AlumnoRutinasProfesor({
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setVerRutinaId(asignacion.rutina_id)}
-                          className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                        >
-                          {t("alumnos.ver")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => editarRutinaParaAlumno(asignacion)}
-                          className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition"
-                        >
-                          {t("rutinas.editar")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => quitarAsignacion(asignacion.id)}
-                          disabled={quitandoId === asignacion.id}
-                          className="rounded-lg border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {quitandoId === asignacion.id ? "..." : t("alumnos.quitar")}
-                        </button>
-                      </div>
+                      <MenuAccionesRutinaAsignada
+                        onVer={() => setVerRutinaId(asignacion.rutina_id)}
+                        onEditar={() => editarRutinaParaAlumno(asignacion)}
+                        onQuitar={() => quitarAsignacion(asignacion.id)}
+                        quitando={quitandoId === asignacion.id}
+                      />
                     </div>
                   </div>
                 );

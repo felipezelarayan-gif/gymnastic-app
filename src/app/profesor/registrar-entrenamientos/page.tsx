@@ -6,6 +6,7 @@ import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
 import BackButton from "@/components/BackButton";
 import RutinaEntrenamientoView from "@/components/rutinas/RutinaEntrenamientoView";
 import { useIdioma } from "@/lib/i18n-context";
+import { useToast } from "@/components/ui/ToastProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,8 +78,8 @@ const CACHE_KEY = "registrar-entrenamientos-cache-v3";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function nombreAlumno(alumno: Alumno, t?: (key: string) => string): string {
-  return `${alumno.nombre ?? ""} ${alumno.apellido ?? ""}`.trim() || (t ? t("registrarEntrenamiento.sinNombre") : "Alumno sin nombre");
+function nombreAlumno(alumno: Alumno): string {
+  return `${alumno.nombre ?? ""} ${alumno.apellido ?? ""}`.trim();
 }
 
 
@@ -95,6 +96,8 @@ function PanelAlumno({
   profesorId: string | null;
   onAbrirRutina: (alumno: Alumno, asignacionId: string) => void;
 }) {
+  const { t } = useIdioma();
+  const { mostrarToast } = useToast();
   const alumnoId = alumno.id;
   const [loading, setLoading] = useState(true);
   const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>([]);
@@ -121,7 +124,7 @@ function PanelAlumno({
       .maybeSingle();
 
     if (alumnoPropioError) {
-      alert(alumnoPropioError.message);
+      mostrarToast(alumnoPropioError.message, "error");
       setLoading(false);
       return;
     }
@@ -162,7 +165,7 @@ function PanelAlumno({
     const asignacionesError = asignacionesActivasError || asignacionesCompletadasError;
 
     if (asignacionesError) {
-      alert(asignacionesError.message);
+      mostrarToast(asignacionesError.message, "error");
       setLoading(false);
       return;
     }
@@ -207,13 +210,13 @@ function PanelAlumno({
     );
 
   if (loading) {
-    return <p className="text-sm text-zinc-500">Cargando rutinas...</p>;
+    return <p className="text-sm text-zinc-500">{t("registrarEntrenamiento.cargandoRutinas")}</p>;
   }
 
   if (rutinasAsignadas.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/60 p-6 text-center text-sm text-zinc-400">
-        Este alumno no tiene rutinas asignadas.
+        {t("registrarEntrenamiento.sinRutinas")}
       </div>
     );
   }
@@ -222,17 +225,17 @@ function PanelAlumno({
     <div className="space-y-5">
       <div>
         <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-zinc-500">
-          Rutinas activas
+          {t("registrarEntrenamiento.rutinasActivas")}
         </h3>
 
         {rutinasActivas.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-500">
-            No hay rutinas activas para registrar.
+            {t("registrarEntrenamiento.noRutinasActivas")}
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {rutinasActivas.map((asignacion) => {
-              const rutina = asignacion.rutinas || { id: asignacion.rutina_id, nombre: "Rutina" };
+              const rutina = asignacion.rutinas || { id: asignacion.rutina_id, nombre: t("registrarEntrenamiento.rutina") };
 
               return (
                 <button
@@ -252,13 +255,13 @@ function PanelAlumno({
       {rutinasCompletadas.length > 0 && (
         <div>
           <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-zinc-500">
-            Completadas recientes
+            {t("registrarEntrenamiento.completadasRecientes")}
           </h3>
           <div className="flex flex-wrap gap-2">
             {rutinasCompletadas.map((asignacion) => {
               const rutina = asignacion.rutinas || {
                 id: asignacion.rutina_id,
-                nombre: "Rutina completada",
+                nombre: t("registrarEntrenamiento.rutinaCompletada"),
               };
 
               return (
@@ -288,6 +291,7 @@ export default function RegistrarEntrenamientosPage() {
   const [modalCompacto, setModalCompacto] = useState(true);
   const [panelRefreshKey, setPanelRefreshKey] = useState(0);
   const { t } = useIdioma();
+  const { mostrarToast } = useToast();
   const [alumnosConRutina, setAlumnosConRutina] = useState<Set<string>>(new Set());
   const [alumnosRecientes, setAlumnosRecientes] = useState<Alumno[]>([]);
   const [alumnosTopRM, setAlumnosTopRM] = useState<Alumno[]>([]);
@@ -365,7 +369,7 @@ export default function RegistrarEntrenamientosPage() {
     const { data, error } = await query;
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       setLoading(false);
       return;
     }
@@ -386,7 +390,7 @@ export default function RegistrarEntrenamientosPage() {
       .eq("profesor_id", profesorIdActual);
 
     if (alumnosPropiosError) {
-      alert(alumnosPropiosError.message);
+      mostrarToast(alumnosPropiosError.message, "error");
       return;
     }
 
@@ -407,7 +411,7 @@ export default function RegistrarEntrenamientosPage() {
       .neq("completada", true);
 
     if (error) {
-      alert(error.message);
+      mostrarToast(error.message, "error");
       return;
     }
 
@@ -437,7 +441,7 @@ export default function RegistrarEntrenamientosPage() {
       .eq("profesor_id", profesorIdActual);
 
     if (alumnosPropiosError) {
-      alert(alumnosPropiosError.message);
+      mostrarToast(alumnosPropiosError.message, "error");
       return;
     }
 
@@ -451,12 +455,17 @@ export default function RegistrarEntrenamientosPage() {
       return;
     }
 
-    const { data: asignacionesActivas } = await supabase
+    const { data: asignacionesActivas, error: asignacionesActivasError } = await supabase
       .from("rutina_asignaciones")
       .select("alumno_id")
       .in("alumno_id", alumnosPropiosIds)
       .eq("activa", true)
       .neq("completada", true);
+
+    if (asignacionesActivasError) {
+      mostrarToast(asignacionesActivasError.message, "error");
+      return;
+    }
 
     const idsActivos = new Set((asignacionesActivas ?? []).map((item) => item.alumno_id).filter(Boolean));
 
@@ -486,12 +495,17 @@ export default function RegistrarEntrenamientosPage() {
       return resultado;
     };
 
-    const { data: recientesData } = await supabase
+    const { data: recientesData, error: recientesError } = await supabase
       .from("registros_entrenamiento")
       .select("alumno_id, created_at, alumnos(id,nombre,apellido,email)")
       .in("alumno_id", Array.from(idsActivos))
       .order("created_at", { ascending: false })
       .limit(30);
+
+    if (recientesError) {
+      mostrarToast(recientesError.message, "error");
+      return;
+    }
 
     const recientes = deduplicar(
       ((recientesData || []) as AlumnoSugerenciaResponse[])
@@ -501,12 +515,17 @@ export default function RegistrarEntrenamientosPage() {
 
     const idsRecientes = new Set(recientes.map((alumno) => alumno.id));
 
-    const { data: topRMData } = await supabase
+    const { data: topRMData, error: topRMError } = await supabase
       .from("rms_actuales")
       .select("alumno_id, rm_calculado, alumnos(id,nombre,apellido,email)")
       .in("alumno_id", Array.from(idsActivos))
       .order("rm_calculado", { ascending: false })
       .limit(30);
+
+    if (topRMError) {
+      mostrarToast(topRMError.message, "error");
+      return;
+    }
 
     const topRM = deduplicar(
       ((topRMData || []) as AlumnoSugerenciaResponse[])
@@ -523,7 +542,7 @@ export default function RegistrarEntrenamientosPage() {
     const tieneRutinaActiva = alumnosConRutina.has(alumno.id);
 
     if (!tieneRutinaActiva) {
-      alert("Este alumno no tiene rutinas activas asignadas. No se puede agregar a la lista de alumnos entrenando.");
+      mostrarToast(t("registrarEntrenamiento.sinRutinasActivas"), "info");
       return;
     }
 
@@ -593,12 +612,12 @@ export default function RegistrarEntrenamientosPage() {
         </div>
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-bold">Registrar entrenamientos</h1>
+            <h1 className="text-2xl font-bold">{t("registrarEntrenamiento.titulo")}</h1>
             <p className="mt-1 text-sm text-zinc-400">
-              Cargá rutinas de alumnos que están entrenando sin teléfono.
+              {t("registrarEntrenamiento.descripcion")}
             </p>
           </div>
-          {loading && <span className="text-sm text-blue-300">Cargando...</span>}
+          {loading && <span className="text-sm text-blue-300">{t("registrarEntrenamiento.cargando")}</span>}
         </div>
       </section>
 
@@ -606,11 +625,11 @@ export default function RegistrarEntrenamientosPage() {
         {/* Sidebar */}
         <aside className="flex flex-col gap-4 rounded-3xl border border-zinc-800 bg-zinc-950/70 p-4">
           <div>
-            <h2 className="text-base font-semibold">Buscar alumno</h2>
+            <h2 className="text-base font-semibold">{t("registrarEntrenamiento.buscarAlumno")}</h2>
             <input
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Nombre o email..."
+              placeholder={t("registrarEntrenamiento.buscarPlaceholder")}
               className="mt-2 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
             />
           </div>
@@ -618,7 +637,7 @@ export default function RegistrarEntrenamientosPage() {
           {busqueda && (
             <div className="max-h-52 overflow-y-auto rounded-xl border border-zinc-800">
               {alumnosFiltrados.length === 0 ? (
-                <p className="p-3 text-sm text-zinc-500">Sin resultados.</p>
+                <p className="p-3 text-sm text-zinc-500">{t("registrarEntrenamiento.sinResultados")}</p>
               ) : (
                 alumnosFiltrados.map((alumno) => (
                   <button key={alumno.id} type="button" onClick={() => agregarAlumno(alumno)}
@@ -637,7 +656,7 @@ export default function RegistrarEntrenamientosPage() {
             <div className="space-y-4">
               {alumnosRecientes.length > 0 && (
                 <div>
-                  <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Recientes</h2>
+                  <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{t("registrarEntrenamiento.recientes")}</h2>
                   <div className="flex flex-col gap-2">
                     {alumnosRecientes.map((alumno) => (
                       <button
@@ -658,7 +677,7 @@ export default function RegistrarEntrenamientosPage() {
 
               {alumnosTopRM.length > 0 && (
                 <div>
-                  <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Mejores por RM</h2>
+                  <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{t("registrarEntrenamiento.mejoresRM")}</h2>
                   <div className="flex flex-col gap-2">
                     {alumnosTopRM.map((alumno) => (
                       <button
@@ -681,7 +700,7 @@ export default function RegistrarEntrenamientosPage() {
 
           <div>
             <h2 className="mb-2 text-base font-semibold">
-              Entrenando ahora{" "}
+              {t("registrarEntrenamiento.entrenandoAhora")}{" "}
               {alumnosEntrenando.length > 0 && (
                 <span className="ml-1 rounded-full bg-blue-500/20 px-2 py-0.5 text-xs text-blue-300">
                   {alumnosEntrenando.length}
@@ -691,7 +710,7 @@ export default function RegistrarEntrenamientosPage() {
 
             {alumnosEntrenando.length === 0 ? (
               <p className="rounded-xl border border-dashed border-zinc-800 p-4 text-center text-sm text-zinc-500">
-                Buscá un alumno para agregarlo.
+                {t("registrarEntrenamiento.emptyEntrenando")}
               </p>
             ) : (
               <div className="flex flex-col gap-2">
@@ -707,7 +726,7 @@ export default function RegistrarEntrenamientosPage() {
                       </button>
                       <button type="button" onClick={() => quitarAlumno(alumno)}
                         className="mt-3 rounded-full border border-red-900 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/20">
-                        Quitar
+                        {t("registrarEntrenamiento.quitar")}
                       </button>
                     </div>
                   );
@@ -721,7 +740,7 @@ export default function RegistrarEntrenamientosPage() {
         <section className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-5">
           {!alumnoSeleccionado ? (
             <div className="flex h-full min-h-[200px] items-center justify-center rounded-xl border border-dashed border-zinc-800 text-center text-sm text-zinc-500">
-              Seleccioná un alumno para ver y registrar su rutina.
+              {t("registrarEntrenamiento.seleccionarAlumno")}
             </div>
           ) : (
             <div>
@@ -745,30 +764,22 @@ export default function RegistrarEntrenamientosPage() {
         </section>
       </section>
 
-      {rutinasModalCache.length > 0 && (
-        <div
-          className={
-            rutinaModalSeleccionada
-              ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-3 sm:p-5"
-              : "hidden"
-          }
-        >
-          {rutinaModalSeleccionada && (
-            <button
-              type="button"
-              aria-label="Cerrar modal"
-              onClick={cerrarModalRutina}
-              className="fixed inset-0 cursor-default"
-            />
-          )}
+      {rutinaModalSeleccionada && rutinasModalCache.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-3 sm:p-5">
+          <button
+            type="button"
+            aria-label={t("registrarEntrenamiento.cerrar")}
+            onClick={cerrarModalRutina}
+            className="fixed inset-0 cursor-default"
+          />
           <div className={`relative z-10 w-full overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 shadow-2xl ${modalCompacto ? "max-w-2xl" : "max-w-5xl"}`}>
             <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-950/95 px-4 py-3 backdrop-blur">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                  Vista profesor
+                  {t("registrarEntrenamiento.vistaProfesor")}
                 </p>
                 <p className="text-sm font-semibold text-zinc-200">
-                  {rutinaModalSeleccionada ? nombreAlumno(rutinaModalSeleccionada.alumno) : "Rutina"}
+                  {nombreAlumno(rutinaModalSeleccionada.alumno) || t("registrarEntrenamiento.rutina")}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -777,21 +788,21 @@ export default function RegistrarEntrenamientosPage() {
                   onClick={() => setModalCompacto((prev) => !prev)}
                   className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:bg-zinc-800"
                 >
-                  {modalCompacto ? "Ampliar" : "Compactar"}
+                  {modalCompacto ? t("registrarEntrenamiento.ampliar") : t("registrarEntrenamiento.compactar")}
                 </button>
                 <button
                   type="button"
                   onClick={limpiarCacheModalRutinas}
                   className="rounded-xl border border-yellow-800 bg-yellow-500/10 px-3 py-2 text-xs font-semibold text-yellow-300 transition hover:bg-yellow-500/20"
                 >
-                  Limpiar cache
+                  {t("registrarEntrenamiento.limpiarCache")}
                 </button>
                 <button
                   type="button"
                   onClick={cerrarModalRutina}
                   className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:bg-zinc-800"
                 >
-                  Cerrar
+                  {t("registrarEntrenamiento.cerrar")}
                 </button>
               </div>
             </div>
