@@ -8,6 +8,8 @@ type EjercicioVideo = {
 type EjercicioBasico = {
   id: string;
   nombre: string;
+  nombre_es?: string | null;
+  nombre_en?: string | null;
   grupo_muscular?: string;
 };
 
@@ -44,7 +46,7 @@ export async function getEjerciciosBasicosCached(): Promise<EjercicioBasico[]> {
 
   const { data, error } = await supabase
     .from("ejercicios")
-    .select("id,nombre,grupo_muscular")
+    .select("id,nombre,nombre_es,nombre_en,grupo_muscular")
     .order("nombre");
 
   if (error || !data) {
@@ -54,6 +56,8 @@ export async function getEjerciciosBasicosCached(): Promise<EjercicioBasico[]> {
   cacheBasicos = data.map((ejercicio) => ({
     id: ejercicio.id,
     nombre: ejercicio.nombre,
+    nombre_es: ejercicio.nombre_es,
+    nombre_en: ejercicio.nombre_en,
     grupo_muscular: ejercicio.grupo_muscular ?? undefined,
   }));
   return cacheBasicos;

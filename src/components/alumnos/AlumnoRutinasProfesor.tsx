@@ -512,7 +512,7 @@ export default function AlumnoRutinasProfesor({
 
     const { data: ejercicios, error: ejerciciosError } = await supabase
       .from("rutina_ejercicios")
-      .select("id,created_at,rutina_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
+      .select("id,created_at,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
       .eq("rutina_id", rutina.id);
 
     if (ejerciciosError) {

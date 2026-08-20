@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
@@ -13,6 +12,7 @@ import { eliminarEvaluacionAlumnoProfesor } from "@/lib/evaluaciones/eliminarEva
 import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import SkeletonEvaluaciones from "@/components/SkeletonEvaluaciones";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
+import MenuEvaluacionAlumno from "@/components/alumnos/MenuEvaluacionAlumno";
 import { useProfileCheck } from "@/lib/useProfileCheck";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
@@ -38,7 +38,6 @@ export default function EvaluacionesPorAlumnoPage() {
   const [totalEvaluaciones, setTotalEvaluaciones] = useState(0);
   const [cargandoEvaluaciones, setCargandoEvaluaciones] = useState(false);
   const [paginaEvaluaciones, setPaginaEvaluaciones] = useState(1);
-  const [borrandoEvaluacionId, setBorrandoEvaluacionId] = useState<string | null>(null);
   const [profesorId, setProfesorId] = useState<string | null>(null);
   const [editandoEvaluacion, setEditandoEvaluacion] = useState<{
     id: string;
@@ -102,13 +101,11 @@ export default function EvaluacionesPorAlumnoPage() {
   async function eliminarEvaluacion(evaluacion: EvaluacionAlumnoProfe) {
     const confirmar = window.confirm(`⚠️ Esta acción eliminará permanentemente la evaluación ${evaluacion.tipo.toUpperCase()} y todos sus registros asociados.\n\nEsta acción no se puede deshacer.\n\n¿Deseás continuar?`);
     if (!confirmar) return;
-    setBorrandoEvaluacionId(evaluacion.id);
-    if (!profesorId) { alert("No se pudo validar el profesor actual."); setBorrandoEvaluacionId(null); return; }
-    if (evaluacion.profesor_id !== profesorId) { alert("No tenés permiso para borrar esta evaluación."); setBorrandoEvaluacionId(null); return; }
+    if (!profesorId) { alert("No se pudo validar el profesor actual."); return; }
+    if (evaluacion.profesor_id !== profesorId) { alert("No tenés permiso para borrar esta evaluación."); return; }
     try { await eliminarEvaluacionAlumnoProfesor({ supabase, evaluacionId: evaluacion.id, tipo: evaluacion.tipo }); }
-    catch (error) { alert(error instanceof Error ? error.message : "No se pudo eliminar la evaluación."); setBorrandoEvaluacionId(null); return; }
+    catch (error) { alert(error instanceof Error ? error.message : "No se pudo eliminar la evaluación."); return; }
     setTotalEvaluaciones((prev) => Math.max(0, prev - 1));
-    setBorrandoEvaluacionId(null);
     if (alumnoSeleccionado) {
       const nuevaPagina = evaluacionesAlumno.length === 1 && paginaEvaluaciones > 1 ? paginaEvaluaciones - 1 : paginaEvaluaciones;
       await cargarEvaluacionesAlumno(alumnoSeleccionado, nuevaPagina);
@@ -181,7 +178,6 @@ export default function EvaluacionesPorAlumnoPage() {
                   <div className="space-y-3">
                     {evaluacionesAlumno.map((evaluacion) => {
                       const completada = estaCompletada(evaluacion);
-                      const esPendiente = !completada;
                       return (
                         <div key={evaluacion.id} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                           <div>
@@ -199,24 +195,14 @@ export default function EvaluacionesPorAlumnoPage() {
                             </div>
                             {evaluacion.observaciones && <p className="text-sm text-zinc-500 mt-2 line-clamp-2">{evaluacion.observaciones}</p>}
                           </div>
-                          <div className="flex items-center gap-2">
-                            {completada && (
-                              <button type="button" onClick={() => { setVerEvaluacionId(evaluacion.id); setVerEvaluacionTipo(evaluacion.tipo as "rm" | "fms"); }}
-                                title={t("evaluaciones.verEvaluacion")} className="border border-zinc-700 text-zinc-300 font-semibold px-3 py-2 rounded-lg hover:bg-zinc-800 transition">👁️</button>
-                            )}
-                            {esPendiente && (
-                              <>
-                                <button type="button" onClick={() => setEditandoEvaluacion({ id: evaluacion.id, tipo: evaluacion.tipo as "rm" | "fms", fechaAsignacion: evaluacion.fecha_asignacion || "" })}
-                                  title={t("evaluaciones.editarFecha")} className="border border-zinc-700 text-zinc-300 font-semibold px-3 py-2 rounded-lg hover:bg-zinc-800 transition">✏️</button>
-                                <Link href={`/evaluaciones/realizar/${evaluacion.tipo}/${evaluacion.id}`}
-                                  className="bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-emerald-600 transition text-sm whitespace-nowrap">{t("evaluaciones.completar")}</Link>
-                              </>
-                            )}
-                            <button type="button" onClick={() => eliminarEvaluacion(evaluacion)} disabled={borrandoEvaluacionId === evaluacion.id}
-                              title={t("evaluaciones.eliminarEvaluacion")} className="border border-red-900/60 text-red-400 font-semibold px-4 py-3 rounded-lg hover:bg-red-950/40 transition text-center disabled:opacity-50 disabled:cursor-not-allowed">
-                              {borrandoEvaluacionId === evaluacion.id ? "⏳" : "🗑️"}
-                            </button>
-                          </div>
+                          <MenuEvaluacionAlumno
+                            evaluacion={evaluacion}
+                            completada={completada}
+                            onVer={() => { setVerEvaluacionId(evaluacion.id); setVerEvaluacionTipo(evaluacion.tipo as "rm" | "fms"); }}
+                            onEditarFecha={() => setEditandoEvaluacion({ id: evaluacion.id, tipo: evaluacion.tipo as "rm" | "fms", fechaAsignacion: evaluacion.fecha_asignacion || "" })}
+                            onCompletar={() => router.push(`/evaluaciones/realizar/${evaluacion.tipo}/${evaluacion.id}`)}
+                            onEliminar={() => eliminarEvaluacion(evaluacion)}
+                          />
                         </div>
                       );
                     })}

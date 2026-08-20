@@ -18,6 +18,16 @@ import { useFormatoFecha } from "@/lib/utils/useFormatoFecha";
 import AsignarModal from "@/components/shared/AsignarModal";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
+import { campoBilingue } from "@/lib/utils/campoBilingue";
+
+function ordenarEjerciciosPorIdioma(lista: Ejercicio[], idioma: "es" | "en") {
+  return [...lista].sort((a, b) =>
+    campoBilingue(a, "nombre", idioma).localeCompare(
+      campoBilingue(b, "nombre", idioma),
+      idioma
+    )
+  );
+}
 
 type TipoPrescripcion = "repeticiones" | "tiempo";
 
@@ -38,6 +48,8 @@ type Rutina = {
 type Ejercicio = {
   id: string;
   nombre: string;
+  nombre_es?: string | null;
+  nombre_en?: string | null;
   grupo_muscular?: string;
 };
 
@@ -128,7 +140,7 @@ export default function RutinaDetallePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { t } = useIdioma();
+  const { t, idioma } = useIdioma();
   const { id } = use(params);
 
   const [loading, setLoading] = useState(true);
@@ -302,13 +314,14 @@ export default function RutinaDetallePage({
 
   async function cargarEjercicios() {
     const data = await getEjerciciosBasicosCached();
-    setEjercicios(
-      (data || []).map((ejercicio) => ({
-        id: ejercicio.id,
-        nombre: ejercicio.nombre,
-        grupo_muscular: ejercicio.grupo_muscular ?? undefined,
-      }))
-    );
+    const mapeados = (data || []).map((ejercicio) => ({
+      id: ejercicio.id,
+      nombre: ejercicio.nombre,
+      nombre_es: ejercicio.nombre_es,
+      nombre_en: ejercicio.nombre_en,
+      grupo_muscular: ejercicio.grupo_muscular ?? undefined,
+    }));
+    setEjercicios(ordenarEjerciciosPorIdioma(mapeados, idioma));
   }
 
   async function cargarEntradaCalor() {
@@ -630,6 +643,11 @@ export default function RutinaDetallePage({
 
     const seriesFinal = entradaSeries === "custom" ? entradaSeriesCustom : entradaSeries;
 
+    // Al editar, conservar el orden original. Al crear, agregar al final.
+    const ordenParaGuardar = entradaEditandoId
+      ? entradaCalorEjercicios.find((e) => e._localId === entradaEditandoId)?.orden
+      : entradaCalorEjercicios.length + 1;
+
     const payload = {
       rutina_id: id,
       ejercicio_id: entradaEjercicioId || null,
@@ -639,7 +657,7 @@ export default function RutinaDetallePage({
       duracion: entradaTipoPrescripcion === "tiempo" ? entradaDuracion : "",
       repeticiones: entradaTipoPrescripcion === "repeticiones" ? entradaRepeticiones : "",
       observaciones: entradaObservaciones,
-      orden: entradaCalorEjercicios.length + 1,
+      orden: ordenParaGuardar,
     };
 
     if (entradaEditandoId) {
@@ -813,7 +831,7 @@ export default function RutinaDetallePage({
         id: item.ejercicio_id,
         nombre: item.nombre_ejercicio,
       };
-      setEjercicios((prev) => [...prev, ejercicioFaltante]);
+      setEjercicios((prev) => ordenarEjerciciosPorIdioma([...prev, ejercicioFaltante], idioma));
     }
 
     if (item.series && item.series > 5) {
@@ -877,21 +895,15 @@ export default function RutinaDetallePage({
       return;
     }
 
-    if (tipoConfiguracionSeries === "avanzado") {
-      const seriesIncompletas = seriesAvanzadas.some(
-        (serie) => !serie.repeticiones?.trim() || (!serie.peso?.trim() && !serie.porcentaje_rm?.trim())
-      );
-
-      if (seriesIncompletas) {
-        mostrarToast("Completá repeticiones y peso/%RM en cada serie.", "error");
-        return;
-      }
-    }
+    // Al editar, conservar el orden original. Al crear, agregar al final.
+    const ordenParaGuardar = ejercicioEditandoId
+      ? rutinaEjercicios.find((e) => e._localId === ejercicioEditandoId)?.orden
+      : rutinaEjercicios.filter((e) => e._estado !== "eliminado").length + 1;
 
     const payload = {
       rutina_id: id,
       ejercicio_id: ejercicioId || null,
-      nombre_ejercicio: ejercicios.find((e) => e.id === ejercicioId)?.nombre || "",
+      nombre_ejercicio: campoBilingue(ejercicios.find((e) => e.id === ejercicioId) || { nombre: "" }, "nombre", idioma) || "",
       series: seriesFinal ? Number(seriesFinal) : null,
       tipo_prescripcion: tipoConfiguracionSeries === "avanzado" ? "repeticiones" : tipoPrescripcion,
       repeticiones: tipoConfiguracionSeries === "avanzado" ? "" : tipoPrescripcion === "repeticiones" ? repeticiones : "",
@@ -901,7 +913,7 @@ export default function RutinaDetallePage({
       rir,
       descanso,
       observaciones,
-      orden: rutinaEjercicios.filter((e) => e._estado !== "eliminado").length + 1,
+      orden: ordenParaGuardar,
       tipo_configuracion: tipoConfiguracionSeries,
     };
 
@@ -1137,13 +1149,13 @@ export default function RutinaDetallePage({
 
     setEjercicioId(idSeleccionado);
     const ejercicio = ejercicios.find((item) => item.id === idSeleccionado);
-    setNombreEjercicio(ejercicio?.nombre || "");
+    setNombreEjercicio(ejercicio ? campoBilingue(ejercicio, "nombre", idioma) : "");
   }
 
   function seleccionarEjercicioEntrada(idSeleccionado: string) {
     setEntradaEjercicioId(idSeleccionado);
     const ejercicio = ejercicios.find((item) => item.id === idSeleccionado);
-    setEntradaNombreEjercicio(ejercicio?.nombre || "");
+    setEntradaNombreEjercicio(ejercicio ? campoBilingue(ejercicio, "nombre", idioma) : "");
   }
 
   function abrirHistorialEjercicio() {
@@ -1162,7 +1174,7 @@ export default function RutinaDetallePage({
     const ejercicio = ejercicios.find((item) => item.id === ejercicioId);
 
     setHistorialEjercicioId(ejercicioId);
-    setHistorialNombreEjercicio(ejercicio?.nombre || "Ejercicio");
+    setHistorialNombreEjercicio(ejercicio ? campoBilingue(ejercicio, "nombre", idioma) : "Ejercicio");
     setMostrarHistorialEjercicio(true);
   }
 
@@ -1782,7 +1794,7 @@ export default function RutinaDetallePage({
 
                   {ejercicios.map((ejercicio) => (
                     <option key={ejercicio.id} value={ejercicio.id}>
-                      {ejercicio.nombre}
+                      {campoBilingue(ejercicio, "nombre", idioma)}
                     </option>
                   ))}
                 </select>
@@ -1916,7 +1928,7 @@ export default function RutinaDetallePage({
 
                       {ejercicios.map((ejercicio) => (
                         <option key={ejercicio.id} value={ejercicio.id}>
-                          {ejercicio.nombre}
+                          {campoBilingue(ejercicio, "nombre", idioma)}
                         </option>
                       ))}
                       <option value="crear_nuevo">
@@ -2284,7 +2296,7 @@ export default function RutinaDetallePage({
           invalidarEjerciciosCache();
           await cargarEjercicios();
           setEjercicioId(ejercicio.id);
-          setNombreEjercicio(ejercicio.nombre);
+          setNombreEjercicio(campoBilingue(ejercicio, "nombre", idioma));
         }}
       />
     </main>
