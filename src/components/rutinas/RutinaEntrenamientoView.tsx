@@ -1,5 +1,5 @@
   "use client";
- 
+
   import { useEffect, useState } from "react";
   import { useSearchParams, useRouter } from "next/navigation";
  import { supabase } from "@/lib/supabase";
@@ -8,6 +8,7 @@
  import { getEjerciciosVideosPorIdsCached } from "@/lib/ejercicios-cache";
  import { recalcularRMActual } from "@/lib/recalcularRMActual";
 import CompletarEjercicioModal from "@/components/alumno/rutinas/CompletarEjercicioModal";
+import BloqueEntrenamientoCard, { BloqueCompletado } from "@/components/rutinas/BloqueEntrenamientoCard";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
 import { campoBilingue } from "@/lib/utils/campoBilingue";
@@ -64,6 +65,14 @@ type RutinaEjercicio = {
   observaciones?: string | null;
   orden?: number | null;
   tipo_configuracion?: "simple" | "avanzado" | null;
+  modo?: "ejercicio" | "amrap" | "circuito" | null;
+  tiempo_limite?: string | null;
+  rondas_objetivo?: number | null;
+  descanso_entre_rondas?: string | null;
+  duracion_ronda?: string | null;
+  tipo_tiempo_circuito?: "descanso_entre_rondas" | "duracion_ronda" | null;
+  bloque_id?: string | null;
+  bloque_orden?: number | null;
   youtube_url?: string | null;
 };
  
@@ -75,6 +84,20 @@ type RutinaEjercicio = {
     peso?: string | null;
     porcentaje_rm?: string | null;
     peso_objetivo?: string | null;
+  };
+
+  // Un bloque AMRAP/circuito agrupa varios rutina_ejercicios (mismo bloque_id)
+  // y se ejecuta/completa como una sola unidad.
+  type BloqueRutina = {
+    bloque_id: string;
+    rutina_id: string;
+    modo: "amrap" | "circuito";
+    tiempo_limite?: string | null;
+    rondas_objetivo?: number | null;
+    descanso_entre_rondas?: string | null;
+    duracion_ronda?: string | null;
+    tipo_tiempo_circuito?: "descanso_entre_rondas" | "duracion_ronda" | null;
+    ejercicios: RutinaEjercicio[];
   };
  
  type EntradaCalorEjercicio = {
@@ -109,7 +132,11 @@ type RutinaEjercicio = {
    repeticiones?: number | null;
    rpe?: number | null;
    rir?: number | null;
-   completado?: boolean | null;
+    completado?: boolean | null;
+    bloque_id?: string | null;
+    rondas_realizadas?: number | null;
+    tiempo_empleado_seg?: number | null;
+    objetivo_logrado?: boolean | null;
  };
  
  type SerieCompletadaCache = {
@@ -176,7 +203,57 @@ function textoPrescripcion(item: {
 
   return item.repeticiones ? `${item.repeticiones} ${t ? t("alumnos.tablaReps") : "reps"}` : t ? t("rutinas.repsLabel", { valor: "-" }) : "Reps: -";
 }
- 
+
+// Agrupa por bloque_id cualquier ejercicio que forme parte de un bloque
+// (AMRAP, circuito, rondas o cualquier modo futuro); los simples quedan fuera.
+// El orden interno respeta bloque_orden; la salida sale ordenada por `orden`.
+function agruparBloques(ejercicios: RutinaEjercicio[]): BloqueRutina[] {
+  const bloques = new Map<string, BloqueRutina>();
+
+  ejercicios.forEach((ejercicio) => {
+    // Cualquier ejercicio con bloque_id forma parte de un bloque y se ejecuta
+    // y completa como una sola unidad, sin importar su modo.
+    if (!ejercicio.bloque_id) return;
+
+    const modo: BloqueRutina["modo"] =
+      ejercicio.modo === "amrap" ? "amrap" : "circuito";
+
+    const existente = bloques.get(ejercicio.bloque_id);
+
+    if (existente) {
+      existente.ejercicios.push(ejercicio);
+      return;
+    }
+
+    bloques.set(ejercicio.bloque_id, {
+      bloque_id: ejercicio.bloque_id,
+      rutina_id: ejercicio.rutina_id,
+      modo,
+      tiempo_limite: ejercicio.tiempo_limite ?? null,
+      rondas_objetivo: ejercicio.rondas_objetivo ?? null,
+      descanso_entre_rondas: ejercicio.descanso_entre_rondas ?? null,
+      duracion_ronda: ejercicio.duracion_ronda ?? null,
+      tipo_tiempo_circuito: ejercicio.tipo_tiempo_circuito ?? null,
+      ejercicios: [ejercicio],
+    });
+  });
+
+  const resultado = Array.from(bloques.values());
+
+  resultado.forEach((bloque) => {
+    bloque.ejercicios.sort(
+      (a, b) => (a.bloque_orden ?? 0) - (b.bloque_orden ?? 0)
+    );
+  });
+
+  resultado.sort((a, b) => {
+    const ordenA = a.ejercicios[0]?.orden ?? 0;
+    const ordenB = b.ejercicios[0]?.orden ?? 0;
+    return ordenA - ordenB;
+  });
+
+  return resultado;
+}
 
 function textoPesoSerieAvanzada(
   serie: RutinaEjercicioSerie,
@@ -256,6 +333,7 @@ export default function RutinaEntrenamientoView({
    const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>([]);
  
    const [ejerciciosPorRutina, setEjerciciosPorRutina] = useState<Record<string, RutinaEjercicio[]>>({});
+   const [bloquesPorRutina, setBloquesPorRutina] = useState<Record<string, BloqueRutina[]>>({});
    const [seriesPorEjercicio, setSeriesPorEjercicio] = useState<Record<string, RutinaEjercicioSerie[]>>({});
    const [entradaPorRutina, setEntradaPorRutina] = useState<Record<string, EntradaCalorEjercicio[]>>({});
    const [registros, setRegistros] = useState<RegistroEntrenamiento[]>([]);
@@ -269,6 +347,7 @@ export default function RutinaEntrenamientoView({
    const [seriesRealizadas, setSeriesRealizadas] = useState<Record<number, { peso: string; repeticiones: string }>>({});
    const [guardandoEjercicio, setGuardandoEjercicio] = useState(false);
    const [ejerciciosCompletadosCache, setEjerciciosCompletadosCache] = useState<EjercicioCompletadoCache[]>([]);
+  const [bloquesCompletadosCache, setBloquesCompletadosCache] = useState<BloqueCompletado[]>([]);
    const [entradaCalorCompletadaCache, setEntradaCalorCompletadaCache] = useState<EntradaCalorCompletadaCache[]>([]);
    const [borradoresEjerciciosCache, setBorradoresEjerciciosCache] = useState<BorradorEjercicioCache[]>([]);
    const [guardandoRutina, setGuardandoRutina] = useState(false);
@@ -405,6 +484,19 @@ export default function RutinaEntrenamientoView({
      } catch {
        localStorage.removeItem(claveProgresoLocal(alumnoId));
      }
+
+      // Cargar bloques AMRAP/circuito completados (cache propio)
+      const bloquesGuardados = localStorage.getItem(`bloques_completados_${alumnoId}`);
+      if (bloquesGuardados) {
+        try {
+          const parsed = JSON.parse(bloquesGuardados) as unknown;
+          const lista: BloqueCompletado[] = Array.isArray(parsed) ? parsed : [];
+          setBloquesCompletadosCache(lista);
+        } catch {
+          localStorage.removeItem(`bloques_completados_${alumnoId}`);
+        }
+      }
+
    }, [alumnoId]);
  
    // ETAPA 3: Helpers para progreso local
@@ -649,7 +741,7 @@ export default function RutinaEntrenamientoView({
         .order("created_at", { ascending: true }),
       supabase
         .from("registros_entrenamiento")
-        .select("id,rutina_id,rutina_asignacion_id,rutina_ejercicio_id,entrada_calor_id,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rpe,rir")
+        .select("id,rutina_id,rutina_asignacion_id,rutina_ejercicio_id,entrada_calor_id,ejercicio_id,nombre_ejercicio,peso_kg,repeticiones,rpe,rir,bloque_id,rondas_realizadas,tiempo_empleado_seg,objetivo_logrado")
         .eq("alumno_id", alumnoActualId)
         .eq("completado", true),
       supabase
@@ -711,6 +803,7 @@ export default function RutinaEntrenamientoView({
     if (rutinaIds.length === 0) {
       setRutinasAsignadas(asignacionesTipadas);
       setEjerciciosPorRutina({});
+      setBloquesPorRutina({});
       setSeriesPorEjercicio({});
       setEntradaPorRutina({});
       setRegistros(registrosData);
@@ -723,7 +816,7 @@ export default function RutinaEntrenamientoView({
     const [rutinaEjerciciosResult, entradaResult] = await Promise.all([
       supabase
         .from("rutina_ejercicios")
-        .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion")
+        .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,rir,descanso,observaciones,orden,tipo_configuracion,modo,tiempo_limite,rondas_objetivo,descanso_entre_rondas,duracion_ronda,tipo_tiempo_circuito,bloque_id,bloque_orden")
         .in("rutina_id", rutinaIds)
         .order("orden", { ascending: true }),
       supabase
@@ -801,12 +894,21 @@ export default function RutinaEntrenamientoView({
     }
 
     const agrupadosEjercicios: Record<string, RutinaEjercicio[]> = {};
+    const bloquesAgrupados: Record<string, BloqueRutina[]> = {};
 
     ejerciciosConVideo.forEach((item) => {
       if (!agrupadosEjercicios[item.rutina_id]) {
         agrupadosEjercicios[item.rutina_id] = [];
       }
       agrupadosEjercicios[item.rutina_id].push(item);
+    });
+
+    Object.keys(agrupadosEjercicios).forEach((rutinaId) => {
+      const bloques = agruparBloques(agrupadosEjercicios[rutinaId]);
+
+      if (bloques.length > 0) {
+        bloquesAgrupados[rutinaId] = bloques;
+      }
     });
 
     const entradaConVideo =
@@ -829,6 +931,7 @@ export default function RutinaEntrenamientoView({
 
     setRutinasAsignadas(asignacionesTipadas);
     setEjerciciosPorRutina(agrupadosEjercicios);
+    setBloquesPorRutina(bloquesAgrupados);
     setSeriesPorEjercicio(seriesAgrupadas);
     setEntradaPorRutina(agrupadaEntrada);
     setRegistros(registrosData);
@@ -868,6 +971,24 @@ export default function RutinaEntrenamientoView({
          registro.rutina_ejercicio_id === rutinaEjercicioId
      );
    }
+
+  // Un bloque está completado si hay un registro en cache o en BD con su bloque_id.
+  function bloqueEstaCompletado(rutinaAsignacionId: string, bloqueId: string) {
+    const enCache = bloquesCompletadosCache.some(
+      (item) =>
+        item.rutina_asignacion_id === rutinaAsignacionId &&
+        item.bloque_id === bloqueId
+    );
+
+    if (enCache) return true;
+
+    return registros.some(
+      (registro) =>
+        registro.rutina_asignacion_id === rutinaAsignacionId &&
+        registro.bloque_id === bloqueId
+    );
+  }
+
  
    function entradaEstaCompletada(rutinaAsignacionId: string, entradaId: string) {
      const enCache = entradaCalorCompletadaCache.some(
@@ -927,14 +1048,42 @@ export default function RutinaEntrenamientoView({
      return Number((peso * (1 + reps / 30)).toFixed(2));
    }
  
-   function estaRutinaCacheCompleta(rutinaId: string, asignacionId: string): boolean {
-     const ejercicios = ejerciciosPorRutina[rutinaId] || [];
-     if (ejercicios.length === 0) return false;
- 
-     return ejercicios.every((ejercicio) =>
-       ejercicioEstaCompletado(asignacionId, ejercicio.id)
-     );
-   }
+  // La rutina está lista para finalizar cuando TODOS los ítems están completos:
+  // entrada en calor + ejercicios individuales + bloques (AMRAP/circuito/rondas).
+  // Los ejercicios de un bloque se validan por bloque_id, no individualmente,
+  // de modo que agregar nuevos modos por rondas no requiere tocar esta función.
+  function estaRutinaCacheCompleta(rutinaId: string, asignacionId: string): boolean {
+    const entrada = entradaPorRutina[rutinaId] || [];
+    const todosEjercicios = ejerciciosPorRutina[rutinaId] || [];
+    const bloques = bloquesPorRutina[rutinaId] || [];
+
+    const idsEjerciciosEnBloque = new Set(
+      bloques.flatMap((bloque) => bloque.ejercicios.map((ej) => ej.id))
+    );
+
+    const ejerciciosIndividuales = todosEjercicios.filter(
+      (item) => !idsEjerciciosEnBloque.has(item.id)
+    );
+
+    const totalItems =
+      entrada.length + ejerciciosIndividuales.length + bloques.length;
+
+    if (totalItems === 0) return false;
+
+    const entradaCompletada = entrada.every((item) =>
+      entradaEstaCompletada(asignacionId, item.id)
+    );
+
+    const ejerciciosCompletados = ejerciciosIndividuales.every((ejercicio) =>
+      ejercicioEstaCompletado(asignacionId, ejercicio.id)
+    );
+
+    const bloquesCompletados = bloques.every((bloque) =>
+      bloqueEstaCompletado(asignacionId, bloque.bloque_id)
+    );
+
+    return entradaCompletada && ejerciciosCompletados && bloquesCompletados;
+  }
  
    function hayProgresoEnRutina(_rutinaId: string, _asignacionId: string): boolean {
      return true;
@@ -1003,6 +1152,50 @@ export default function RutinaEntrenamientoView({
  
          if (entradaInsertError) throw entradaInsertError;
        }
+        // Persistencia de bloques AMRAP/circuito
+        const bloquesDelCache = bloquesCompletadosCache.filter(
+          (item) => item.rutina_asignacion_id === asignacionId
+        );
+        if (bloquesDelCache.length > 0) {
+          const bloqueBatch = bloquesDelCache.map((bloque) => ({
+            alumno_id: alumnoId,
+            rutina_id: bloque.rutina_id,
+            rutina_asignacion_id: asignacionId,
+            bloque_id: bloque.bloque_id,
+            nombre_ejercicio: bloque.nombre_bloque,
+            peso_kg: null,
+            repeticiones: null,
+            rpe: bloque.rpe,
+            rir: bloque.rir,
+            rm_calculado: null,
+            completado: true,
+            rondas_realizadas: bloque.rondas_realizadas ?? null,
+            tiempo_empleado_seg: bloque.tiempo_empleado_seg ?? null,
+            objetivo_logrado: bloque.objetivo_logrado ?? null,
+          }));
+
+          const { error: bloqueInsertError } = await supabase
+            .from("registros_entrenamiento")
+            .insert(bloqueBatch);
+
+          if (bloqueInsertError) throw bloqueInsertError;
+
+          // Guardar en localStorage (cache del lado del cliente)
+          localStorage.setItem(
+            `bloques_completados_${alumnoId}`,
+            JSON.stringify(
+              bloqueBatch.map((b) => ({
+                rutina_asignacion_id: b.rutina_asignacion_id,
+                bloque_id: b.bloque_id,
+                nombre_ejercicio: b.nombre_ejercicio,
+                tiempo_empleado_seg: b.tiempo_empleado_seg,
+                rondas_realizadas: b.rondas_realizadas,
+                objetivo_logrado: b.objetivo_logrado,
+              }))
+            )
+          );
+        }
+
  
        // DELETE batch: todos los ejercicios en una sola consulta
        if (ejerciciosDelCache.length > 0) {
@@ -1280,6 +1473,106 @@ export default function RutinaEntrenamientoView({
        alert(error instanceof Error ? error.message : t("alumno.errorGuardarRutina"));
      }
    }
+
+  function guardarBloqueCompletado(datos: BloqueCompletado) {
+    const nuevo: BloqueCompletado = {
+      ...datos,
+      rutina_asignacion_id: datos.rutina_asignacion_id,
+    };
+
+    setBloquesCompletadosCache((prev) => [
+      ...prev.filter(
+        (item) =>
+          !(
+            item.rutina_asignacion_id === nuevo.rutina_asignacion_id &&
+            item.bloque_id === nuevo.bloque_id
+          )
+      ),
+      nuevo,
+    ]);
+
+    if (alumnoId) {
+      const clave = `bloques_completados_${alumnoId}`;
+      try {
+        const previo = JSON.parse(localStorage.getItem(clave) || "[]") as BloqueCompletado[];
+        const guardados = [
+          ...previo.filter(
+            (item) =>
+              !(
+                item.rutina_asignacion_id === nuevo.rutina_asignacion_id &&
+                item.bloque_id === nuevo.bloque_id
+              )
+          ),
+          nuevo,
+        ];
+        localStorage.setItem(clave, JSON.stringify(guardados));
+      } catch {
+        /* almacenamiento no disponible */
+      }
+    }
+  }
+
+  async function deshacerBloqueCompletado(bloqueId: string, asignacionId: string) {
+    const confirmar = confirm(t("alumno.confirmarDeshacerBloque"));
+    if (!confirmar) return;
+
+    setDeshaciendoId(`bloque-${bloqueId}`);
+
+    try {
+      const enCache = bloquesCompletadosCache.some(
+        (item) =>
+          item.rutina_asignacion_id === asignacionId && item.bloque_id === bloqueId
+      );
+
+      if (enCache) {
+        setBloquesCompletadosCache((prev) =>
+          prev.filter(
+            (item) =>
+              !(
+                item.rutina_asignacion_id === asignacionId &&
+                item.bloque_id === bloqueId
+              )
+          )
+        );
+        return;
+      }
+
+      const { error } = await supabase
+        .from("registros_entrenamiento")
+        .delete()
+        .eq("alumno_id", alumnoId)
+        .eq("rutina_asignacion_id", asignacionId)
+        .eq("bloque_id", bloqueId);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      await supabase
+        .from("rutina_asignaciones")
+        .update({ activa: true, completada: false, fecha_completada: null })
+        .eq("id", asignacionId);
+
+      setRegistros((prev) =>
+        prev.filter(
+          (r) =>
+            !(r.rutina_asignacion_id === asignacionId && r.bloque_id === bloqueId)
+        )
+      );
+
+      setRutinasAsignadas((prev) =>
+        prev.map((a) =>
+          a.asignacion_id === asignacionId
+            ? { ...a, activa: true, completada: false, fecha_completada: null }
+            : a
+        )
+      );
+    } finally {
+      setDeshaciendoId(null);
+    }
+  }
+
  
    async function completarEntradaCalor(item: EntradaCalorEjercicio, asignacionId: string) {
      if (!item.rutina_id) return;
@@ -1811,7 +2104,15 @@ export default function RutinaEntrenamientoView({
    ? false
    : asignacionEstaCompletada(asignacion);
      const entrada = entradaPorRutina[rutina.id] || [];
-     const ejercicios = ejerciciosPorRutina[rutina.id] || [];
+     const todosEjercicios = ejerciciosPorRutina[rutina.id] || [];
+     const bloques = bloquesPorRutina[rutina.id] || [];
+     const idsEjerciciosEnBloque = new Set(
+       bloques.flatMap((bloque) => bloque.ejercicios.map((ej) => ej.id))
+     );
+     // Los ejercicios de bloque se muestran en su tarjeta, no en la lista individual.
+     const ejercicios = todosEjercicios.filter(
+       (item) => !idsEjerciciosEnBloque.has(item.id)
+     );
  
      return (
        <div key={asignacion.asignacion_id} className="space-y-4">
@@ -1948,16 +2249,43 @@ export default function RutinaEntrenamientoView({
            >
              <span className="text-base">💪</span>
                <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">{t("alumno.entrenamientoTitulo")}</h3>
-               <span className="ml-auto text-xs text-zinc-500">({ejercicios.length} {t("alumno.ejerciciosCount")})</span>
+               <span className="ml-auto text-xs text-zinc-500">({ejercicios.length + bloques.length} {t("alumno.ejerciciosCount")})</span>
              <span className="text-zinc-500 text-sm">{seccionesAbiertas[`${asignacion.asignacion_id}_ejercicios`] ? "▲" : "▼"}</span>
            </button>
  
            {seccionesAbiertas[`${asignacion.asignacion_id}_ejercicios`] && (
              <>
-               {ejercicios.length === 0 ? (
-                 <p className="p-5 text-zinc-500 text-sm">{t("alumno.sinEjerciciosCargadosTxt")}</p>
-               ) : (
+               {bloques.length > 0 && (
                  <div className="divide-y divide-zinc-800">
+                   {bloques.map((bloque) => (
+                     <BloqueEntrenamientoCard
+                       key={bloque.bloque_id}
+                       bloque={bloque}
+                       asignacionId={asignacion.asignacion_id}
+                       completado={bloqueEstaCompletado(
+                         asignacion.asignacion_id,
+                         bloque.bloque_id
+                       )}
+                       asignacionCompletada={completada}
+                       deshaciendo={deshaciendoId === `bloque-${bloque.bloque_id}`}
+                       onGuardar={guardarBloqueCompletado}
+                       onDeshacer={() =>
+                         deshacerBloqueCompletado(
+                           bloque.bloque_id,
+                           asignacion.asignacion_id
+                         )
+                       }
+                     />
+                   ))}
+                 </div>
+               )}
+
+               {ejercicios.length === 0 ? (
+                 bloques.length === 0 ? (
+                   <p className="p-5 text-zinc-500 text-sm">{t("alumno.sinEjerciciosCargadosTxt")}</p>
+                 ) : null
+               ) : (
+                 <div className="divide-y divide-zinc-800 border-t border-zinc-800">
                    {ejercicios.map((item, index) => {
                    const pesoSugerido = calcularPesoPorRM(item);
                    const itemCompletado = ejercicioEstaCompletado(asignacion.asignacion_id, item.id);
@@ -1980,11 +2308,15 @@ export default function RutinaEntrenamientoView({
                            {/* Contenido */}
                            <div className="flex-1 min-w-0">
                              <h4 className={`font-semibold text-base leading-snug ${itemCompletado ? "text-zinc-400" : "text-white"}`}>
-                               {campoBilingue({ nombre_es: item.nombre_ejercicio, ...ejerciciosBilingues[item.ejercicio_id || ""] }, "nombre", idioma) || item.nombre_ejercicio}
+                               {item.modo === "amrap" ? "AMRAP" : campoBilingue({ nombre_es: item.nombre_ejercicio, ...ejerciciosBilingues[item.ejercicio_id || ""] }, "nombre", idioma) || item.nombre_ejercicio}
                              </h4>
                              <p className="text-zinc-500 text-sm mt-0.5">
-                               {item.series || "-"} {t("alumno.seriesLabel")} ·{" "}
-                               {item.tipo_configuracion === "avanzado"
+                               {item.modo === "amrap"
+                                 ? `AMRAP · ${item.tiempo_limite || "-"}${item.rondas_objetivo ? ` · ${item.rondas_objetivo} rondas` : ""} · `
+                                 : `${item.series || "-"} ${t("alumno.seriesLabel")} · `}
+                               {item.modo === "amrap"
+                                 ? `${item.repeticiones || "-"} ${t("alumno.repsAbrev")}`
+                                 : item.tipo_configuracion === "avanzado"
                                  ? textoPrescripcionAvanzada(seriesPorEjercicio[item.id] || [], item, calcularPesoSeriePorRM, t)
                                  : textoPrescripcion(item)}
                              </p>
@@ -2300,4 +2632,3 @@ export default function RutinaEntrenamientoView({
      </main>
    );
  }
- 

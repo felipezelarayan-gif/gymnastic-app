@@ -92,6 +92,14 @@ async function insertarEjercicios(
         observaciones: ejercicio.observaciones,
         orden: ejercicio.orden,
         tipo_configuracion: ejercicio.tipo_configuracion,
+        modo: ejercicio.modo || "ejercicio",
+        tiempo_limite: ejercicio.tiempo_limite,
+        rondas_objetivo: ejercicio.rondas_objetivo,
+        descanso_entre_rondas: ejercicio.descanso_entre_rondas,
+        tipo_tiempo_circuito: ejercicio.tipo_tiempo_circuito,
+        duracion_ronda: ejercicio.duracion_ronda,
+        bloque_id: ejercicio.bloque_id,
+        bloque_orden: ejercicio.bloque_orden,
       })
       .select("id")
       .single();
@@ -113,9 +121,12 @@ async function insertarEjercicios(
             seriesDelEjercicio.map((serie: any) => ({
               rutina_ejercicio_id: nuevoEjercicio.id,
               numero_serie: serie.numero_serie,
+              tipo_prescripcion: serie.tipo_prescripcion || "repeticiones",
               repeticiones: serie.repeticiones || "",
+              duracion: serie.duracion || "",
               peso: serie.peso || null,
               porcentaje_rm: serie.porcentaje_rm || null,
+              tipo_carga: serie.tipo_carga || (serie.porcentaje_rm === "0" ? "peso_corporal" : serie.porcentaje_rm ? "porcentaje_rm" : "peso_fijo"),
             }))
           );
 
@@ -154,6 +165,14 @@ async function actualizarEjercicios(
         observaciones: ejercicio.observaciones,
         orden: ejercicio.orden,
         tipo_configuracion: ejercicio.tipo_configuracion,
+        modo: ejercicio.modo || "ejercicio",
+        tiempo_limite: ejercicio.tiempo_limite,
+        rondas_objetivo: ejercicio.rondas_objetivo,
+        descanso_entre_rondas: ejercicio.descanso_entre_rondas,
+        tipo_tiempo_circuito: ejercicio.tipo_tiempo_circuito,
+        duracion_ronda: ejercicio.duracion_ronda,
+        bloque_id: ejercicio.bloque_id,
+        bloque_orden: ejercicio.bloque_orden,
       })
       .eq("id", ejercicio.id);
 
@@ -181,9 +200,12 @@ async function actualizarEjercicios(
             seriesDelEjercicio.map((serie) => ({
               rutina_ejercicio_id: ejercicio.id,
               numero_serie: serie.numero_serie,
+              tipo_prescripcion: serie.tipo_prescripcion || "repeticiones",
               repeticiones: serie.repeticiones || "",
+              duracion: serie.duracion || "",
               peso: serie.peso || null,
               porcentaje_rm: serie.porcentaje_rm || null,
+              tipo_carga: serie.tipo_carga || (serie.porcentaje_rm === "0" ? "peso_corporal" : serie.porcentaje_rm ? "porcentaje_rm" : "peso_fijo"),
             }))
           );
 
@@ -272,6 +294,19 @@ async function insertarEntradaCalor(
         tipo_prescripcion: entrada.tipo_prescripcion,
         duracion: entrada.duracion,
         repeticiones: entrada.repeticiones,
+        peso: entrada.peso,
+        porcentaje_rm: entrada.porcentaje_rm,
+        rir: entrada.rir,
+        descanso: entrada.descanso,
+        tipo_configuracion: entrada.tipo_configuracion || "simple",
+        modo: entrada.modo || "ejercicio",
+        tiempo_limite: entrada.tiempo_limite,
+        rondas_objetivo: entrada.rondas_objetivo,
+        descanso_entre_rondas: entrada.descanso_entre_rondas,
+        tipo_tiempo_circuito: entrada.tipo_tiempo_circuito,
+        duracion_ronda: entrada.duracion_ronda,
+        bloque_id: entrada.bloque_id,
+        bloque_orden: entrada.bloque_orden,
         observaciones: entrada.observaciones,
         orden: entrada.orden,
       })
@@ -305,6 +340,19 @@ async function actualizarEntradaCalor(
         tipo_prescripcion: entrada.tipo_prescripcion,
         duracion: entrada.duracion,
         repeticiones: entrada.repeticiones,
+        peso: entrada.peso,
+        porcentaje_rm: entrada.porcentaje_rm,
+        rir: entrada.rir,
+        descanso: entrada.descanso,
+        tipo_configuracion: entrada.tipo_configuracion || "simple",
+        modo: entrada.modo || "ejercicio",
+        tiempo_limite: entrada.tiempo_limite,
+        rondas_objetivo: entrada.rondas_objetivo,
+        descanso_entre_rondas: entrada.descanso_entre_rondas,
+        tipo_tiempo_circuito: entrada.tipo_tiempo_circuito,
+        duracion_ronda: entrada.duracion_ronda,
+        bloque_id: entrada.bloque_id,
+        bloque_orden: entrada.bloque_orden,
         observaciones: entrada.observaciones,
         orden: entrada.orden,
       })

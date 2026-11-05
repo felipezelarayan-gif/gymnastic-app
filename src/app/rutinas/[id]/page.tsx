@@ -9,7 +9,6 @@ import { eliminarAsignacion } from "@/lib/rutinas/eliminarAsignacion";
 import { getRolCached } from "@/lib/rol-cache";
 import CrearEjercicioModal from "@/components/ejercicios/CrearEjercicioModal";
 import EjercicioHistorialModal from "@/components/ejercicios/EjercicioHistorialModal";
-import SelectorTiempo from "@/components/ui/SelectorTiempo";
 import {
   getEjerciciosBasicosCached,
   invalidarEjerciciosCache,
@@ -19,6 +18,11 @@ import AsignarModal from "@/components/shared/AsignarModal";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
 import { campoBilingue } from "@/lib/utils/campoBilingue";
+import AgregarEjercicioModal, {
+  type DestinoEjercicio,
+  type EjercicioFormData,
+  type EjercicioParaEditar,
+} from "@/components/rutinas/AgregarEjercicioModal";
 
 function ordenarEjerciciosPorIdioma(lista: Ejercicio[], idioma: "es" | "en") {
   return [...lista].sort((a, b) =>
@@ -32,6 +36,8 @@ function ordenarEjerciciosPorIdioma(lista: Ejercicio[], idioma: "es" | "en") {
 type TipoPrescripcion = "repeticiones" | "tiempo";
 
 type TipoConfiguracionSeries = "simple" | "avanzado";
+type ModoRutina = "ejercicio" | "amrap" | "circuito";
+type TipoTiempoCircuito = "descanso_entre_rondas" | "duracion_ronda";
 
 type EstadoElemento = "sinCambios" | "nuevo" | "editado" | "eliminado";
 
@@ -67,9 +73,18 @@ type RutinaEjercicio = {
   descanso?: string | null;
   rir?: string | null;
   porcentaje_rm?: string | null;
+  tipo_carga?: "peso_fijo" | "porcentaje_rm" | "peso_corporal" | null;
   observaciones?: string | null;
   orden?: number | null;
   tipo_configuracion?: TipoConfiguracionSeries | null;
+  modo?: ModoRutina | null;
+  tiempo_limite?: string | null;
+  rondas_objetivo?: number | null;
+  descanso_entre_rondas?: string | null;
+  tipo_tiempo_circuito?: TipoTiempoCircuito | null;
+  duracion_ronda?: string | null;
+  bloque_id?: string | null;
+  bloque_orden?: number | null;
   _estado: EstadoElemento;
 };
 
@@ -78,9 +93,12 @@ type RutinaEjercicioSerie = {
   id?: string;
   rutina_ejercicio_id?: string;
   numero_serie: number;
+  tipo_prescripcion?: TipoPrescripcion | null;
   repeticiones?: string | null;
+  duracion?: string | null;
   peso?: string | null;
   porcentaje_rm?: string | null;
+  tipo_carga?: "peso_fijo" | "porcentaje_rm" | "peso_corporal" | null;
   _estado: EstadoElemento;
 };
 
@@ -96,6 +114,19 @@ type EntradaCalorEjercicio = {
   repeticiones?: string | null;
   observaciones?: string | null;
   orden?: number | null;
+  peso?: string | null;
+  porcentaje_rm?: string | null;
+  rir?: string | null;
+  descanso?: string | null;
+  tipo_configuracion?: TipoConfiguracionSeries | null;
+  modo?: ModoRutina | null;
+  tiempo_limite?: string | null;
+  rondas_objetivo?: number | null;
+  descanso_entre_rondas?: string | null;
+  tipo_tiempo_circuito?: TipoTiempoCircuito | null;
+  duracion_ronda?: string | null;
+  bloque_id?: string | null;
+  bloque_orden?: number | null;
   _estado: EstadoElemento;
 };
 
@@ -119,10 +150,6 @@ type Asignacion = {
   };
   _estado: EstadoElemento;
 };
-
-const porcentajesRM = Array.from({ length: 21 }, (_, index) => index * 5);
-const opcionesRIR = Array.from({ length: 6 }, (_, index) => index);
-const opcionesSeries = ["1", "2", "3", "4", "5", "custom"];
 
 function textoPrescripcion(item: {
   tipo_prescripcion?: string | null;
@@ -160,14 +187,16 @@ export default function RutinaDetallePage({
   const [hayCambios, setHayCambios] = useState(false);
 
   const [mostrarEditarRutina, setMostrarEditarRutina] = useState(false);
-  const [mostrarEjercicioPrincipal, setMostrarEjercicioPrincipal] = useState(false);
-  const [mostrarEntradaCalor, setMostrarEntradaCalor] = useState(false);
   const [mostrarCrearEjercicio, setMostrarCrearEjercicio] = useState(false);
   const [mostrarModalAsignar, setMostrarModalAsignar] = useState(false);
   const [mostrarAsignacionesModal, setMostrarAsignacionesModal] = useState(false);
 
-  const [ejercicioEditandoId, setEjercicioEditandoId] = useState<string | null>(null);
-  const [entradaEditandoId, setEntradaEditandoId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalDestino, setModalDestino] = useState<DestinoEjercicio>("principal");
+  const [modalEditando, setModalEditando] = useState<EjercicioParaEditar | null>(null);
+  const [modalBloque, setModalBloque] = useState<EjercicioParaEditar[]>([]);
+  const [modalSeriesExistentes, setModalSeriesExistentes] = useState<EjercicioParaEditar[]>([]);
+  const [modalEditandoId, setModalEditandoId] = useState<string | null>(null);
 
   const [editNombre, setEditNombre] = useState("");
   const [editDescripcion, setEditDescripcion] = useState("");
@@ -175,33 +204,6 @@ export default function RutinaDetallePage({
   const [editEstructura, setEditEstructura] = useState("");
   const [editEntradaCalorTexto, setEditEntradaCalorTexto] = useState("");
 
-  const [ejercicioId, setEjercicioId] = useState("");
-  const [nombreEjercicio, setNombreEjercicio] = useState("");
-  const [series, setSeries] = useState("3");
-  const [seriesCustom, setSeriesCustom] = useState("");
-  const [tipoPrescripcion, setTipoPrescripcion] = useState<TipoPrescripcion>("repeticiones");
-  const [repeticiones, setRepeticiones] = useState("");
-  const [duracion, setDuracion] = useState("");
-  const [peso, setPeso] = useState("");
-  const [porcentajeRm, setPorcentajeRm] = useState("");
-  const [rir, setRir] = useState("");
-  const [descanso, setDescanso] = useState("");
-  const [observaciones, setObservaciones] = useState("");
-  const [tipoConfiguracionSeries, setTipoConfiguracionSeries] = useState<TipoConfiguracionSeries>("simple");
-  const [seriesAvanzadas, setSeriesAvanzadas] = useState<RutinaEjercicioSerie[]>([
-    { _localId: crypto.randomUUID(), id: crypto.randomUUID(), numero_serie: 1, repeticiones: "", peso: "", _estado: "nuevo" },
-    { _localId: crypto.randomUUID(), id: crypto.randomUUID(), numero_serie: 2, repeticiones: "", peso: "", _estado: "nuevo" },
-    { _localId: crypto.randomUUID(), id: crypto.randomUUID(), numero_serie: 3, repeticiones: "", peso: "", _estado: "nuevo" },
-  ]);
-
-  const [entradaEjercicioId, setEntradaEjercicioId] = useState("");
-  const [entradaNombreEjercicio, setEntradaNombreEjercicio] = useState("");
-  const [entradaSeries, setEntradaSeries] = useState("1");
-  const [entradaSeriesCustom, setEntradaSeriesCustom] = useState("");
-  const [entradaTipoPrescripcion, setEntradaTipoPrescripcion] = useState<TipoPrescripcion>("repeticiones");
-  const [entradaDuracion, setEntradaDuracion] = useState("");
-  const [entradaRepeticiones, setEntradaRepeticiones] = useState("");
-  const [entradaObservaciones, setEntradaObservaciones] = useState("");
 
   const [mostrarHistorialEjercicio, setMostrarHistorialEjercicio] = useState(false);
   const [accionCargando, setAccionCargando] = useState<string | null>(null);
@@ -327,7 +329,7 @@ export default function RutinaDetallePage({
   async function cargarEntradaCalor() {
     const { data, error } = await supabase
       .from("rutina_entrada_calor")
-      .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,duracion,repeticiones,observaciones,orden")
+      .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,duracion,repeticiones,peso,porcentaje_rm,rir,descanso,tipo_configuracion,modo,tiempo_limite,rondas_objetivo,descanso_entre_rondas,tipo_tiempo_circuito,duracion_ronda,bloque_id,bloque_orden,observaciones,orden")
       .eq("rutina_id", id)
       .order("orden", { ascending: true });
 
@@ -348,7 +350,7 @@ export default function RutinaDetallePage({
   async function cargarRutinaEjercicios() {
     const { data, error } = await supabase
       .from("rutina_ejercicios")
-      .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,descanso,rir,porcentaje_rm,observaciones,orden,tipo_configuracion")
+      .select("id,rutina_id,ejercicio_id,nombre_ejercicio,series,tipo_prescripcion,repeticiones,duracion,peso,descanso,rir,porcentaje_rm,observaciones,orden,tipo_configuracion,modo,tiempo_limite,rondas_objetivo,descanso_entre_rondas,tipo_tiempo_circuito,duracion_ronda,bloque_id,bloque_orden")
       .eq("rutina_id", id)
       .order("orden", { ascending: true });
 
@@ -377,7 +379,7 @@ export default function RutinaDetallePage({
 
     const { data: seriesData, error: seriesError } = await supabase
       .from("rutina_ejercicio_series")
-      .select("id,rutina_ejercicio_id,numero_serie,repeticiones,peso,porcentaje_rm")
+      .select("id,rutina_ejercicio_id,numero_serie,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,tipo_carga")
       .in("rutina_ejercicio_id", ejerciciosAvanzadosIds)
       .order("numero_serie", { ascending: true });
 
@@ -541,11 +543,7 @@ export default function RutinaDetallePage({
       cargarAsignaciones();
     }
 
-    limpiarFormularioEjercicio();
-    limpiarFormularioEntrada();
     setMostrarEditarRutina(false);
-    setMostrarEntradaCalor(false);
-    setMostrarEjercicioPrincipal(false);
   }
 
   function guardarEdicionRutina() {
@@ -607,81 +605,268 @@ export default function RutinaDetallePage({
     }
   }
 
-  function abrirAgregarEntradaCalor() {
-    setEntradaEditandoId(null);
-    limpiarFormularioEntrada();
-    setMostrarEntradaCalor(true);
+  function abrirAgregarEntrada() {
+    setModalEditando(null);
+    setModalBloque([]);
+    setModalSeriesExistentes([]);
+    setModalEditandoId(null);
+    setModalDestino("entrada");
+    setModalOpen(true);
   }
 
-  function abrirEditarEntradaCalor(item: EntradaCalorEjercicio) {
-    const seriesTexto = item.series ? String(item.series) : "1";
+  async function abrirEditarEntradaCalor(item: EntradaCalorEjercicio) {
+    setModalDestino("entrada");
+    setModalEditandoId(item._localId);
+    setModalEditando(item);
 
-    setEntradaEditandoId(item._localId);
-    setEntradaEjercicioId(item.ejercicio_id || "");
-    setEntradaNombreEjercicio(item.nombre_ejercicio || "");
-
-    if (item.series && item.series > 5) {
-      setEntradaSeries("custom");
-      setEntradaSeriesCustom(String(item.series));
+    if (item.modo === "amrap" || item.modo === "circuito") {
+      const bloque = entradaCalorEjercicios
+        .filter((ejercicio) =>
+          item.bloque_id
+            ? ejercicio.bloque_id === item.bloque_id
+            : ejercicio._localId === item._localId
+        )
+        .sort((a, b) => Number(a.bloque_orden || 0) - Number(b.bloque_orden || 0));
+      setModalBloque(bloque.length > 0 ? bloque : [item]);
+      setModalSeriesExistentes([]);
     } else {
-      setEntradaSeries(seriesTexto);
-      setEntradaSeriesCustom("");
+      setModalBloque([]);
+      if (item.tipo_configuracion === "avanzado" && item.id) {
+        const { data: seriesData } = await supabase
+          .from("rutina_ejercicio_series")
+          .select("id,rutina_ejercicio_id,numero_serie,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,tipo_carga")
+          .eq("rutina_ejercicio_id", item.id)
+          .order("numero_serie", { ascending: true });
+        setModalSeriesExistentes(
+          (seriesData || []).map((serie) => ({
+            ...serie,
+            _localId: serie.id || crypto.randomUUID(),
+          }))
+        );
+      } else {
+        setModalSeriesExistentes([]);
+      }
     }
-
-    setEntradaTipoPrescripcion((item.tipo_prescripcion as TipoPrescripcion) || "repeticiones");
-    setEntradaDuracion(item.duracion || "");
-    setEntradaRepeticiones(item.repeticiones || "");
-    setEntradaObservaciones(item.observaciones || "");
-    setMostrarEntradaCalor(true);
+    setModalOpen(true);
   }
 
-  function guardarEntradaCalor() {
-    if (!entradaNombreEjercicio.trim()) {
-      mostrarToast("Ingresá o seleccioná un ejercicio.", "error");
+  function cerrarModal() {
+    setModalOpen(false);
+    setModalEditando(null);
+    setModalBloque([]);
+    setModalSeriesExistentes([]);
+    setModalEditandoId(null);
+  }
+
+  function handleGuardarModal(datos: EjercicioFormData) {
+    if (modalDestino === "entrada") {
+      handleGuardarEntrada(datos);
+    } else {
+      handleGuardarPrincipal(datos);
+    }
+    cerrarModal();
+  }
+
+  function handleGuardarEntrada(datos: EjercicioFormData) {
+    const ordenParaGuardar = modalEditandoId
+      ? entradaCalorEjercicios.find((e) => e._localId === modalEditandoId)?.orden
+      : entradaCalorEjercicios.length + 1;
+
+    if (datos.modo === "amrap" || datos.modo === "circuito") {
+      const bloqueAnterior = modalEditandoId
+        ? entradaCalorEjercicios.find((entrada) => entrada._localId === modalEditandoId)?.bloque_id
+        : null;
+      const bloqueId = bloqueAnterior || crypto.randomUUID();
+      const nuevasEntradas: EntradaCalorEjercicio[] = datos.bloque.map((item, index) => {
+        const ejercicioBanco = ejercicios.find((ejercicio) => ejercicio.id === item.ejercicioId);
+        const corporal = item.tipoCarga === "peso_corporal";
+        const porcentaje = item.tipoCarga === "porcentaje_rm";
+
+        return {
+          _localId: crypto.randomUUID(),
+          id: crypto.randomUUID(),
+          rutina_id: id,
+          ejercicio_id: item.ejercicioId,
+          nombre_ejercicio: campoBilingue(ejercicioBanco || { nombre: "" }, "nombre", idioma) || "",
+          series: null,
+          tipo_prescripcion: item.tipoPrescripcion,
+          duracion: item.tipoPrescripcion === "tiempo" ? item.duracion : "",
+          repeticiones: item.tipoPrescripcion === "repeticiones" ? item.repeticiones : "",
+          peso: corporal || porcentaje ? "" : item.valorCarga,
+          porcentaje_rm: corporal ? "0" : porcentaje ? item.valorCarga : "",
+          rir: "",
+          descanso: "",
+          tipo_configuracion: "simple",
+          modo: datos.modo,
+          tiempo_limite: datos.tiempo_limite,
+          rondas_objetivo: datos.rondas_objetivo,
+          descanso_entre_rondas: datos.descanso_entre_rondas,
+          tipo_tiempo_circuito: datos.tipo_tiempo_circuito,
+          duracion_ronda: datos.duracion_ronda,
+          bloque_id: bloqueId,
+          bloque_orden: index + 1,
+          observaciones: datos.observaciones,
+          orden: ordenParaGuardar,
+          _estado: "nuevo",
+        };
+      });
+
+      setEntradaCalorEjercicios((prev) => {
+        const anteriores = prev.map((entrada) =>
+          entrada.bloque_id === bloqueId || entrada._localId === modalEditandoId
+            ? { ...entrada, _estado: "eliminado" as EstadoElemento }
+            : entrada
+        );
+        return [...anteriores, ...nuevasEntradas];
+      });
       return;
     }
 
-    const seriesFinal = entradaSeries === "custom" ? entradaSeriesCustom : entradaSeries;
-
-    // Al editar, conservar el orden original. Al crear, agregar al final.
-    const ordenParaGuardar = entradaEditandoId
-      ? entradaCalorEjercicios.find((e) => e._localId === entradaEditandoId)?.orden
-      : entradaCalorEjercicios.length + 1;
-
+    // Ejercicio simple de entrada en calor
+    const ejercicioBanco = ejercicios.find((ejercicio) => ejercicio.id === datos.ejercicio_id);
     const payload = {
       rutina_id: id,
-      ejercicio_id: entradaEjercicioId || null,
-      nombre_ejercicio: entradaNombreEjercicio,
-      series: seriesFinal ? Number(seriesFinal) : null,
-      tipo_prescripcion: entradaTipoPrescripcion,
-      duracion: entradaTipoPrescripcion === "tiempo" ? entradaDuracion : "",
-      repeticiones: entradaTipoPrescripcion === "repeticiones" ? entradaRepeticiones : "",
-      observaciones: entradaObservaciones,
+      ejercicio_id: datos.ejercicio_id,
+      nombre_ejercicio: campoBilingue(ejercicioBanco || { nombre: "" }, "nombre", idioma) || "",
+      series: datos.series,
+      tipo_prescripcion: datos.tipo_prescripcion,
+      duracion: datos.duracion,
+      repeticiones: datos.repeticiones,
+      peso: datos.peso,
+      porcentaje_rm: datos.porcentaje_rm,
+      rir: datos.rir,
+      descanso: datos.descanso,
+      tipo_configuracion: datos.tipo_configuracion,
+      observaciones: datos.observaciones,
       orden: ordenParaGuardar,
     };
 
-    if (entradaEditandoId) {
-      // Actualizar en estado local
+    if (modalEditandoId) {
       setEntradaCalorEjercicios((prev) =>
         prev.map((e) =>
-          e._localId === entradaEditandoId
+          e._localId === modalEditandoId
             ? { ...e, ...payload, _estado: e._estado === "sinCambios" ? "editado" : e._estado }
             : e
         )
       );
     } else {
-      // Crear en estado local
-      const nuevaEntrada: EntradaCalorEjercicio = {
+      setEntradaCalorEjercicios((prev) => [
+        ...prev,
+        { _localId: crypto.randomUUID(), id: crypto.randomUUID(), ...payload, _estado: "nuevo" },
+      ]);
+    }
+  }
+
+  function handleGuardarPrincipal(datos: EjercicioFormData & { _seriesAvanzadas?: any[] }) {
+    const ordenParaGuardar = modalEditandoId
+      ? rutinaEjercicios.find((e) => e._localId === modalEditandoId)?.orden
+      : rutinaEjercicios.filter((e) => e._estado !== "eliminado").length + 1;
+
+    if (datos.modo === "amrap" || datos.modo === "circuito") {
+      const bloqueExistente = modalEditandoId
+        ? rutinaEjercicios.find((item) => item._localId === modalEditandoId)?.bloque_id
+        : null;
+      const bloqueId = bloqueExistente || crypto.randomUUID();
+      const ejerciciosAmrap: RutinaEjercicio[] = datos.bloque.map((item, index) => {
+        const ejercicioBanco = ejercicios.find((ejercicio) => ejercicio.id === item.ejercicioId);
+        const esPesoCorporal = item.tipoCarga === "peso_corporal";
+        const esPorcentajeRm = item.tipoCarga === "porcentaje_rm";
+
+        return {
+          _localId: crypto.randomUUID(),
+          id: crypto.randomUUID(),
+          rutina_id: id,
+          ejercicio_id: item.ejercicioId,
+          nombre_ejercicio: campoBilingue(ejercicioBanco || { nombre: "" }, "nombre", idioma) || "",
+          series: null,
+          tipo_prescripcion: item.tipoPrescripcion,
+          repeticiones: item.tipoPrescripcion === "repeticiones" ? item.repeticiones : "",
+          duracion: item.tipoPrescripcion === "tiempo" ? item.duracion : "",
+          peso: esPesoCorporal || esPorcentajeRm ? "" : item.valorCarga,
+          porcentaje_rm: esPorcentajeRm ? item.valorCarga : esPesoCorporal ? "0" : "",
+          descanso: "",
+          rir: "",
+          observaciones: datos.observaciones,
+          orden: ordenParaGuardar,
+          tipo_configuracion: "simple",
+          modo: datos.modo,
+          tiempo_limite: datos.tiempo_limite,
+          rondas_objetivo: datos.rondas_objetivo,
+          descanso_entre_rondas: datos.descanso_entre_rondas,
+          tipo_tiempo_circuito: datos.tipo_tiempo_circuito,
+          duracion_ronda: datos.duracion_ronda,
+          bloque_id: bloqueId,
+          bloque_orden: index + 1,
+          _estado: "nuevo",
+        };
+      });
+
+      setRutinaEjercicios((prev) => {
+        const idsDelBloque = new Set(
+          prev
+            .filter((item) => item.bloque_id === bloqueId || item._localId === modalEditandoId)
+            .map((item) => item._localId)
+        );
+        const conservados = prev.map((item) =>
+          idsDelBloque.has(item._localId) ? { ...item, _estado: "eliminado" as EstadoElemento } : item
+        );
+        return [...conservados, ...ejerciciosAmrap];
+      });
+      return;
+    }
+
+    // Ejercicio simple principal
+    const ejercicioBanco = ejercicios.find((ejercicio) => ejercicio.id === datos.ejercicio_id);
+    const payload = {
+      rutina_id: id,
+      ejercicio_id: datos.ejercicio_id,
+      nombre_ejercicio: campoBilingue(ejercicioBanco || { nombre: "" }, "nombre", idioma) || "",
+      series: datos.series,
+      tipo_prescripcion: datos.tipo_prescripcion,
+      repeticiones: datos.repeticiones,
+      duracion: datos.duracion,
+      peso: datos.peso,
+      porcentaje_rm: datos.porcentaje_rm,
+      rir: datos.rir,
+      descanso: datos.descanso,
+      observaciones: datos.observaciones,
+      orden: ordenParaGuardar,
+      tipo_configuracion: datos.tipo_configuracion,
+      modo: "ejercicio" as const,
+      tiempo_limite: null,
+      rondas_objetivo: null,
+      descanso_entre_rondas: null,
+      tipo_tiempo_circuito: null,
+      duracion_ronda: null,
+    };
+
+    if (modalEditandoId) {
+      setRutinaEjercicios((prev) =>
+        prev.map((e) =>
+          e._localId === modalEditandoId
+            ? { ...e, ...payload, _estado: e._estado === "sinCambios" ? "editado" : e._estado }
+            : e
+        )
+      );
+      setSeriesPorEjercicio((prev) => ({
+        ...prev,
+        [modalEditandoId]: datos.tipo_configuracion === "avanzado" ? (datos._seriesAvanzadas || []) : [],
+      }));
+    } else {
+      const nuevoEjercicio: RutinaEjercicio = {
         _localId: crypto.randomUUID(),
         id: crypto.randomUUID(),
         ...payload,
         _estado: "nuevo",
       };
-      setEntradaCalorEjercicios((prev) => [...prev, nuevaEntrada]);
+      setRutinaEjercicios((prev) => [...prev, nuevoEjercicio]);
+      if (datos.tipo_configuracion === "avanzado") {
+        setSeriesPorEjercicio((prev) => ({
+          ...prev,
+          [nuevoEjercicio._localId]: datos._seriesAvanzadas || [],
+        }));
+      }
     }
-
-    limpiarFormularioEntrada();
-    setMostrarEntradaCalor(false);
   }
 
   function borrarEntradaCalor(entradaId: string) {
@@ -757,202 +942,49 @@ export default function RutinaDetallePage({
     setEntradaArrastrandoId(null);
   }
 
-  function cantidadSeriesPrincipal() {
-    const seriesFinal = series === "custom" ? seriesCustom : series;
-    const cantidad = Number(seriesFinal || 0);
-    return Number.isFinite(cantidad) && cantidad > 0 ? cantidad : 0;
-  }
-
-  function crearSeriesAvanzadas(cantidad: number, existentes: RutinaEjercicioSerie[] = []): RutinaEjercicioSerie[] {
-    return Array.from({ length: cantidad }, (_, index) => {
-      const numeroSerie = index + 1;
-      const existente = existentes.find((serie) => serie.numero_serie === numeroSerie);
-
-      return {
-        _localId: existente?._localId || crypto.randomUUID(),
-        numero_serie: numeroSerie,
-        repeticiones: existente?.repeticiones || "",
-        peso: existente?.peso || "",
-        porcentaje_rm: existente?.porcentaje_rm || "",
-        _estado: existente?._estado || "nuevo",
-      };
-    });
-  }
-
-  function actualizarCantidadSeriesAvanzadas(nuevaCantidad: number) {
-    if (!Number.isFinite(nuevaCantidad) || nuevaCantidad <= 0) {
-      setSeriesAvanzadas([]);
-      return;
-    }
-
-    setSeriesAvanzadas((actuales) => crearSeriesAvanzadas(nuevaCantidad, actuales));
-  }
-
-  function actualizarSerieAvanzada(
-    numeroSerie: number,
-    campo: "repeticiones" | "peso" | "porcentaje_rm",
-    valor: string
-  ) {
-    setSeriesAvanzadas((actuales) =>
-      actuales.map((serie) => {
-        if (serie.numero_serie !== numeroSerie) return serie;
-
-        const actualizado = { ...serie, [campo]: valor };
-
-        // Mutuamente excluyente: si ingresa peso, limpia %RM y viceversa
-        if (campo === "peso" && valor.trim()) {
-          actualizado.porcentaje_rm = "";
-        } else if (campo === "porcentaje_rm" && valor !== "") {
-          actualizado.peso = "";
-        }
-
-        return actualizado;
-      })
-    );
-  }
-
-  function abrirAgregarEjercicioPrincipal() {
-    setEjercicioEditandoId(null);
-    limpiarFormularioEjercicio();
-    setSeriesAvanzadas(crearSeriesAvanzadas(3));
-    setMostrarEjercicioPrincipal(true);
+  function abrirAgregarPrincipal() {
+    setModalEditando(null);
+    setModalBloque([]);
+    setModalSeriesExistentes([]);
+    setModalEditandoId(null);
+    setModalDestino("principal");
+    setModalOpen(true);
   }
 
   async function abrirEditarEjercicioPrincipal(item: RutinaEjercicio) {
-    const seriesTexto = item.series ? String(item.series) : "3";
+    setModalDestino("principal");
+    setModalEditandoId(item._localId);
+    setModalEditando(item);
 
-    setEjercicioEditandoId(item._localId);
-    setEjercicioId(item.ejercicio_id || "");
-    setNombreEjercicio(item.nombre_ejercicio || "");
-
-    // Si el ejercicio_id no está en el array cargado, agregarlo para que el selector lo muestre
-    if (item.ejercicio_id && !ejercicios.find((e) => e.id === item.ejercicio_id)) {
-      const ejercicioFaltante: Ejercicio = {
-        id: item.ejercicio_id,
-        nombre: item.nombre_ejercicio,
-      };
-      setEjercicios((prev) => ordenarEjerciciosPorIdioma([...prev, ejercicioFaltante], idioma));
-    }
-
-    if (item.series && item.series > 5) {
-      setSeries("custom");
-      setSeriesCustom(String(item.series));
-    } else {
-      setSeries(seriesTexto);
-      setSeriesCustom("");
-    }
-
-    setTipoPrescripcion((item.tipo_prescripcion as TipoPrescripcion) || "repeticiones");
-    setRepeticiones(item.repeticiones || "");
-    setDuracion(item.duracion || "");
-    setPeso(item.peso || "");
-    setPorcentajeRm(item.porcentaje_rm || "");
-    setRir(item.rir || "");
-    setDescanso(item.descanso || "");
-    setObservaciones(item.observaciones || "");
-
-    const tipoConfiguracion = item.tipo_configuracion === "avanzado" ? "avanzado" : "simple";
-    setTipoConfiguracionSeries(tipoConfiguracion);
-
-    if (tipoConfiguracion === "avanzado") {
-      const { data: seriesData, error: seriesError } = await supabase
-        .from("rutina_ejercicio_series")
-        .select("id,rutina_ejercicio_id,numero_serie,repeticiones,peso,porcentaje_rm")
-        .eq("rutina_ejercicio_id", item.id)
-        .order("numero_serie", { ascending: true });
-
-      if (seriesError) {
-        mostrarToast(seriesError.message, "error");
-        return;
-      }
-
-      const cantidadSeries = item.series || Number(seriesTexto || 0) || 1;
-      const seriesConEstado = (seriesData || []).map((serie) => ({
-        ...serie,
-        _localId: serie.id || crypto.randomUUID(),
-        _estado: "sinCambios" as EstadoElemento,
-      }));
-      setSeriesAvanzadas(crearSeriesAvanzadas(cantidadSeries, seriesConEstado));
-    } else {
-      const cantidadSeries = item.series || Number(seriesTexto || 0) || 1;
-      setSeriesAvanzadas(crearSeriesAvanzadas(cantidadSeries));
-    }
-
-    setMostrarEjercicioPrincipal(true);
-  }
-
-  function guardarEjercicioPrincipal() {
-    if (!ejercicioId) {
-      mostrarToast("Seleccioná un ejercicio del banco.", "error");
-      return;
-    }
-
-    const seriesFinal = series === "custom" ? seriesCustom : series;
-    const cantidadSeries = Number(seriesFinal || 0);
-
-    if (!cantidadSeries || cantidadSeries <= 0) {
-      mostrarToast("Ingresá una cantidad de series válida.", "error");
-      return;
-    }
-
-    // Al editar, conservar el orden original. Al crear, agregar al final.
-    const ordenParaGuardar = ejercicioEditandoId
-      ? rutinaEjercicios.find((e) => e._localId === ejercicioEditandoId)?.orden
-      : rutinaEjercicios.filter((e) => e._estado !== "eliminado").length + 1;
-
-    const payload = {
-      rutina_id: id,
-      ejercicio_id: ejercicioId || null,
-      nombre_ejercicio: campoBilingue(ejercicios.find((e) => e.id === ejercicioId) || { nombre: "" }, "nombre", idioma) || "",
-      series: seriesFinal ? Number(seriesFinal) : null,
-      tipo_prescripcion: tipoConfiguracionSeries === "avanzado" ? "repeticiones" : tipoPrescripcion,
-      repeticiones: tipoConfiguracionSeries === "avanzado" ? "" : tipoPrescripcion === "repeticiones" ? repeticiones : "",
-      duracion: tipoConfiguracionSeries === "avanzado" ? "" : tipoPrescripcion === "tiempo" ? duracion : "",
-      peso: tipoConfiguracionSeries === "avanzado" ? "" : peso,
-      porcentaje_rm: tipoConfiguracionSeries === "avanzado" ? "" : porcentajeRm,
-      rir,
-      descanso,
-      observaciones,
-      orden: ordenParaGuardar,
-      tipo_configuracion: tipoConfiguracionSeries,
-    };
-
-    if (ejercicioEditandoId) {
-      // Actualizar en estado local
-      setRutinaEjercicios((prev) =>
-        prev.map((e) =>
-          e._localId === ejercicioEditandoId
-            ? { ...e, ...payload, _estado: e._estado === "sinCambios" ? "editado" : e._estado }
-            : e
+    if (item.modo === "amrap" || item.modo === "circuito") {
+      const bloque = rutinaEjercicios
+        .filter((ejercicio) =>
+          item.bloque_id
+            ? ejercicio.bloque_id === item.bloque_id
+            : ejercicio._localId === item._localId
         )
-      );
-
-      // Actualizar series
-      setSeriesPorEjercicio((prev) => ({
-        ...prev,
-        [ejercicioEditandoId]: tipoConfiguracionSeries === "avanzado" ? [...seriesAvanzadas] : [],
-      }));
+        .sort((a, b) => Number(a.bloque_orden || 0) - Number(b.bloque_orden || 0));
+      setModalBloque(bloque.length > 0 ? bloque : [item]);
+      setModalSeriesExistentes([]);
     } else {
-      // Crear en estado local
-      const nuevoEjercicio: RutinaEjercicio = {
-        _localId: crypto.randomUUID(),
-        id: crypto.randomUUID(),
-        ...payload,
-        _estado: "nuevo",
-      };
-      setRutinaEjercicios((prev) => [...prev, nuevoEjercicio]);
-
-      // Guardar series si es configuración avanzada
-      if (tipoConfiguracionSeries === "avanzado") {
-        setSeriesPorEjercicio((prev) => ({
-          ...prev,
-          [nuevoEjercicio._localId]: [...seriesAvanzadas],
-        }));
+      setModalBloque([]);
+      if (item.tipo_configuracion === "avanzado" && item.id) {
+        const { data: seriesData } = await supabase
+          .from("rutina_ejercicio_series")
+          .select("id,rutina_ejercicio_id,numero_serie,tipo_prescripcion,repeticiones,duracion,peso,porcentaje_rm,tipo_carga")
+          .eq("rutina_ejercicio_id", item.id)
+          .order("numero_serie", { ascending: true });
+        setModalSeriesExistentes(
+          (seriesData || []).map((serie) => ({
+            ...serie,
+            _localId: serie.id || crypto.randomUUID(),
+          }))
+        );
+      } else {
+        setModalSeriesExistentes([]);
       }
     }
-
-    limpiarFormularioEjercicio();
-    setMostrarEjercicioPrincipal(false);
+    setModalOpen(true);
   }
 
   async function cambiarOrdenEjercicio(rutinaEjercicioId: string, nuevoOrden: number) {
@@ -1013,13 +1045,16 @@ export default function RutinaDetallePage({
       const ejercicio = rutinaEjercicios.find((e) => e._localId === rutinaEjercicioId);
 
       if (ejercicio) {
+        const idsABorrar = ejercicio.bloque_id
+          ? new Set(rutinaEjercicios.filter((item) => item.bloque_id === ejercicio.bloque_id).map((item) => item._localId))
+          : new Set([rutinaEjercicioId]);
         if (ejercicio._estado === "nuevo") {
           // Si es nuevo, eliminar directamente del array
-          setRutinaEjercicios((prev) => prev.filter((e) => e._localId !== rutinaEjercicioId));
+          setRutinaEjercicios((prev) => prev.filter((e) => !idsABorrar.has(e._localId)));
         } else {
           // Si provenía de la BD, marcar como eliminado
           setRutinaEjercicios((prev) =>
-            prev.map((e) => (e._localId === rutinaEjercicioId ? { ...e, _estado: "eliminado" } : e))
+            prev.map((e) => (idsABorrar.has(e._localId) ? { ...e, _estado: "eliminado" } : e))
           );
         }
       }
@@ -1111,54 +1146,7 @@ export default function RutinaDetallePage({
     }
   }
 
-  function limpiarFormularioEjercicio() {
-    setEjercicioId("");
-    setNombreEjercicio("");
-    setSeries("3");
-    setSeriesCustom("");
-    setTipoPrescripcion("repeticiones");
-    setRepeticiones("");
-    setDuracion("");
-    setPeso("");
-    setPorcentajeRm("");
-    setRir("");
-    setDescanso("");
-    setObservaciones("");
-    setTipoConfiguracionSeries("simple");
-    setSeriesAvanzadas(crearSeriesAvanzadas(3));
-    setEjercicioEditandoId(null);
-  }
-
-  function limpiarFormularioEntrada() {
-    setEntradaEjercicioId("");
-    setEntradaNombreEjercicio("");
-    setEntradaSeries("1");
-    setEntradaSeriesCustom("");
-    setEntradaTipoPrescripcion("repeticiones");
-    setEntradaDuracion("");
-    setEntradaRepeticiones("");
-    setEntradaObservaciones("");
-    setEntradaEditandoId(null);
-  }
-
-  function seleccionarEjercicioPrincipal(idSeleccionado: string) {
-    if (idSeleccionado === "crear_nuevo") {
-      setMostrarCrearEjercicio(true);
-      return;
-    }
-
-    setEjercicioId(idSeleccionado);
-    const ejercicio = ejercicios.find((item) => item.id === idSeleccionado);
-    setNombreEjercicio(ejercicio ? campoBilingue(ejercicio, "nombre", idioma) : "");
-  }
-
-  function seleccionarEjercicioEntrada(idSeleccionado: string) {
-    setEntradaEjercicioId(idSeleccionado);
-    const ejercicio = ejercicios.find((item) => item.id === idSeleccionado);
-    setEntradaNombreEjercicio(ejercicio ? campoBilingue(ejercicio, "nombre", idioma) : "");
-  }
-
-  function abrirHistorialEjercicio() {
+  function abrirHistorialEjercicio(ejercicioSeleccionadoId?: string) {
     const alumnoIdUrl = new URLSearchParams(window.location.search).get("alumnoId");
 
     if (!alumnoIdUrl) {
@@ -1166,26 +1154,16 @@ export default function RutinaDetallePage({
       return;
     }
 
-    if (!ejercicioId) {
+    if (!ejercicioSeleccionadoId) {
       mostrarToast("Seleccioná un ejercicio primero.", "error");
       return;
     }
 
-    const ejercicio = ejercicios.find((item) => item.id === ejercicioId);
+    const ejercicio = ejercicios.find((item) => item.id === ejercicioSeleccionadoId);
 
-    setHistorialEjercicioId(ejercicioId);
+    setHistorialEjercicioId(ejercicioSeleccionadoId);
     setHistorialNombreEjercicio(ejercicio ? campoBilingue(ejercicio, "nombre", idioma) : "Ejercicio");
     setMostrarHistorialEjercicio(true);
-  }
-
-  function cambiarPeso(valor: string) {
-    setPeso(valor);
-    if (valor.trim()) setPorcentajeRm("");
-  }
-
-  function cambiarPorcentajeRm(valor: string) {
-    setPorcentajeRm(valor);
-    if (valor !== "") setPeso("");
   }
 
   // Determinar la URL de "atrás" según el origen
@@ -1481,7 +1459,7 @@ export default function RutinaDetallePage({
 
             <button
               type="button"
-              onClick={abrirAgregarEntradaCalor}
+              onClick={abrirAgregarEntrada}
               disabled={accionCargando !== null}
               className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
             >
@@ -1501,6 +1479,13 @@ export default function RutinaDetallePage({
             <div className="space-y-3">
               {entradaCalorEjercicios
                 .filter((e) => e._estado !== "eliminado")
+                .filter((e, index, lista) => {
+                  if (e.modo !== "amrap" && e.modo !== "circuito") return true;
+                  const clave = e.bloque_id || e.tiempo_limite || e._localId;
+                  return lista.findIndex((item) =>
+                    (item.modo === "amrap" || item.modo === "circuito") && (item.bloque_id || item.tiempo_limite || item._localId) === clave
+                  ) === index;
+                })
                 .map((item) => (
                   <div
                     key={item._localId}
@@ -1518,12 +1503,40 @@ export default function RutinaDetallePage({
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="font-semibold text-lg">
-                          {item.nombre_ejercicio}
+                          {item.modo === "amrap" || item.modo === "circuito"
+                            ? item.modo === "amrap" ? t("rutinas.modoAmrap") : t("rutinas.modoCircuito")
+                            : campoBilingue(ejercicios.find((ejercicio) => ejercicio.id === item.ejercicio_id) || { nombre: item.nombre_ejercicio }, "nombre", idioma)}
                         </h3>
 
                         <p className="text-zinc-400 mt-1">
-                          {item.series || "-"} series · {textoPrescripcion(item)}
+                          {item.modo === "amrap" || item.modo === "circuito"
+                            ? `${item.modo === "amrap" ? `${item.tiempo_limite || "-"}` : `${item.rondas_objetivo || "-"} ${t("rutinas.rondas")}`}${item.tipo_tiempo_circuito === "duracion_ronda" ? (item.duracion_ronda ? ` · ${item.duracion_ronda} · ${t("rutinas.duracionCadaRonda").toLowerCase()}` : "") : item.descanso_entre_rondas ? ` · ${item.descanso_entre_rondas} ${t("rutinas.descanso").toLowerCase()}` : item.rondas_objetivo ? ` · ${item.rondas_objetivo} ${t("rutinas.rondas")}` : ""}`
+                            : `${item.series || "-"} ${t("rutinas.series").toLowerCase()} · ${textoPrescripcion(item, t)}`}
                         </p>
+
+                        {(item.modo === "amrap" || item.modo === "circuito") && (
+                          <div className={`mt-3 space-y-1 rounded-xl border p-3 text-sm text-zinc-300 ${item.modo === "amrap" ? "border-amber-500/20 bg-amber-500/5" : "border-cyan-500/20 bg-cyan-500/5"}`}>
+                            {entradaCalorEjercicios
+                              .filter((ejercicio) => ejercicio._estado !== "eliminado" && (
+                                item.bloque_id
+                                  ? ejercicio.bloque_id === item.bloque_id
+                                  : ejercicio.tiempo_limite === item.tiempo_limite
+                              ))
+                              .sort((a, b) => Number(a.bloque_orden || 0) - Number(b.bloque_orden || 0))
+                              .map((ejercicio, index) => (
+                                <div key={ejercicio._localId} className="flex items-center justify-between gap-3">
+                                  <span>{index + 1}. {campoBilingue(ejercicios.find((banco) => banco.id === ejercicio.ejercicio_id) || { nombre: ejercicio.nombre_ejercicio }, "nombre", idioma)}</span>
+                                  <span className="text-zinc-400">
+                                    {ejercicio.tipo_prescripcion === "tiempo" ? ejercicio.duracion || "-" : `${ejercicio.repeticiones || "-"} ${t("rutinas.repsShort").toLowerCase()}`} · {ejercicio.porcentaje_rm === "0"
+                                      ? t("rutinas.pesoCorporalShort")
+                                      : ejercicio.porcentaje_rm
+                                        ? `${ejercicio.porcentaje_rm}${t("rutinas.porcentajeRM")} RM`
+                                        : `${ejercicio.peso || "-"} kg`}
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
 
                         {item.observaciones && (
                           <p className="text-zinc-500 mt-3 whitespace-pre-wrap">
@@ -1571,7 +1584,7 @@ export default function RutinaDetallePage({
 
               <button
                 type="button"
-                onClick={abrirAgregarEjercicioPrincipal}
+                onClick={abrirAgregarPrincipal}
                 disabled={accionCargando !== null}
                 className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
               >
@@ -1587,6 +1600,9 @@ export default function RutinaDetallePage({
               <div className="space-y-3">
                 {rutinaEjercicios
                   .filter((e) => e._estado !== "eliminado")
+                  .filter((e, index, lista) =>
+                    (e.modo !== "amrap" && e.modo !== "circuito") || !e.bloque_id || lista.findIndex((item) => item.bloque_id === e.bloque_id) === index
+                  )
                   .map((item) => (
                     <div
                       key={item._localId}
@@ -1604,50 +1620,82 @@ export default function RutinaDetallePage({
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <h3 className="font-semibold text-lg">
-                            {item.nombre_ejercicio}
+                            {item.modo === "amrap" || item.modo === "circuito"
+                              ? item.modo === "amrap" ? t("rutinas.modoAmrap") : t("rutinas.modoCircuito")
+                              : campoBilingue(ejercicios.find((ejercicio) => ejercicio.id === item.ejercicio_id) || { nombre: item.nombre_ejercicio }, "nombre", idioma)}
                           </h3>
 
                           <div className="flex flex-wrap items-center gap-2 mt-1">
                             <p className="text-zinc-400">
-                              {item.series || "-"} series · {item.tipo_configuracion === "avanzado" ? t("rutinas.seriePorSerie") : textoPrescripcion(item, t)}
+                              {item.modo === "amrap"
+                                ? `${item.tiempo_limite || "-"}${item.rondas_objetivo ? ` · ${item.rondas_objetivo} ${t("rutinas.rondas")}` : ""}`
+                                : item.modo === "circuito"
+                                  ? `${item.rondas_objetivo || "-"} ${t("rutinas.rondas")}${item.tipo_tiempo_circuito === "duracion_ronda" ? (item.duracion_ronda ? ` · ${item.duracion_ronda} · ${t("rutinas.duracionCadaRonda").toLowerCase()}` : "") : (item.descanso_entre_rondas ? ` · ${item.descanso_entre_rondas} ${t("rutinas.descanso").toLowerCase()}` : "")}`
+                                  : `${item.series || "-"} ${t("rutinas.series").toLowerCase()} · ${item.tipo_configuracion === "avanzado" ? t("rutinas.seriePorSerie") : textoPrescripcion(item, t)}`}
                             </p>
 
                             <span className={`rounded-full px-2 py-0.5 text-xs ${
-                              item.tipo_configuracion === "avanzado"
+                              item.modo === "amrap"
+                                ? "bg-amber-500/10 text-amber-300"
+                                : item.modo === "circuito"
+                                  ? "bg-cyan-500/10 text-cyan-300"
+                                  : item.tipo_configuracion === "avanzado"
                                 ? "bg-blue-500/10 text-blue-300"
                                 : "bg-zinc-800 text-zinc-300"
                             }`}>
-                              {item.tipo_configuracion === "avanzado" ? t("rutinas.avanzadoLabel") : t("rutinas.simpleLabel")}
+                              {item.modo === "amrap"
+                                ? t("rutinas.modoAmrap")
+                                : item.modo === "circuito"
+                                  ? t("rutinas.modoCircuito")
+                                  : item.tipo_configuracion === "avanzado" ? t("rutinas.avanzadoLabel") : t("rutinas.simpleLabel")}
                             </span>
                           </div>
 
-                          <div className="flex flex-wrap gap-2 mt-3 text-sm">
+                          {(item.modo === "amrap" || item.modo === "circuito") && item.bloque_id && (
+                            <div className={`mt-3 space-y-1 rounded-xl border p-3 text-sm text-zinc-300 ${item.modo === "amrap" ? "border-amber-500/20 bg-amber-500/5" : "border-cyan-500/20 bg-cyan-500/5"}`}>
+                              {rutinaEjercicios
+                                .filter((ejercicio) => ejercicio.bloque_id === item.bloque_id && ejercicio._estado !== "eliminado")
+                                .sort((a, b) => Number(a.bloque_orden || 0) - Number(b.bloque_orden || 0))
+                                .map((ejercicio, index) => (
+                                  <div key={ejercicio._localId} className="flex items-center justify-between gap-3">
+                                    <span>{index + 1}. {campoBilingue(ejercicios.find((banco) => banco.id === ejercicio.ejercicio_id) || { nombre: ejercicio.nombre_ejercicio }, "nombre", idioma)}</span>
+                                    <span className="text-zinc-400">
+                                      {ejercicio.tipo_prescripcion === "tiempo"
+                                        ? ejercicio.duracion || "-"
+                                        : `${ejercicio.repeticiones || "-"} ${t("rutinas.repsShort").toLowerCase()}`} · {ejercicio.porcentaje_rm === "0" ? t("rutinas.pesoCorporalShort") : ejercicio.porcentaje_rm ? `${ejercicio.porcentaje_rm}${t("rutinas.porcentajeRM")} RM` : `${ejercicio.peso || "-"} kg`}
+                                    </span>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+
+                          {item.modo !== "amrap" && item.modo !== "circuito" && <div className="flex flex-wrap gap-2 mt-3 text-sm">
                             {item.peso && (
                               <span className="rounded-full bg-zinc-800 px-3 py-1">
-                                Peso: {item.peso}
+                                {t("rutinas.peso")}: {item.peso}
                               </span>
                             )}
 
                             {item.porcentaje_rm && (
                               <span className="rounded-full bg-zinc-800 px-3 py-1">
                                 {item.porcentaje_rm === "0"
-                                  ? "%RM: Peso corporal"
-                                  : `%RM: ${item.porcentaje_rm}%`}
+                                  ? `${t("rutinas.porcentajeRM")}: ${t("rutinas.pesoCorporalShort")}`
+                                  : `${t("rutinas.porcentajeRM")}: ${item.porcentaje_rm}%`}
                               </span>
                             )}
 
                             {item.rir && (
                               <span className="rounded-full bg-zinc-800 px-3 py-1">
-                                RIR: {item.rir}
+                                {t("rutinas.rir")}: {item.rir}
                               </span>
                             )}
 
                             {item.descanso && (
                               <span className="rounded-full bg-zinc-800 px-3 py-1">
-                                Descanso entre series: {item.descanso}
+                                {t("rutinas.descansoEntreSeries")}: {item.descanso}
                               </span>
                             )}
-                          </div>
+                          </div>}
 
                           {item.observaciones && (
                             <p className="text-zinc-500 mt-3 whitespace-pre-wrap">
@@ -1663,7 +1711,7 @@ export default function RutinaDetallePage({
                                   <div key={serie._localId} className="flex justify-between gap-3">
                                     <span>{t("rutinas.serie", { numero: serie.numero_serie })}</span>
                                     <span>
-                                      {serie.repeticiones || "-"} {t("rutinas.repsShort")} ·
+                                      {serie.tipo_prescripcion === "tiempo" ? serie.duracion || "-" : `${serie.repeticiones || "-"} ${t("rutinas.repsShort")}`} ·
                                       {serie.porcentaje_rm ? (
                                         <span className="text-emerald-400">
                                           {serie.porcentaje_rm === "0" ? ` ${t("rutinas.pesoCorporalShort")}` : ` ${serie.porcentaje_rm}${t("rutinas.porcentajeRM")} RM`}
@@ -1777,441 +1825,26 @@ export default function RutinaDetallePage({
           </div>
         )}
 
-        {mostrarEntradaCalor && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h2 className="text-2xl font-bold mb-4">
-                {entradaEditandoId ? t("rutinas.editarEntradaCalor") : t("rutinas.agregarEntradaCalor")}
-              </h2>
-
-              <div className="space-y-3">
-                <select
-                  value={entradaEjercicioId}
-                  onChange={(e) => seleccionarEjercicioEntrada(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                >
-                  <option value="">{t("rutinas.seleccionarBanco")}</option>
-
-                  {ejercicios.map((ejercicio) => (
-                    <option key={ejercicio.id} value={ejercicio.id}>
-                      {campoBilingue(ejercicio, "nombre", idioma)}
-                    </option>
-                  ))}
-                </select>
-
-                <input
-                  value={entradaNombreEjercicio}
-                  onChange={(e) => setEntradaNombreEjercicio(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3"
-                  placeholder={t("rutinas.nombreEjercicio")}
-                />
-
-                <div className="grid grid-cols-2 gap-3">
-                  <select
-                    value={entradaSeries}
-                    onChange={(e) => setEntradaSeries(e.target.value)}
-                    className="w-full bg-zinc-800 rounded-xl p-3"
-                  >
-                    <option value="">{t("rutinas.series")}</option>
-                    {opcionesSeries.map((opcion) => (
-                      <option key={opcion} value={opcion}>
-                        {opcion === "custom" ? t("rutinas.custom") : opcion}
-                      </option>
-                    ))}
-                  </select>
-
-                  {entradaSeries === "custom" && (
-                    <input
-                      type="number"
-                      value={entradaSeriesCustom}
-                      onChange={(e) => setEntradaSeriesCustom(e.target.value)}
-                      className="w-full bg-zinc-800 rounded-xl p-3"
-                      placeholder={t("rutinas.seriesCustom")}
-                    />
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="flex items-center gap-2 rounded-xl bg-zinc-800 p-3">
-                    <input
-                      type="checkbox"
-                      checked={entradaTipoPrescripcion === "repeticiones"}
-                      onChange={() => {
-                        setEntradaTipoPrescripcion("repeticiones");
-                        setEntradaDuracion("");
-                      }}
-                    />
-                    <span>{t("rutinas.porRepeticiones")}</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 rounded-xl bg-zinc-800 p-3">
-                    <input
-                      type="checkbox"
-                      checked={entradaTipoPrescripcion === "tiempo"}
-                      onChange={() => {
-                        setEntradaTipoPrescripcion("tiempo");
-                        setEntradaRepeticiones("");
-                      }}
-                    />
-                    <span>{t("rutinas.porTiempo")}</span>
-                  </label>
-                </div>
-
-                {entradaTipoPrescripcion === "repeticiones" && (
-                  <input
-                    value={entradaRepeticiones}
-                    onChange={(e) => setEntradaRepeticiones(e.target.value)}
-                    className="w-full bg-zinc-800 rounded-xl p-3"
-                    placeholder={t("rutinas.reps")}
-                  />
-                )}
-
-                {entradaTipoPrescripcion === "tiempo" && (
-                  <SelectorTiempo
-                    value={entradaDuracion}
-                    onChange={setEntradaDuracion}
-                    label={t("rutinas.duracion")}
-                  />
-                )}
-
-                <textarea
-                  value={entradaObservaciones}
-                  onChange={(e) => setEntradaObservaciones(e.target.value)}
-                  className="w-full bg-zinc-800 rounded-xl p-3 min-h-24"
-                  placeholder={t("rutinas.observaciones")}
-                />
-              </div>
-
-              <div className="flex gap-3 mt-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    limpiarFormularioEntrada();
-                    setMostrarEntradaCalor(false);
-                  }}
-                  disabled={accionCargando !== null}
-                  className="flex-1 border border-zinc-700 rounded-xl py-3 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {t("rutinas.cancelar")}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={guardarEntradaCalor}
-                  disabled={accionCargando !== null}
-                  className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {accionCargando === "guardar-entrada" ? <BotonCargando texto={t("rutinas.guardando")} /> : t("rutinas.guardar")}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {mostrarEjercicioPrincipal && (
-          <div className="fixed inset-0 bg-black/60 overflow-y-auto p-4 z-50">
-            <div className="flex min-h-full items-start justify-center py-4">
-              <div className="w-full max-w-lg max-h-[90vh] overflow-hidden bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-col">
-                <div className="p-6 pb-4">
-                  <h2 className="text-2xl font-bold">
-                    {ejercicioEditandoId ? t("rutinas.editarEjercicioTitulo") : t("rutinas.agregarEjercicioTitulo")}
-                  </h2>
-                </div>
-                <div className="flex-1 overflow-y-auto px-6 pb-4">
-                  <div className="space-y-3">
-                    <select
-                      value={ejercicioId}
-                      onChange={(e) => seleccionarEjercicioPrincipal(e.target.value)}
-                      className="w-full bg-zinc-800 rounded-xl p-3"
-                    >
-                      <option value="">{t("rutinas.seleccionarBanco")}</option>
-
-                      {ejercicios.map((ejercicio) => (
-                        <option key={ejercicio.id} value={ejercicio.id}>
-                          {campoBilingue(ejercicio, "nombre", idioma)}
-                        </option>
-                      ))}
-                      <option value="crear_nuevo">
-                        {t("rutinas.crearNuevo")}
-                      </option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={abrirHistorialEjercicio}
-                      disabled={!ejercicioId}
-                      className="w-full rounded-xl border border-blue-700 px-3 py-3 text-sm text-blue-300 hover:bg-blue-950 disabled:opacity-50"
-                    >
-                      {t("rutinas.verHistorial")}
-                    </button>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <select
-                        value={series}
-                        onChange={(e) => {
-                          setSeries(e.target.value);
-                          const nuevaCantidad = e.target.value === "custom" ? Number(seriesCustom || 0) : Number(e.target.value || 0);
-                          actualizarCantidadSeriesAvanzadas(nuevaCantidad);
-                        }}
-                        className="w-full bg-zinc-800 rounded-xl p-3"
-                      >
-                        <option value="">{t("rutinas.series")}</option>
-                        {opcionesSeries.map((opcion) => (
-                          <option key={opcion} value={opcion}>
-                            {opcion === "custom" ? t("rutinas.custom") : opcion}
-                          </option>
-                        ))}
-                      </select>
-
-                      {series === "custom" && (
-                        <input
-                          type="number"
-                          value={seriesCustom}
-                          onChange={(e) => {
-                            setSeriesCustom(e.target.value);
-                            actualizarCantidadSeriesAvanzadas(Number(e.target.value || 0));
-                          }}
-                          className="w-full bg-zinc-800 rounded-xl p-3"
-                          placeholder={t("rutinas.seriesCustom")}
-                        />
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setTipoConfiguracionSeries("simple")}
-                        className={`rounded-xl border p-3 text-left ${
-                          tipoConfiguracionSeries === "simple"
-                            ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
-                            : "border-zinc-700 bg-zinc-800 text-zinc-300"
-                        }`}
-                      >
-                        <p className="font-semibold">{t("rutinas.simple")}</p>
-                        <p className="text-xs text-zinc-400 mt-1">{t("rutinas.simpleDesc")}</p>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTipoConfiguracionSeries("avanzado");
-                          actualizarCantidadSeriesAvanzadas(cantidadSeriesPrincipal() || 1);
-                        }}
-                        className={`rounded-xl border p-3 text-left ${
-                          tipoConfiguracionSeries === "avanzado"
-                            ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
-                            : "border-zinc-700 bg-zinc-800 text-zinc-300"
-                        }`}
-                      >
-                        <p className="font-semibold">{t("rutinas.seriePorSerie")}</p>
-                        <p className="text-xs text-zinc-400 mt-1">{t("rutinas.seriePorSerieDesc")}</p>
-                      </button>
-                    </div>
-
-                    {tipoConfiguracionSeries === "simple" && (
-                      <>
-                        <div className="grid grid-cols-2 gap-3">
-                          <label className="flex items-center gap-2 rounded-xl bg-zinc-800 p-3">
-                            <input
-                              type="checkbox"
-                              checked={tipoPrescripcion === "repeticiones"}
-                              onChange={() => {
-                                setTipoPrescripcion("repeticiones");
-                                setDuracion("");
-                              }}
-                            />
-                            <span>{t("rutinas.porRepeticiones")}</span>
-                          </label>
-
-                          <label className="flex items-center gap-2 rounded-xl bg-zinc-800 p-3">
-                            <input
-                              type="checkbox"
-                              checked={tipoPrescripcion === "tiempo"}
-                              onChange={() => {
-                                setTipoPrescripcion("tiempo");
-                                setRepeticiones("");
-                              }}
-                            />
-                            <span>{t("rutinas.porTiempo")}</span>
-                          </label>
-                        </div>
-
-                        {tipoPrescripcion === "repeticiones" && (
-                          <input
-                            value={repeticiones}
-                            onChange={(e) => setRepeticiones(e.target.value)}
-                            className="w-full bg-zinc-800 rounded-xl p-3"
-                            placeholder={t("rutinas.reps")}
-                          />
-                        )}
-
-                        {tipoPrescripcion === "tiempo" && (
-                          <SelectorTiempo
-                            value={duracion}
-                            onChange={setDuracion}
-                            label={t("rutinas.duracion")}
-                          />
-                        )}
-
-                        <div className="grid grid-cols-2 gap-3">
-                          {!porcentajeRm && (
-                            <input
-                              value={peso}
-                              onChange={(e) => cambiarPeso(e.target.value)}
-                              className="w-full bg-zinc-800 rounded-xl p-3"
-                              placeholder={t("rutinas.peso")}
-                            />
-                          )}
-
-                          {!peso && (
-                            <select
-                              value={porcentajeRm}
-                              onChange={(e) => cambiarPorcentajeRm(e.target.value)}
-                              className="w-full bg-zinc-800 rounded-xl p-3"
-                            >
-                              <option value="">%RM</option>
-
-                              {porcentajesRM.map((valor) => (
-                                <option key={valor} value={String(valor)}>
-                                  {valor === 0 ? `0 - ${t("rutinas.pesoCorporal")}` : `${valor}%`}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-
-                          <select
-                            value={rir}
-                            onChange={(e) => setRir(e.target.value)}
-                            className="w-full bg-zinc-800 rounded-xl p-3"
-                          >
-                            <option value="">{t("rutinas.rir")}</option>
-                            {opcionesRIR.map((valor) => (
-                              <option key={valor} value={String(valor)}>
-                                {valor}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-3">
-                          <SelectorTiempo
-                            value={descanso}
-                            onChange={setDescanso}
-                            label={t("rutinas.descansoEntreSeries")}
-                            compacto
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {tipoConfiguracionSeries === "avanzado" && (
-                      <div className="space-y-2 rounded-xl border border-zinc-800 p-3">
-                        <p className="text-sm font-semibold text-zinc-300">{t("rutinas.configurarCadaSerie")}</p>
-
-                        <div className="grid grid-cols-[64px_110px_110px_110px] gap-2 px-1 text-xs font-semibold text-zinc-500">
-                          <span></span>
-                          <span>Reps</span>
-                          <span>Peso</span>
-                          <span>%RM</span>
-                        </div>
-
-                        {seriesAvanzadas.map((serie) => (
-                          <div key={serie._localId} className="grid grid-cols-[64px_110px_110px_110px] gap-2 items-center">
-                            <span className="text-sm text-zinc-400">Serie {serie.numero_serie}</span>
-
-                            <input
-                              type="number"
-                              value={serie.repeticiones || ""}
-                              onChange={(e) => actualizarSerieAvanzada(serie.numero_serie, "repeticiones", e.target.value)}
-                              className="h-12 w-full bg-zinc-800 rounded-xl px-3"
-                              placeholder={t("rutinas.repsShort")}
-                            />
-
-                            <input
-                              type="number"
-                              value={serie.peso || ""}
-                              onChange={(e) => actualizarSerieAvanzada(serie.numero_serie, "peso", e.target.value)}
-                              disabled={Boolean(serie.porcentaje_rm)}
-                              className="h-12 w-full bg-zinc-800 rounded-xl px-3 disabled:opacity-40 disabled:cursor-not-allowed"
-                              placeholder={t("rutinas.pesoShort")}
-                            />
-
-                            <select
-                              value={serie.porcentaje_rm || ""}
-                              onChange={(e) => actualizarSerieAvanzada(serie.numero_serie, "porcentaje_rm", e.target.value)}
-                              disabled={Boolean(serie.peso)}
-                              className="h-12 w-full bg-zinc-800 rounded-xl px-3 disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              <option value="">%RM</option>
-                              {porcentajesRM.map((valor) => (
-                                <option key={valor} value={String(valor)}>
-                                  {valor === 0 ? "0 - Peso corporal" : `${valor}%`}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        ))}
-
-                        <div className="pt-2">
-                          <select
-                            value={rir}
-                            onChange={(e) => setRir(e.target.value)}
-                            className="w-full bg-zinc-800 rounded-xl p-3"
-                          >
-                            <option value="">{t("rutinas.rirGeneral")}</option>
-                            {opcionesRIR.map((valor) => (
-                              <option key={valor} value={String(valor)}>
-                                {valor}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-3">
-                          <SelectorTiempo
-                            value={descanso}
-                            onChange={setDescanso}
-                            label={t("rutinas.descansoGeneral")}
-                            compacto
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <textarea
-                      value={observaciones}
-                      onChange={(e) => setObservaciones(e.target.value)}
-                      className="w-full bg-zinc-800 rounded-xl p-3 min-h-24"
-                      placeholder={t("rutinas.observaciones")}
-                    />
-                  </div>
-                </div>
-                <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 p-6 pt-4">
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        limpiarFormularioEjercicio();
-                        setMostrarEjercicioPrincipal(false);
-                      }}
-                      disabled={accionCargando !== null}
-                      className="flex-1 border border-zinc-700 rounded-xl py-3 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {t("rutinas.cancelar")}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={guardarEjercicioPrincipal}
-                      disabled={accionCargando !== null}
-                      className="flex-1 bg-emerald-500 rounded-xl py-3 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {accionCargando === "guardar-ejercicio" ? <BotonCargando texto={t("rutinas.guardando")} /> : t("rutinas.guardar")}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        {modalOpen && (
+          <AgregarEjercicioModal
+            open={modalOpen}
+            destino={modalDestino}
+            editando={modalEditando}
+            bloqueExistente={modalBloque}
+            seriesExistentes={modalSeriesExistentes}
+            ejercicios={ejercicios}
+            onCerrar={() => {
+              setModalOpen(false);
+              setModalEditando(null);
+              setModalBloque([]);
+              setModalSeriesExistentes([]);
+              setModalEditandoId(null);
+            }}
+            onCrearEjercicio={() => setMostrarCrearEjercicio(true)}
+            onVerHistorial={(ejercicioSeleccionadoId) => abrirHistorialEjercicio(ejercicioSeleccionadoId)}
+            onGuardar={handleGuardarModal}
+            t={t}
+          />
         )}
 
         {mostrarConfirmarSalida && (
@@ -2292,11 +1925,9 @@ export default function RutinaDetallePage({
             <CrearEjercicioModal
         abierto={mostrarCrearEjercicio}
         onCerrar={() => setMostrarCrearEjercicio(false)}
-        onCreado={async (ejercicio) => {
+        onCreado={async () => {
           invalidarEjerciciosCache();
           await cargarEjercicios();
-          setEjercicioId(ejercicio.id);
-          setNombreEjercicio(campoBilingue(ejercicio, "nombre", idioma));
         }}
       />
     </main>

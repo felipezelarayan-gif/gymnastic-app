@@ -32,6 +32,7 @@ type RutinaEjercicio = {
   series: number | null;
   tipo_prescripcion: string | null;
   repeticiones: string | null;
+  duracion: string | null;
   peso: string | null;
   porcentaje_rm: string | null;
   rir: string | null;
@@ -39,7 +40,68 @@ type RutinaEjercicio = {
   observaciones: string | null;
   orden: number | null;
   tipo_configuracion: string | null;
+  modo: "ejercicio" | "amrap" | "circuito" | null;
+  tiempo_limite: string | null;
+  rondas_objetivo: number | null;
+  descanso_entre_rondas: string | null;
+  tipo_tiempo_circuito: string | null;
+  duracion_ronda: string | null;
+  bloque_id: string | null;
+  bloque_orden: number | null;
 };
+
+type TFn = (key: string, params?: Record<string, string | number>) => string;
+
+function esBloque(item: RutinaEjercicio) {
+  return (item.modo === "amrap" || item.modo === "circuito") && !!item.bloque_id;
+}
+
+function agruparBloques(items: RutinaEjercicio[]): { sueltos: RutinaEjercicio[]; bloques: RutinaEjercicio[][] } {
+  const sueltos: RutinaEjercicio[] = [];
+  const porBloque = new Map<string, RutinaEjercicio[]>();
+  for (const item of items) {
+    if (esBloque(item) && item.bloque_id) {
+      const lista = porBloque.get(item.bloque_id) || [];
+      lista.push(item);
+      porBloque.set(item.bloque_id, lista);
+    } else {
+      sueltos.push(item);
+    }
+  }
+  const bloques = [...porBloque.values()].map((lista) =>
+    [...lista].sort((a, b) => Number(a.bloque_orden || 0) - Number(b.bloque_orden || 0))
+  );
+  return { sueltos, bloques };
+}
+
+function descripcionBloque(bloque: RutinaEjercicio[], t: TFn): string {
+  const primero = bloque[0];
+  if (!primero) return "";
+  if (primero.modo === "amrap") {
+    return `AMRAP · ${primero.tiempo_limite || "-"}${primero.rondas_objetivo ? ` · ${primero.rondas_objetivo} ${t("rutinas.rondas")}` : ""}`;
+  }
+  const tiempo =
+    primero.tipo_tiempo_circuito === "duracion_ronda"
+      ? primero.duracion_ronda
+        ? ` · ${primero.duracion_ronda} ${t("rutinas.porRonda")}`
+        : ""
+      : primero.descanso_entre_rondas
+        ? ` · ${t("rutinas.descanso")}: ${primero.descanso_entre_rondas}`
+        : "";
+  return `${t("rutinas.modoCircuito")} · ${primero.rondas_objetivo || "-"} ${t("rutinas.rondas")}${tiempo}`;
+}
+
+function descripcionCarga(item: RutinaEjercicio, t: TFn): string {
+  if (item.porcentaje_rm === "0") return t("rutinas.pesoCorporalShort");
+  if (item.porcentaje_rm) return `${item.porcentaje_rm}${t("rutinas.porcentajeRM")}`;
+  if (item.peso) return `${item.peso} kg`;
+  return "-";
+}
+
+function descripcionPrescripcion(item: RutinaEjercicio, t: TFn): string {
+  if (item.tipo_prescripcion === "tiempo") return item.duracion || "-";
+  return `${item.repeticiones || "-"} ${t("rutinas.repsShort")}`;
+}
 
 type RegistroEntrenamiento = {
   id: string;
@@ -49,6 +111,12 @@ type RegistroEntrenamiento = {
   repeticiones: number | null;
   rpe: number | null;
   rir: number | null;
+  rutina_ejercicio_id?: string | null;
+  entrada_calor_id?: string | null;
+  bloque_id?: string | null;
+  rondas_realizadas?: number | null;
+  tiempo_empleado_seg?: number | null;
+  objetivo_logrado?: boolean | null;
 };
 
 type EjercicioAgrupado = {
@@ -69,6 +137,14 @@ function agruparRegistrosPorEjercicio(registros: RegistroEntrenamiento[], ejerci
     nombre,
     series: [...series].sort((a, b) => (a.numero_serie ?? 0) - (b.numero_serie ?? 0)),
   }));
+}
+
+// Formatea segundos como mm:ss (tiempo empleado en un bloque AMRAP/circuito).
+function formatearTiempo(totalSegundos: number | null | undefined): string {
+  const seg = Math.max(0, Math.floor(totalSegundos ?? 0));
+  const minutos = Math.floor(seg / 60);
+  const resto = seg % 60;
+  return `${String(minutos).padStart(2, "0")}:${String(resto).padStart(2, "0")}`;
 }
 
 export default function VerRutinaModal({
@@ -132,7 +208,7 @@ export default function VerRutinaModal({
         if (rutinaNormalizada.rutina_id) {
           const { data: ejerciciosData } = await supabase
             .from("rutina_ejercicios")
-            .select("id, nombre_ejercicio, series, tipo_prescripcion, repeticiones, peso, porcentaje_rm, rir, descanso, observaciones, orden, tipo_configuracion")
+            .select("id, nombre_ejercicio, series, tipo_prescripcion, repeticiones, duracion, peso, porcentaje_rm, rir, descanso, observaciones, orden, tipo_configuracion, modo, tiempo_limite, rondas_objetivo, descanso_entre_rondas, tipo_tiempo_circuito, duracion_ronda, bloque_id, bloque_orden")
             .eq("rutina_id", rutinaNormalizada.rutina_id)
             .order("orden");
 
@@ -145,9 +221,8 @@ export default function VerRutinaModal({
         if (completada) {
           const { data: registrosData } = await supabase
             .from("registros_entrenamiento")
-            .select("id, nombre_ejercicio, numero_serie, peso_kg, repeticiones, rpe, rir")
+            .select("id, nombre_ejercicio, numero_serie, peso_kg, repeticiones, rpe, rir, rutina_ejercicio_id, entrada_calor_id, bloque_id, rondas_realizadas, tiempo_empleado_seg, objetivo_logrado")
             .eq("rutina_asignacion_id", asignacionId)
-            .not("rutina_ejercicio_id", "is", null)
             .order("rutina_ejercicio_id", { ascending: true })
             .order("numero_serie", { ascending: true });
 
@@ -173,7 +248,13 @@ export default function VerRutinaModal({
 
   if (!open) return null;
 
-  const registrosAgrupados = agruparRegistrosPorEjercicio(registros, t("alumnos.ejercicioSinNombre"));
+  // Los ejercicios simples se guardan con rutina_ejercicio_id; los bloques
+  // (AMRAP/circuito/rondas) se guardan una sola vez con bloque_id y sin
+  // rutina_ejercicio_id, por eso se separan en grupos distintos.
+  const registrosEjercicios = registros.filter((r) => !!r.rutina_ejercicio_id);
+  const registrosBloques = registros.filter((r) => !!r.bloque_id);
+
+  const registrosAgrupados = agruparRegistrosPorEjercicio(registrosEjercicios, t("alumnos.ejercicioSinNombre"));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
@@ -259,40 +340,149 @@ export default function VerRutinaModal({
                   <p className="text-sm text-zinc-500">{t("alumno.sinEjerciciosCargados")}</p>
                 )}
 
-                {!completada && ejercicios.length > 0 && (
-                  <div className="space-y-3">
-                    {ejercicios.map((ej) => (
-                      <div
-                        key={ej.id}
-                        className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
-                      >
-                        <p className="font-semibold text-zinc-200">
-                          {ej.orden ? `${ej.orden}. ` : ""}{ej.nombre_ejercicio}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-2 text-sm text-zinc-400">
-                          {ej.series && <span>{ej.series} {t("alumnos.seriesPlural")}</span>}
-                          {ej.repeticiones && <span>x {ej.repeticiones} {t("alumnos.tablaReps")}</span>}
-                          {ej.peso && <span>| {ej.peso}</span>}
-                          {ej.porcentaje_rm && <span>| {ej.porcentaje_rm}% RM</span>}
-                          {ej.rir && <span>| RIR: {ej.rir}</span>}
+                {!completada && ejercicios.length > 0 && (() => {
+                  const { sueltos, bloques } = agruparBloques(ejercicios);
+                  return (
+                    <div className="space-y-3">
+                      {sueltos.map((ej) => (
+                        <div
+                          key={ej.id}
+                          className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
+                        >
+                          <p className="font-semibold text-zinc-200">
+                            {`${ej.orden ? `${ej.orden}. ` : ""}${ej.nombre_ejercicio}`}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2 text-sm text-zinc-400">
+                            {ej.series && <span>{ej.series} {t("alumnos.seriesPlural")}</span>}
+                            {ej.tipo_prescripcion === "tiempo" && ej.duracion && (
+                              <span>x {ej.duracion}</span>
+                            )}
+                            {ej.tipo_prescripcion !== "tiempo" && ej.repeticiones && (
+                              <span>x {ej.repeticiones} {t("alumnos.tablaReps")}</span>
+                            )}
+                            {ej.peso && <span>| {ej.peso}</span>}
+                            {ej.porcentaje_rm && <span>| {ej.porcentaje_rm}% RM</span>}
+                            {ej.rir && <span>| RIR: {ej.rir}</span>}
+                          </div>
+                          {ej.descanso && (
+                            <p className="text-xs text-zinc-500 mt-1">{t("rutinas.descansoEntreSeries")}: {ej.descanso}</p>
+                          )}
+                          {ej.observaciones && (
+                            <p className="text-xs text-zinc-500 mt-1">{ej.observaciones}</p>
+                          )}
                         </div>
-                        {ej.descanso && (
-                          <p className="text-xs text-zinc-500 mt-1">{t("rutinas.descansoEntreSeries")}: {ej.descanso}</p>
-                        )}
-                        {ej.observaciones && (
-                          <p className="text-xs text-zinc-500 mt-1">{ej.observaciones}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                      {bloques.map((bloque) => (
+                        <div
+                          key={bloque[0]?.bloque_id || bloque[0]?.id}
+                          className={`rounded-xl border p-4 ${bloque[0]?.modo === "amrap" ? "border-amber-500/30 bg-amber-500/5" : "border-cyan-500/30 bg-cyan-500/5"}`}
+                        >
+                          <p className={`font-semibold ${bloque[0]?.modo === "amrap" ? "text-amber-300" : "text-cyan-300"}`}>
+                            {bloque[0]?.modo === "amrap" ? t("rutinas.modoAmrap") : t("rutinas.modoCircuito")}
+                          </p>
+                          <p className="mt-1 text-sm text-zinc-400">{descripcionBloque(bloque, t)}</p>
+                          <div className="mt-3 space-y-2">
+                            {bloque.map((ej, index) => (
+                              <div key={ej.id} className="flex items-center justify-between gap-3 text-sm">
+                                <span className="text-zinc-200">{index + 1}. {ej.nombre_ejercicio}</span>
+                                <span className="text-zinc-400">
+                                  {descripcionPrescripcion(ej, t)} · {descripcionCarga(ej, t)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {/* Vista completada: muestra registros reales */}
-                {completada && registrosAgrupados.length === 0 && ejercicios.length > 0 && (
+                {completada && registrosAgrupados.length === 0 && registrosBloques.length === 0 && ejercicios.length > 0 && (
                   <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
                     <p className="text-sm text-zinc-400">
                       {t("alumno.sinRegistrosEntrenamiento")}
                     </p>
+                  </div>
+                )}
+
+                {/* Vista completada: bloques AMRAP/circuito/rondas */}
+                {completada && registrosBloques.length > 0 && (
+                  <div className="space-y-3">
+                    {registrosBloques.map((registro) => {
+                      const ejerciciosDelBloque = ejercicios
+                        .filter((ej) => ej.bloque_id === registro.bloque_id)
+                        .sort(
+                          (a, b) =>
+                            Number(a.bloque_orden || 0) - Number(b.bloque_orden || 0)
+                        );
+                      const esAmrap = ejerciciosDelBloque[0]?.modo === "amrap";
+
+                      return (
+                        <div
+                          key={registro.id}
+                          className={`rounded-xl border p-4 ${
+                            esAmrap
+                              ? "border-amber-500/30 bg-amber-500/5"
+                              : "border-cyan-500/30 bg-cyan-500/5"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <h4
+                              className={`font-semibold ${
+                                esAmrap ? "text-amber-300" : "text-cyan-300"
+                              }`}
+                            >
+                              {esAmrap
+                                ? t("rutinas.modoAmrap")
+                                : t("rutinas.modoCircuito")}
+                            </h4>
+
+                            {registro.objetivo_logrado !== null &&
+                              registro.objetivo_logrado !== undefined && (
+                                <span
+                                  className={`rounded-full border px-3 py-1 text-xs ${
+                                    registro.objetivo_logrado
+                                      ? "border-emerald-700/60 bg-emerald-500/10 text-emerald-400"
+                                      : "border-zinc-700 bg-zinc-800 text-zinc-400"
+                                  }`}
+                                >
+                                  {registro.objetivo_logrado
+                                    ? t("alumno.bloque.objetivoLogrado")
+                                    : t("alumno.bloque.objetivoNoLogrado")}
+                                </span>
+                              )}
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-zinc-300">
+                            <span>
+                              {t("alumno.bloque.rondasLabel")}:{" "}
+                              {registro.rondas_realizadas ?? "-"}
+                            </span>
+                            <span>
+                              {t("alumno.bloque.tiempoLabel")}:{" "}
+                              {formatearTiempo(registro.tiempo_empleado_seg)}
+                            </span>
+                            <span>
+                              {t("alumno.bloque.rpeLabel")}: {registro.rpe ?? "-"}
+                            </span>
+                            <span>
+                              {t("alumno.bloque.rirLabel")}: {registro.rir ?? "-"}
+                            </span>
+                          </div>
+
+                          {ejerciciosDelBloque.length > 0 && (
+                            <div className="mt-3 border-t border-zinc-800/60 pt-2">
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-zinc-400">
+                                {ejerciciosDelBloque.map((ej) => (
+                                  <span key={ej.id}>• {ej.nombre_ejercicio}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 

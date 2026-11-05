@@ -20,6 +20,7 @@ type HistorialActividad = {
   nombre: string;
   fecha: string | null;
   estado: string | null;
+  bloques?: Record<string, { rondas_realizadas: number | null; tiempo_empleado_seg: number | null; objetivo_logrado: boolean | null }>;
   rutina_id?: string | null;
 };
 
