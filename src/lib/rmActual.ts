@@ -14,6 +14,7 @@ export type RMActualCalculado = {
   registro_entrenamiento_id?: string | null;
   rms_historial_id?: string | null;
   evaluacion_rm_id?: string | null;
+  nombre_ejercicio?: string | null;
 };
 
 type RMHistorialEvaluacion = {
@@ -26,6 +27,7 @@ type RMHistorialEvaluacion = {
   fecha: string | null;
   origen: string | null;
   evaluacion_rm_id?: string | null;
+  ejercicios?: { nombre?: string | null } | null;
 };
 
 type RMHistorialEntrenamiento = {
@@ -38,6 +40,7 @@ type RMHistorialEntrenamiento = {
   fecha: string | null;
   origen: string | null;
   registro_entrenamiento_id?: string | null;
+  ejercicios?: { nombre?: string | null } | null;
 };
 
 function fechaLimiteVigencia() {
@@ -52,7 +55,7 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
 
   let evaluacionesQuery = supabase
     .from("rms_historial")
-    .select("id, alumno_id, ejercicio_id, peso_kg, repeticiones, rm_calculado, fecha, origen, evaluacion_rm_id")
+    .select("id, alumno_id, ejercicio_id, peso_kg, repeticiones, rm_calculado, fecha, origen, evaluacion_rm_id, ejercicios ( nombre )")
     .eq("alumno_id", alumnoId)
     .eq("origen", "evaluacion_rm")
     .not("rm_calculado", "is", null)
@@ -62,7 +65,7 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
 
   let historialEntrenamientosQuery = supabase
     .from("rms_historial")
-    .select("id, alumno_id, ejercicio_id, peso_kg, repeticiones, rm_calculado, fecha, origen, registro_entrenamiento_id")
+    .select("id, alumno_id, ejercicio_id, peso_kg, repeticiones, rm_calculado, fecha, origen, registro_entrenamiento_id, ejercicios ( nombre )")
     .eq("alumno_id", alumnoId)
     .eq("origen", "entrenamiento")
     .not("rm_calculado", "is", null)
@@ -207,6 +210,7 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
           registro_entrenamiento_id: registro.registro_entrenamiento_id || null,
           rms_historial_id: registro.id,
           evaluacion_rm_id: null,
+          nombre_ejercicio: registro.ejercicios?.nombre ?? null,
         });
       } else if (origenSeleccionado === "evaluacion_rm") {
         const evaluacion = seleccionado as RMHistorialEvaluacion;
@@ -221,6 +225,7 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
           origen: "evaluacion_rm",
           rms_historial_id: evaluacion.id,
           evaluacion_rm_id: evaluacion.evaluacion_rm_id || null,
+          nombre_ejercicio: evaluacion.ejercicios?.nombre ?? null,
         });
       }
     }
@@ -236,6 +241,29 @@ async function obtenerRMsActualesAlumnoBase(alumnoId: string, ejercicioId?: stri
 
 export async function obtenerRMsActualesAlumno(alumnoId: string) {
   return obtenerRMsActualesAlumnoBase(alumnoId);
+}
+
+/**
+ * Devuelve únicamente el mejor RM del alumno (peso, reps y nombre del ejercicio).
+ * Reutiliza la misma lógica que obtenerRMsActualesAlumno pero evita el round-trip
+ * extra que antes se hacía para resolver el nombre del ejercicio.
+ */
+export async function obtenerMejorRMAlumno(alumnoId: string): Promise<{
+  peso: number | null;
+  reps: number | null;
+  nombre: string | null;
+} | null> {
+  const { data, error } = await obtenerRMsActualesAlumnoBase(alumnoId);
+
+  if (error || !data || data.length === 0) return null;
+
+  const mejor = data[0];
+
+  return {
+    peso: mejor.rm_calculado,
+    reps: mejor.repeticiones,
+    nombre: mejor.nombre_ejercicio ?? null,
+  };
 }
 
 export async function obtenerRMActualAlumnoEjercicio(alumnoId: string, ejercicioId: string) {

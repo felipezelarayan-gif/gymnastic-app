@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import { borrarRutina as borrarRutinaLib } from "@/lib/rutinas/borrarRutina";
@@ -38,6 +39,7 @@ function getRutinasCacheKey(userId: string) {
 }
 
 export default function RutinasPage() {
+  const router = useRouter();
   const [rutinas, setRutinas] = useState<Rutina[]>([]);
   const [loading, setLoading] = useState(true);
   const [actualizandoRutinas, setActualizandoRutinas] = useState(false);
@@ -57,11 +59,13 @@ export default function RutinasPage() {
   const paginaActualRef = useRef(paginaActual);
   const profesorIdRef = useRef<string | null>(null);
 
-  // Sincronizar refs con estado
-  busquedaRef.current = busqueda;
-  filtroTipoRef.current = filtroTipo;
-  mostrarPersonalizadasRef.current = mostrarPersonalizadas;
-  paginaActualRef.current = paginaActual;
+  // Sincronizar refs con estado (fuera del render, para no escribirlos durante el render)
+  useEffect(() => {
+    busquedaRef.current = busqueda;
+    filtroTipoRef.current = filtroTipo;
+    mostrarPersonalizadasRef.current = mostrarPersonalizadas;
+    paginaActualRef.current = paginaActual;
+  }, [busqueda, filtroTipo, mostrarPersonalizadas, paginaActual]);
 
   // Timer para debounce de búsqueda
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,7 +144,7 @@ export default function RutinasPage() {
 
     let query = supabase
       .from("rutinas")
-      .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio,profesor_id", { count: "exact" })
+      .select("id,nombre,descripcion,objetivo,estructura,created_at,creada_para_alumno_id,creada_desde_perfil_alumno,es_duplicado_limpio,profesor_id", { count: "estimated" })
       .order("created_at", { ascending: false })
       .eq("profesor_id", pid);
 
@@ -200,7 +204,7 @@ export default function RutinasPage() {
     const userId = sessionData.session?.user.id;
 
     if (!userId) {
-      window.location.href = "/login";
+      router.replace("/login");
       return;
     }
 
@@ -230,19 +234,19 @@ export default function RutinasPage() {
     const pid = sessionData.session?.user.id;
 
     if (!pid) {
-      window.location.href = "/login";
+      router.replace("/login");
       return;
     }
 
     if (!sessionData.session) {
-      window.location.href = "/login";
+      router.replace("/login");
       return;
     }
 
     const rol = await getRolCached(sessionData.session.user.id);
 
     if (rol !== "profe") {
-      window.location.href = "/alumno";
+      router.replace("/alumno");
       return;
     }
 
@@ -283,8 +287,8 @@ export default function RutinasPage() {
 
   const handleRutinaCreada = useCallback((rutinaId: string) => {
     setMostrarModal(false);
-    window.location.href = `/rutinas/${rutinaId}`;
-  }, []);
+    router.replace(`/rutinas/${rutinaId}`);
+  }, [router]);
 
   // Disparar carga cuando cambia la página (solo después del montaje inicial)
   const primeraVezRef = useRef(true);
@@ -302,7 +306,7 @@ export default function RutinasPage() {
       const { data: sessionData } = await supabase.auth.getSession();
       const profesorId = sessionData.session?.user.id;
       if (!profesorId) {
-        window.location.href = "/login";
+        router.replace("/login");
         return;
       }
       setBorrandoId(rutinaId);
@@ -328,7 +332,7 @@ export default function RutinasPage() {
     } finally {
       setBorrandoId(null);
     }
-  }, [borrandoId, cargarRutinas]);
+  }, [borrandoId, cargarRutinas, mostrarToast, router]);
 
   const totalPaginas = Math.max(1, Math.ceil(totalRutinas / LIMITE));
   const paginaSegura = Math.min(paginaActual, totalPaginas - 1);

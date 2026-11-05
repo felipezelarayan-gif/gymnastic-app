@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRolCached } from "@/lib/rol-cache";
 import BackButton from "@/components/BackButton";
@@ -37,18 +38,8 @@ type OrdenarPor =
 
 type Orden = "asc" | "desc";
 
-type AlumnosPageCache = {
-  alumnos: Alumno[];
-  savedAt: string;
-};
-
-const ALUMNOS_CACHE_PREFIX = "alumnos_page_cache_v3";
-
-function getAlumnosCacheKey(userId: string) {
-  return `${ALUMNOS_CACHE_PREFIX}_${userId}`;
-}
-
 export default function AlumnosPage() {
+  const router = useRouter();
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [rutinasAsignadas, setRutinasAsignadas] = useState<RutinaAsignada[]>([]);
   const { t } = useIdioma();
@@ -72,27 +63,30 @@ export default function AlumnosPage() {
   const { mostrarToast } = useToast();
 
   useEffect(() => {
-    // Limpiar todo caché al montar
-    try {
-      const keys = Object.keys(localStorage);
-      keys.forEach((key) => {
-        if (key.startsWith("alumnos_page_cache_")) {
-          localStorage.removeItem(key);
-        }
-      });
-    } catch { /* ignore */ }
     cargarDatos();
   }, []);
 
   async function cargarDatos() {
     setLoading(true);
     const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) { window.location.href = "/login"; return; }
+    if (!sessionData.session) { router.replace("/login"); return; }
     const user = sessionData.session.user;
-    const rol = await getRolCached(user.id);
-    if (rol !== "profe") { window.location.href = "/alumno"; return; }
     const profesorActualId = user.id;
-    const { data: alumnosData, error: alumnosError } = await supabase.from("alumnos").select("id,nombre,apellido,email,telefono,foto_url,created_at,user_id,profesor_id,activo").eq("profesor_id", profesorActualId).order("nombre", { ascending: true });
+
+    // El chequeo de rol y la consulta de alumnos son independientes: van en paralelo.
+    const [rol, alumnosResult] = await Promise.all([
+      getRolCached(profesorActualId),
+      supabase
+        .from("alumnos")
+        .select("id,nombre,apellido,email,telefono,foto_url,created_at,user_id,profesor_id,activo")
+        .eq("profesor_id", profesorActualId)
+        .order("nombre", { ascending: true }),
+    ]);
+
+    if (rol !== "profe") { router.replace("/alumno"); return; }
+
+    const alumnosData = alumnosResult.data;
+    const alumnosError = alumnosResult.error;
     if (alumnosError) { mostrarToast(alumnosError.message, "error"); setLoading(false); return; }
     const alumnosFiltrados = (alumnosData || []) as Alumno[];
     const idsAlumnos = alumnosFiltrados.map((a) => a.id);

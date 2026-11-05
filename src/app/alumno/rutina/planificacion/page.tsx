@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import BackButton from "@/components/BackButton";
@@ -8,48 +8,20 @@ import {
   obtenerPendientesAlumno,
   type PendienteAlumno,
 } from "@/lib/alumno/obtenerPendientesAlumnos";
-import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
+import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
+import {
+  claveActividad,
+  esActividadVencida,
+  hoyKey,
+  normalizarFecha,
+  obtenerEtiquetaActividad,
+  obtenerHrefActividad,
+  obtenerIconoActividad,
+  separarVencidas,
+} from "@/lib/alumno/planificacion-utils";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
 import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 import { useIdioma } from "@/lib/i18n-context";
-
-function obtenerEtiquetaActividad(actividad: PendienteAlumno, t: (key: string, params?: Record<string, string | number>) => string) {
-  if (actividad.tipo === "rutina") return t("alumnos.etiquetaRutina");
-  if (actividad.subtipo) return `${t("evaluaciones.evaluacion")} ${actividad.subtipo.toUpperCase()}`;
-  return t("evaluaciones.evaluacion");
-}
-
-function obtenerIconoActividad(actividad: PendienteAlumno) {
-  return actividad.tipo === "rutina" ? "🏋️" : "📋";
-}
-
-function obtenerHrefActividad(actividad: PendienteAlumno) {
-  if (actividad.tipo === "rutina") {
-    return `/alumno/rutina/${actividad.id}`;
-  }
-
-  return actividad.href;
-}
-
-function obtenerTimestampActividad(actividad: PendienteAlumno) {
-  if (!actividad.fecha) return Number.MAX_SAFE_INTEGER;
-
-  const timestamp = parseFechaLocal(actividad.fecha)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-  return Number.isNaN(timestamp) ? Number.MAX_SAFE_INTEGER : timestamp;
-}
-
-function normalizarFecha(fecha?: string | null): string | null {
-  if (!fecha) return null;
-  return fecha.split("T")[0];
-}
-
-function hoyKey(): string {
-  const hoy = new Date();
-  const y = hoy.getFullYear();
-  const m = String(hoy.getMonth() + 1).padStart(2, "0");
-  const d = String(hoy.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 export default function NuevaRutinaPlanificacionPage() {
   const { t } = useIdioma();
@@ -72,6 +44,19 @@ export default function NuevaRutinaPlanificacionPage() {
   useEffect(() => {
     cargarPlanificacion();
   }, []);
+
+  // Conteos para las tarjetas de resumen (una sola pasada).
+  const { rutinasPendientes, evaluacionesPendientes } = useMemo(() => {
+    let rutinas = 0;
+    let evaluaciones = 0;
+
+    for (const actividad of planificacion) {
+      if (actividad.tipo === "rutina") rutinas += 1;
+      else evaluaciones += 1;
+    }
+
+    return { rutinasPendientes: rutinas, evaluacionesPendientes: evaluaciones };
+  }, [planificacion]);
 
   async function cargarPlanificacion() {
     setCargando(true);
@@ -105,23 +90,15 @@ export default function NuevaRutinaPlanificacionPage() {
     }
 
     const resumenPendientes = await obtenerPendientesAlumno(supabase, alumnoData.id);
-    const pendientesOrdenados = [...resumenPendientes.pendientes].sort(
-      (a, b) => obtenerTimestampActividad(a) - obtenerTimestampActividad(b)
+    const { vencidas, noVencidas } = separarVencidas(
+      resumenPendientes.pendientes,
+      hoyKey()
     );
 
-    // Separar vencidas al inicio
-    const hoy = hoyKey();
-    const vencidas = pendientesOrdenados.filter((p) => {
-      const fecha = normalizarFecha(p.fecha);
-      return fecha && fecha < hoy;
-    });
-    const noVencidas = pendientesOrdenados.filter((p) => {
-      const fecha = normalizarFecha(p.fecha);
-      return !fecha || fecha >= hoy;
-    });
-
     setPlanificacion([...vencidas, ...noVencidas]);
-    setOverdueDates(vencidas.map((p) => normalizarFecha(p.fecha)).filter(Boolean) as string[]);
+    setOverdueDates(
+      vencidas.map((p) => normalizarFecha(p.fecha)).filter(Boolean) as string[]
+    );
     setCargando(false);
   }
 
@@ -154,13 +131,7 @@ export default function NuevaRutinaPlanificacionPage() {
   }
 
   const hoy = hoyKey();
-  const esVencida = (actividad: PendienteAlumno) => {
-    const fecha = normalizarFecha(actividad.fecha);
-    return fecha !== null && fecha < hoy;
-  };
-
-  const rutinasPendientes = planificacion.filter((actividad) => actividad.tipo === "rutina").length;
-  const evaluacionesPendientes = planificacion.filter((actividad) => actividad.tipo === "evaluacion").length;
+  const esVencida = (actividad: PendienteAlumno) => esActividadVencida(actividad, hoy);
 
   return (
     <main className="min-h-screen bg-black text-white p-4 pb-24">
@@ -256,133 +227,44 @@ export default function NuevaRutinaPlanificacionPage() {
 
               const esRutina = actividad.tipo === "rutina";
               const esEvaluacion = actividad.tipo === "evaluacion";
-              const key = `${actividad.tipo}-${actividad.subtipo || "general"}-${actividad.id}`;
+              const key = claveActividad(actividad);
 
-              if (esActividadActual && actividad.tipo === "evaluacion" && !actividad.puedeCargarAlumno) {
-                return (
-                  <div key={key} className="block rounded-3xl border border-emerald-800/70 bg-emerald-950/20 p-5">
+              const abrirDetalleEvaluacion = () =>
+                setModalEvaluacion({
+                  open: true,
+                  id: actividad.id,
+                  subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
+                  puedeCargarAlumno: actividad.puedeCargarAlumno ?? false,
+                });
+
+              // La evaluacion actual que solo carga el profesor se abre con modal, no navega.
+              const requiereModal =
+                esActividadActual && esEvaluacion && !actividad.puedeCargarAlumno;
+
+              const claseContenedor = !esActividadActual
+                ? "border border-zinc-800 bg-zinc-950/60 opacity-80"
+                : vencida
+                  ? "border border-red-800/60 bg-red-950/20"
+                  : "border border-emerald-800/70 bg-emerald-950/20";
+
+              return (
+                <div key={key} className={`rounded-3xl p-5 ${claseContenedor}`}>
+                  {requiereModal ? (
                     <button
                       type="button"
-                      onClick={() =>
-                        setModalEvaluacion({
-                          open: true,
-                          id: actividad.id,
-                          subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
-                          puedeCargarAlumno: actividad.puedeCargarAlumno ?? false,
-                        })
-                      }
+                      onClick={abrirDetalleEvaluacion}
                       className="w-full text-left"
                     >
                       {contenidoTarjeta}
                     </button>
-                    {esRutina && (
-                      <button
-                        type="button"
-                        onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
-                        className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
-                      >
-                        {t("alumno.verDetalles")}
-                      </button>
-                    )}
-                    {esEvaluacion && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setModalEvaluacion({
-                            open: true,
-                            id: actividad.id,
-                            subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
-                            puedeCargarAlumno: actividad.puedeCargarAlumno ?? false,
-                          })
-                        }
-                        className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
-                      >
-                        {t("alumno.verDetalles")}
-                      </button>
-                    )}
-                  </div>
-                );
-              }
-
-              if (esActividadActual && vencida) {
-                return (
-                  <div key={key} className="block rounded-3xl border border-red-800/60 bg-red-950/20 p-5">
+                  ) : esActividadActual ? (
                     <Link href={obtenerHrefActividad(actividad)} className="block">
                       {contenidoTarjeta}
                     </Link>
-                    {esRutina && (
-                      <button
-                        type="button"
-                        onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
-                        className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
-                      >
-                        {t("alumno.verDetalles")}
-                      </button>
-                    )}
-                    {esEvaluacion && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setModalEvaluacion({
-                            open: true,
-                            id: actividad.id,
-                            subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
-                            puedeCargarAlumno: actividad.puedeCargarAlumno ?? false,
-                          })
-                        }
-                        className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
-                      >
-                        {t("alumno.verDetalles")}
-                      </button>
-                    )}
-                  </div>
-                );
-              }
+                  ) : (
+                    contenidoTarjeta
+                  )}
 
-              if (esActividadActual) {
-                return (
-                  <div key={key} className="block rounded-3xl border border-emerald-800/70 bg-emerald-950/20 p-5">
-                    <Link href={obtenerHrefActividad(actividad)} className="block">
-                      {contenidoTarjeta}
-                    </Link>
-                    {esRutina && (
-                      <button
-                        type="button"
-                        onClick={() => setModalRutina({ open: true, id: actividad.id, completada: false })}
-                        className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
-                      >
-                        {t("alumno.verDetalles")}
-                      </button>
-                    )}
-                    {esEvaluacion && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setModalEvaluacion({
-                            open: true,
-                            id: actividad.id,
-                            subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
-                            puedeCargarAlumno: actividad.puedeCargarAlumno ?? false,
-                          })
-                        }
-                        className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
-                      >
-                        {t("alumno.verDetalles")}
-                      </button>
-                    )}
-                  </div>
-                );
-              }
-
-              return (
-                <div key={key} className={`rounded-3xl p-5 ${
-                  vencida
-                    ? "border border-red-800/60 bg-red-950/20 opacity-80"
-                    : "border border-zinc-800 bg-zinc-950/60 opacity-80"
-                }`}>
-                  <article>
-                    {contenidoTarjeta}
-                  </article>
                   {esRutina && (
                     <button
                       type="button"
@@ -392,17 +274,11 @@ export default function NuevaRutinaPlanificacionPage() {
                       {t("alumno.verDetalles")}
                     </button>
                   )}
+
                   {esEvaluacion && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setModalEvaluacion({
-                          open: true,
-                          id: actividad.id,
-                          subtipo: (actividad.subtipo as "rm" | "fms") || "rm",
-                          puedeCargarAlumno: actividad.puedeCargarAlumno ?? false,
-                        })
-                      }
+                      onClick={abrirDetalleEvaluacion}
                       className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
                     >
                       {t("alumno.verDetalles")}

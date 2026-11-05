@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -19,6 +20,8 @@ type HomePageCache = {
 };
 
 const HOME_CACHE_KEY = "home_page_cache_v1";
+// TTL del caché: el perfil (nombre/rol/foto) cambia poco, pero no debe quedar obsoleto.
+const HOME_CACHE_TTL_MS = 10 * 60 * 1000;
 
 function cargarHomeDesdeCache(): Profile | null {
   try {
@@ -27,6 +30,12 @@ function cargarHomeDesdeCache(): Profile | null {
 
     const cache = JSON.parse(raw) as HomePageCache;
     if (!cache.profile?.nombre || !cache.profile?.rol) return null;
+
+    const guardadoEn = Date.parse(cache.savedAt);
+    if (!Number.isFinite(guardadoEn) || Date.now() - guardadoEn > HOME_CACHE_TTL_MS) {
+      localStorage.removeItem(HOME_CACHE_KEY);
+      return null;
+    }
 
     return cache.profile;
   } catch {
@@ -146,9 +155,9 @@ export default function Home() {
 
           <p className="mt-3 text-zinc-400">{t("home.noLogueado")}</p>
 
-          <a href="/login" className="mt-4 inline-block underline">
+          <Link href="/login" className="mt-4 inline-block underline">
             {t("home.irAlLogin")}
-          </a>
+          </Link>
         </div>
       </main>
     );
@@ -179,7 +188,7 @@ export default function Home() {
         </header>
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <a
+          <Link
             href="/alumnos"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
@@ -190,9 +199,9 @@ export default function Home() {
             <p className="text-zinc-400 mt-2">
               {t("home.alumnosDesc")}
             </p>
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/rutinas"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
@@ -203,9 +212,9 @@ export default function Home() {
             <p className="text-zinc-400 mt-2">
               {t("home.rutinasDesc")}
             </p>
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/profesor/registrar-entrenamientos"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
@@ -216,9 +225,9 @@ export default function Home() {
             <p className="text-zinc-400 mt-2">
               {t("home.registrarEntrenamientosDesc")}
             </p>
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/ejercicios"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
@@ -229,9 +238,9 @@ export default function Home() {
             <p className="text-zinc-400 mt-2">
               {t("home.ejerciciosDesc")}
             </p>
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/historial"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
@@ -242,9 +251,9 @@ export default function Home() {
             <p className="text-zinc-400 mt-2">
               {t("home.historialDesc")}
             </p>
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/evaluaciones"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
@@ -255,9 +264,9 @@ export default function Home() {
             <p className="text-zinc-400 mt-2">
               {t("home.evaluacionesDesc")}
             </p>
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/mensajes"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition"
           >
@@ -268,9 +277,9 @@ export default function Home() {
             <p className="text-zinc-400 mt-2">
               {t("home.mensajesDesc")}
             </p>
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/configuracion"
             className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:bg-zinc-800 transition md:col-span-3"
           >
@@ -281,7 +290,7 @@ export default function Home() {
             <p className="text-zinc-400 mt-2">
               {t("home.configuracionDesc")}
             </p>
-          </a>
+          </Link>
         </section>
       </div>
     </main>

@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { usePageTitle } from "@/lib/usePageTitle";
 import { supabase } from "@/lib/supabase";
 import { normalizarRelacion } from "@/lib/utils/normalizarRelacion";
 import EstadoAlumnoCard from "@/components/alumno/EstadoAlumnoCard";
 import { obtenerEstadoAlumno, type EstadoAlumnoCardData } from "@/lib/alumno/obtenerEstadoAlumno";
 import { obtenerPendientesAlumno, type ResumenPendientesAlumno } from "@/lib/alumno/obtenerPendientesAlumnos";
-import { obtenerRMsActualesAlumno } from "@/lib/rmActual";
+import { obtenerMejorRMAlumno } from "@/lib/rmActual";
 import { obtenerMetricasResumen } from "@/lib/alumno/obtenerMetricasResumen";
 import { getAlumnoCached } from "@/lib/alumno/alumno-cache";
 import { useIdioma } from "@/lib/i18n-context";
@@ -22,6 +24,7 @@ function obtenerRelacionUnica<T>(relacion: T | T[] | undefined | null): T | unde
 export default function AlumnoHome() {
   usePageTitle("home");
   const { t } = useIdioma();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
@@ -39,7 +42,7 @@ export default function AlumnoHome() {
 
   async function cargarDatos() {
     const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) { window.location.href = "/login"; return; }
+    if (!sessionData.session) { router.replace("/login"); return; }
     const user = sessionData.session.user;
 
     // Paso 1: perfil y datos del alumno en paralelo (ambos necesitan user.id)
@@ -49,7 +52,7 @@ export default function AlumnoHome() {
     ]);
 
     const perfil = perfilResult.data;
-    if (!perfil || perfil.rol !== "alumno") { window.location.href = "/"; return; }
+    if (!perfil || perfil.rol !== "alumno") { router.replace("/"); return; }
     setProfile(perfil);
 
     if (alumnoData) setAlumno(alumnoData);
@@ -58,11 +61,11 @@ export default function AlumnoHome() {
     // Marcar como cargado el contenido principal (header + métricas) apenas se tengan datos esenciales
     setLoading(false);
 
-    // Paso 2: pendientes, métricas y RMs en paralelo (todos necesitan alumnoData.id)
-    const [resumenData, metricas, rmsResult] = await Promise.all([
+    // Paso 2: pendientes, métricas y mejor RM en paralelo (todos necesitan alumnoData.id)
+    const [resumenData, metricas, mejorRMData] = await Promise.all([
       obtenerPendientesAlumno(supabase, alumnoData.id),
       obtenerMetricasResumen(supabase, alumnoData.id),
-      obtenerRMsActualesAlumno(alumnoData.id),
+      obtenerMejorRMAlumno(alumnoData.id),
     ]);
 
     setResumen(resumenData);
@@ -74,19 +77,7 @@ export default function AlumnoHome() {
     const estadoData = obtenerEstadoAlumno({ pendientes: resumenData, tieneHistorial, t });
     setEstadoCard(estadoData);
 
-    // Paso 3: nombre del mejor RM (los RMs ya vienen ordenados por rm_calculado desc)
-    const rms = rmsResult.data || [];
-    if (rms.length > 0) {
-      const mejor = rms[0];
-      const ids = Array.from(new Set(rms.map((rm) => rm.ejercicio_id).filter(Boolean)));
-      let nombreEj = "";
-      if (ids.length > 0) {
-        const { data: ejData } = await supabase.from("ejercicios").select("id,nombre").in("id", ids);
-        const ej = ejData?.find((e) => e.id === mejor.ejercicio_id);
-        nombreEj = ej?.nombre || "";
-      }
-      setMejorRM({ peso: mejor.rm_calculado, reps: mejor.repeticiones, nombre: nombreEj });
-    }
+    if (mejorRMData) setMejorRM(mejorRMData);
   }
 
   if (loading) {
@@ -109,7 +100,13 @@ export default function AlumnoHome() {
     <main className="min-h-screen bg-[#0E0E0E] text-white p-6 pb-28">
       <div className="max-w-5xl mx-auto">
         <header className="flex items-center gap-4 mb-8">
-          <img src={alumno?.foto_url || "https://placehold.co/120x120/png?text=👤"} alt={t("perfil.fotoPerfil")} className="w-20 h-20 rounded-full object-cover border-2 border-white/[0.07]" />
+          <Image
+            src={alumno?.foto_url || "https://placehold.co/120x120/png?text=👤"}
+            alt={t("perfil.fotoPerfil")}
+            width={80}
+            height={80}
+            className="w-20 h-20 rounded-full object-cover border-2 border-white/[0.07]"
+          />
           <div>
             <h1 className="text-3xl font-bold">{t("alumno.hola", { nombre: alumno?.nombre || profile?.nombre || "" })}</h1>
             <p className="text-[#7a7a7a] mt-1">{t("alumno.listoEntrenar")}</p>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import BackButton from "@/components/BackButton";
 import { usePageTitle } from "@/lib/usePageTitle";
 import { supabase } from "@/lib/supabase";
@@ -9,40 +10,21 @@ import {
   obtenerPendientesAlumno,
   type PendienteAlumno,
 } from "@/lib/alumno/obtenerPendientesAlumnos";
-import { parseFechaLocal, formatearFechaCorta } from "@/lib/utils/formatearFecha";
+import { formatearFechaCorta } from "@/lib/utils/formatearFecha";
+import {
+  hoyKey,
+  normalizarFecha,
+  obtenerEtiquetaActividad,
+} from "@/lib/alumno/planificacion-utils";
 import VerEvaluacionModal from "@/components/alumno/VerEvaluacionModal";
 import VerRutinaModal from "@/components/alumno/VerRutinaModal";
 import WeeklyDatePicker from "@/components/alumno/WeeklyDatePicker";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useIdioma } from "@/lib/i18n-context";
 
-function getTipoDisplay(actividad: PendienteAlumno) {
-  if (actividad.tipo === "rutina") return "Rutina";
-  if (actividad.subtipo) return `Evaluaci\u00f3n ${actividad.subtipo.toUpperCase()}`;
-  return "Evaluaci\u00f3n";
-}
-
-function obtenerTimestampActividad(actividad: PendienteAlumno) {
-  if (!actividad.fecha) return Number.MAX_SAFE_INTEGER;
-  const timestamp = parseFechaLocal(actividad.fecha)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-  return Number.isNaN(timestamp) ? Number.MAX_SAFE_INTEGER : timestamp;
-}
-
-function normalizarFecha(fecha?: string | null): string | null {
-  if (!fecha) return null;
-  return fecha.split("T")[0];
-}
-
-function hoyKey(): string {
-  const hoy = new Date();
-  const y = hoy.getFullYear();
-  const m = String(hoy.getMonth() + 1).padStart(2, "0");
-  const d = String(hoy.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 export default function NuevaRutinaPage() {
   usePageTitle("alumnoRutina");
+  const router = useRouter();
   const { mostrarToast } = useToast();
   const { t } = useIdioma();
   const [loading, setLoading] = useState(true);
@@ -66,17 +48,24 @@ export default function NuevaRutinaPage() {
     setError(null);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { window.location.href = "/login"; return; }
+      if (!user) { router.replace("/login"); return; }
       const { data: alumnoRows, error: alumnoError } = await supabase.from("alumnos").select("id").eq("user_id", user.id).limit(1).maybeSingle();
       if (alumnoError || !alumnoRows) { setError("No se pudo encontrar el alumno vinculado a este usuario."); setLoading(false); return; }
-      const resumenPendientes = await obtenerPendientesAlumno(supabase, alumnoRows.id);
-      setPendientes(resumenPendientes.pendientes || []);
 
-      const [rutinasCompletadas, evaluacionesRmCompletadas, evaluacionesFmsCompletadas] = await Promise.all([
+      // Un único batch en paralelo: pendientes + completadas (antes eran 2 round-trips secuenciales)
+      const [
+        resumenPendientes,
+        rutinasCompletadas,
+        evaluacionesRmCompletadas,
+        evaluacionesFmsCompletadas,
+      ] = await Promise.all([
+        obtenerPendientesAlumno(supabase, alumnoRows.id),
         supabase.from("rutina_asignaciones").select("id, fecha_asignacion, rutinas(nombre)").eq("alumno_id", alumnoRows.id).eq("completada", true),
         supabase.from("evaluaciones_rm").select("id, nombre, estado, fecha_asignacion, created_at").eq("alumno_id", alumnoRows.id).in("estado", ["completada", "cargado"]),
         supabase.from("evaluaciones_fms").select("id, estado, fecha_asignacion, created_at").eq("alumno_id", alumnoRows.id).in("estado", ["completada", "cargado"]),
       ]);
+
+      setPendientes(resumenPendientes.pendientes || []);
 
       const completadasArray: PendienteAlumno[] = [];
       (rutinasCompletadas.data || []).forEach((r: any) => {
@@ -117,9 +106,18 @@ export default function NuevaRutinaPage() {
 
   const completadasDelDia = useMemo(() => completadas.filter((c) => normalizarFecha(c.fecha) === selectedDateKey), [completadas, selectedDateKey]);
 
-  const pendientesOrdenados = [...pendientes].sort((a, b) => obtenerTimestampActividad(a) - obtenerTimestampActividad(b));
-  const rutinasPendientes = pendientesOrdenados.filter(p => p.tipo === "rutina").length;
-  const evaluacionesPendientes = pendientesOrdenados.filter(p => p.tipo !== "rutina").length;
+  const { rutinasPendientes, evaluacionesPendientes } = useMemo(() => {
+    let rutinas = 0;
+    let evaluaciones = 0;
+
+    for (const pendiente of pendientes) {
+      if (pendiente.tipo === "rutina") rutinas += 1;
+      else evaluaciones += 1;
+    }
+
+    return { rutinasPendientes: rutinas, evaluacionesPendientes: evaluaciones };
+  }, [pendientes]);
+
   const hayVencidas = overdueDates.length > 0;
   const sePuedeRealizar = (fecha: string | null | undefined): boolean => {
     if (!fecha) return true;
@@ -173,7 +171,7 @@ export default function NuevaRutinaPage() {
                   <div key={`${actividad.tipo}-${actividad.subtipo || ""}-${actividad.id}`} className="border border-white/[0.07] rounded-xl p-4 hover:border-[#08A66C]/20 transition">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-xs uppercase tracking-wide text-[#4a4a4a] mb-0.5">{getTipoDisplay(actividad)}</div>
+                        <div className="text-xs uppercase tracking-wide text-[#4a4a4a] mb-0.5">{obtenerEtiquetaActividad(actividad, t)}</div>
                         <div className="text-lg font-bold text-[#F0F0F0]">{actividad.nombre}</div>
                         {actividad.fecha && <div className="text-sm text-[#7a7a7a] mt-1">{formatearFechaCorta(actividad.fecha)}</div>}
                       </div>
@@ -207,7 +205,7 @@ export default function NuevaRutinaPage() {
                   <div key={`${actividad.tipo}-${actividad.subtipo || ""}-${actividad.id}`} className="border border-white/[0.07] rounded-xl p-4 opacity-80">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-xs uppercase tracking-wide text-[#4a4a4a] mb-0.5">{getTipoDisplay(actividad)}</div>
+                        <div className="text-xs uppercase tracking-wide text-[#4a4a4a] mb-0.5">{obtenerEtiquetaActividad(actividad, t)}</div>
                         <div className="text-lg font-bold text-[#F0F0F0]">{actividad.nombre}</div>
                         {actividad.fecha && <div className="text-sm text-[#7a7a7a] mt-1">{formatearFechaCorta(actividad.fecha)}</div>}
                       </div>
